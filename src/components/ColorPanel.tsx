@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import { ColorSwatch } from './ui/ColorSwatch';
+import { Overlay } from './ui/Overlay';
 
 interface ColorInfo {
   color: string;
@@ -45,28 +47,32 @@ const ColorPanel: React.FC<ColorPanelProps> = ({
     });
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-end">
-      <div className="w-full bg-white rounded-t-2xl max-h-[80vh] flex flex-col">
-        {/* 拖拽指示条 */}
+    <Overlay labelledBy="color-panel-title" placement="sheet" onClose={onClose}>
+        <h2 id="color-panel-title" className="sr-only">选择颜色</h2>
         <div className="flex justify-center py-2">
           <div className="w-10 h-1 bg-gray-300 rounded-full"></div>
         </div>
 
-        {/* 搜索框 */}
         <div className="px-4 pb-3">
           <div className="relative">
+            <label htmlFor="color-panel-search" className="sr-only">搜索颜色</label>
             <input
-              type="text"
-              placeholder="搜索颜色..."
+              id="color-panel-search"
+              type="search"
+              name="color-search"
+              autoComplete="off"
+              spellCheck={false}
+              placeholder="搜索颜色…"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full rounded-lg border border-gray-300 py-2 pl-10 pr-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
             />
-            <svg 
-              className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" 
-              fill="none" 
-              stroke="currentColor" 
+            <svg
+              className="absolute left-3 top-2.5 h-5 w-5 text-gray-400"
+              fill="none"
+              stroke="currentColor"
               viewBox="0 0 24 24"
+              aria-hidden="true"
             >
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
             </svg>
@@ -75,10 +81,13 @@ const ColorPanel: React.FC<ColorPanelProps> = ({
 
         {/* 排序选项 */}
         <div className="px-4 pb-3">
+          <label htmlFor="color-panel-sort" className="sr-only">排序方式</label>
           <select
+            id="color-panel-sort"
+            name="color-sort"
             value={sortBy}
             onChange={(e) => setSortBy(e.target.value as 'progress' | 'name' | 'total')}
-            className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full rounded-lg border border-gray-300 bg-white p-2 text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
           >
             <option value="progress">按进度排序</option>
             <option value="name">按名称排序</option>
@@ -88,6 +97,9 @@ const ColorPanel: React.FC<ColorPanelProps> = ({
 
         {/* 颜色列表 */}
         <div className="flex-1 overflow-y-auto px-4 pb-4">
+          {filteredAndSortedColors.length === 0 ? (
+            <p className="py-8 text-center text-sm text-gray-400">没有匹配的颜色</p>
+          ) : null}
           {filteredAndSortedColors.map((colorInfo) => {
             const progressPercentage = Math.round((colorInfo.completed / colorInfo.total) * 100);
             const isSelected = colorInfo.color === currentColor;
@@ -96,8 +108,9 @@ const ColorPanel: React.FC<ColorPanelProps> = ({
             return (
               <button
                 key={colorInfo.color}
+                type="button"
                 onClick={() => onColorSelect(colorInfo.color)}
-                className={`w-full p-3 mb-2 rounded-lg border-2 transition-all ${
+                className={`mb-2 w-full rounded-lg border-2 p-3 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${
                   isSelected 
                     ? 'border-blue-500 bg-blue-50' 
                     : 'border-gray-200 bg-white hover:border-gray-300'
@@ -105,10 +118,7 @@ const ColorPanel: React.FC<ColorPanelProps> = ({
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-3">
-                    <div
-                      className="w-10 h-10 rounded-full border-2 border-gray-300 flex-shrink-0"
-                      style={{ backgroundColor: colorInfo.color }}
-                    />
+                    <ColorSwatch hex={colorInfo.color} size="lg" shape="circle" />
                     <div className="text-left">
                       <div className="text-sm font-medium text-gray-800 font-mono">
                         {colorInfo.name}
@@ -140,7 +150,7 @@ const ColorPanel: React.FC<ColorPanelProps> = ({
                 {/* 进度条 */}
                 <div className="mt-2 w-full bg-gray-200 rounded-full h-1.5">
                   <div 
-                    className={`h-1.5 rounded-full transition-all ${
+                    className={`h-1.5 rounded-full ${
                       isCompleted ? 'bg-green-500' : 'bg-blue-500'
                     }`}
                     style={{ width: `${progressPercentage}%` }}
@@ -154,14 +164,14 @@ const ColorPanel: React.FC<ColorPanelProps> = ({
         {/* 关闭按钮 */}
         <div className="p-4 border-t border-gray-200">
           <button
+            type="button"
             onClick={onClose}
-            className="w-full py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors"
+            className="w-full rounded-lg bg-gray-500 py-3 text-white hover:bg-gray-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
           >
             关闭
           </button>
         </div>
-      </div>
-    </div>
+    </Overlay>
   );
 };
 

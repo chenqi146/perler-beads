@@ -1,4 +1,7 @@
 import React from 'react';
+import { ColorSwatch } from './ui/ColorSwatch';
+import { CloseIcon, IconButton } from './ui/IconButton';
+import { Overlay } from './ui/Overlay';
 
 interface SettingsPanelProps {
   guidanceMode: 'nearest' | 'largest' | 'edge-first';
@@ -37,19 +40,12 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
     { color: '#6c757d', name: '灰色' }
   ];
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-start justify-end">
-      <div className="w-80 max-w-[90vw] h-full bg-white shadow-lg flex flex-col">
-        {/* 头部 */}
+    <Overlay labelledBy="settings-panel-title" placement="drawer" onClose={onClose} panelClassName="shadow-lg">
         <div className="flex items-center justify-between p-4 border-b border-gray-200">
-          <h2 className="text-lg font-medium text-gray-800">设置</h2>
-          <button
-            onClick={onClose}
-            className="text-gray-500 hover:text-gray-700"
-          >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
+          <h2 id="settings-panel-title" className="text-lg font-medium text-gray-800">设置</h2>
+          <IconButton aria-label="关闭" onClick={onClose}>
+            <CloseIcon />
+          </IconButton>
         </div>
 
         {/* 设置内容 */}
@@ -153,16 +149,13 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                     </label>
                     <div className="flex gap-2 flex-wrap">
                       {sectionLineColors.map((colorOption) => (
-                        <button
+                        <ColorSwatch
                           key={colorOption.color}
+                          hex={colorOption.color}
+                          shape="circle"
+                          isSelected={sectionLineColor === colorOption.color}
+                          aria-label={colorOption.name}
                           onClick={() => onSectionLineColorChange(colorOption.color)}
-                          className={`w-6 h-6 rounded-full border-2 transition-all ${
-                            sectionLineColor === colorOption.color
-                              ? 'border-gray-800 scale-110'
-                              : 'border-gray-300 hover:border-gray-500'
-                          }`}
-                          style={{ backgroundColor: colorOption.color }}
-                          title={colorOption.name}
                         />
                       ))}
                     </div>
@@ -215,8 +208,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
             </div>
           </div>
         </div>
-      </div>
-    </div>
+    </Overlay>
   );
 };
 

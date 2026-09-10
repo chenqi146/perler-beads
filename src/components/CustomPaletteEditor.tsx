@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { PaletteColor } from '../utils/pixelation';
 import { PaletteSelections } from '../utils/localStorageUtils';
 import { getDisplayColorKey, ColorSystem } from '../utils/colorSystemUtils';
+import { CloseIcon, IconButton } from './ui/IconButton';
 
 // 对颜色进行分组的工具函数，按前缀分组
 function groupColorsByPrefix(colors: PaletteColor[], selectedColorSystem: ColorSystem): Record<string, PaletteColor[]> {
@@ -136,20 +137,15 @@ const CustomPaletteEditor: React.FC<CustomPaletteEditorProps> = ({
     <div className="flex flex-col h-full max-h-[calc(90vh-80px)]">
       {/* 头部 */}
       <div className="flex justify-between items-center border-b dark:border-gray-700 pb-3 mb-3">
-        <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100 flex items-center">
+        <h2 id="custom-palette-title" className="text-lg font-semibold text-gray-800 dark:text-gray-100 flex items-center">
           <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 text-blue-500" viewBox="0 0 20 20" fill="currentColor">
             <path fillRule="evenodd" d="M4 2a2 2 0 00-2 2v11a3 3 0 106 0V4a2 2 0 00-2-2H4zm1 14a1 1 0 100-2 1 1 0 000 2zm5-1.757l4.9-4.9a2 2 0 000-2.828L13.485 5.1a2 2 0 00-2.828 0L10 5.757v8.486zM16 18H9.071l6-6H16a2 2 0 012 2v2a2 2 0 01-2 2z" clipRule="evenodd" />
           </svg>
           色板管理中心 <span className="ml-2 text-sm text-blue-500 dark:text-blue-400">({selectedCount} 色)</span>
         </h2>
-        <button 
-          onClick={onClose}
-          className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-          </svg>
-        </button>
+        <IconButton aria-label="关闭" onClick={onClose}>
+          <CloseIcon />
+        </IconButton>
       </div>
       
       {/* 搜索框 */}

@@ -4,6 +4,7 @@ import React from 'react';
 import { MappedPixel } from '../utils/pixelation';
 import { ColorSystem } from '../utils/colorSystemUtils';
 import { exportCsvData } from '../utils/imageDownloader';
+import { Overlay } from './ui/Overlay';
 
 interface FocusModePreDownloadModalProps {
   isOpen: boolean;
@@ -39,8 +40,8 @@ const FocusModePreDownloadModal: React.FC<FocusModePreDownloadModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-md w-full p-6 space-y-4">
+    <Overlay labelledBy="focus-mode-title" onClose={onClose} panelClassName="max-w-md p-6">
+      <div className="space-y-4">
         {/* 标题 */}
         <div className="text-center">
           <div className="w-16 h-16 bg-purple-100 dark:bg-purple-900/50 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -49,7 +50,7 @@ const FocusModePreDownloadModal: React.FC<FocusModePreDownloadModalProps> = ({
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
             </svg>
           </div>
-          <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
+          <h3 id="focus-mode-title" className="text-xl font-semibold text-gray-900 dark:text-gray-100">
             进入专心拼豆模式
           </h3>
         </div>
@@ -84,31 +85,34 @@ const FocusModePreDownloadModal: React.FC<FocusModePreDownloadModalProps> = ({
         {/* 操作按钮 */}
         <div className="flex flex-col space-y-2 pt-4">
           <button
+            type="button"
             onClick={handleDownloadAndProceed}
-            className="w-full py-2.5 px-4 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white rounded-lg font-medium transition-all duration-200 flex items-center justify-center space-x-2"
+            className="flex w-full items-center justify-center space-x-2 rounded-lg bg-green-600 px-4 py-2.5 font-medium text-white hover:bg-green-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
             </svg>
             <span>下载数据文件并进入</span>
           </button>
           
           <button
+            type="button"
             onClick={onProceedWithoutDownload}
-            className="w-full py-2.5 px-4 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg font-medium transition-all duration-200"
+            className="w-full rounded-lg bg-gray-100 px-4 py-2.5 font-medium text-gray-700 hover:bg-gray-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
           >
             直接进入（不下载）
           </button>
           
           <button
+            type="button"
             onClick={onClose}
-            className="w-full py-2 px-4 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 text-sm transition-colors"
+            className="w-full px-4 py-2 text-sm text-gray-500 hover:text-gray-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:text-gray-400 dark:hover:text-gray-200"
           >
             取消
           </button>
         </div>
       </div>
-    </div>
+    </Overlay>
   );
 };
 

@@ -22,6 +22,12 @@ interface OklabColor {
   b: number;
 }
 
+interface LabColor {
+  l: number;
+  a: number;
+  b: number;
+}
+
 export interface PaletteColor {
   key: string;
   hex: string;
@@ -73,33 +79,143 @@ function rgbToOklab(rgb: RgbColor): OklabColor {
   };
 }
 
-const oklabCache = new Map<string, OklabColor>();
+/** sRGB → CIELAB (D65)，供 CIEDE2000 使用 */
+function rgbToLab(rgb: RgbColor): LabColor {
+  const r = srgbChannelToLinear(rgb.r);
+  const g = srgbChannelToLinear(rgb.g);
+  const b = srgbChannelToLinear(rgb.b);
 
-function getOklabColor(rgb: RgbColor): OklabColor {
-  const cacheKey = `${rgb.r},${rgb.g},${rgb.b}`;
-  const cached = oklabCache.get(cacheKey);
-  if (cached) {
-    return cached;
-  }
+  // sRGB D65 → XYZ
+  let x = r * 0.4124564 + g * 0.3575761 + b * 0.1804375;
+  let y = r * 0.2126729 + g * 0.7151522 + b * 0.0721750;
+  let z = r * 0.0193339 + g * 0.1191920 + b * 0.9503041;
 
-  const oklab = rgbToOklab(rgb);
-  oklabCache.set(cacheKey, oklab);
-  return oklab;
+  // 相对 D65 白点归一化
+  x /= 0.95047;
+  y /= 1.0;
+  z /= 1.08883;
+
+  const f = (t: number) =>
+    t > 0.008856 ? Math.cbrt(t) : 7.787 * t + 16 / 116;
+
+  const fx = f(x);
+  const fy = f(y);
+  const fz = f(z);
+
+  return {
+    l: 116 * fy - 16,
+    a: 500 * (fx - fy),
+    b: 200 * (fy - fz),
+  };
 }
 
-// 使用 Oklab 空间计算颜色距离，并保持与现有 0-100 阈值输入兼容。
+/** CIEDE2000 感知色差（ΔE00），数值越小越接近人眼观感 */
+function ciede2000(lab1: LabColor, lab2: LabColor): number {
+  const { l: L1, a: a1, b: b1 } = lab1;
+  const { l: L2, a: a2, b: b2 } = lab2;
+  const kL = 1;
+  const kC = 1;
+  const kH = 1;
+
+  const C1 = Math.sqrt(a1 * a1 + b1 * b1);
+  const C2 = Math.sqrt(a2 * a2 + b2 * b2);
+  const Cbar = (C1 + C2) / 2;
+
+  const Cbar7 = Cbar ** 7;
+  const G = 0.5 * (1 - Math.sqrt(Cbar7 / (Cbar7 + 25 ** 7)));
+
+  const a1p = (1 + G) * a1;
+  const a2p = (1 + G) * a2;
+  const C1p = Math.sqrt(a1p * a1p + b1 * b1);
+  const C2p = Math.sqrt(a2p * a2p + b2 * b2);
+
+  const h = (ap: number, bp: number) => {
+    if (ap === 0 && bp === 0) return 0;
+    const hp = Math.atan2(bp, ap) * (180 / Math.PI);
+    return hp >= 0 ? hp : hp + 360;
+  };
+  const h1p = h(a1p, b1);
+  const h2p = h(a2p, b2);
+
+  const dLp = L2 - L1;
+  const dCp = C2p - C1p;
+
+  let dhp = 0;
+  if (C1p * C2p !== 0) {
+    const diff = h2p - h1p;
+    if (Math.abs(diff) <= 180) dhp = diff;
+    else if (diff > 180) dhp = diff - 360;
+    else dhp = diff + 360;
+  }
+  const dHp = 2 * Math.sqrt(C1p * C2p) * Math.sin((dhp * Math.PI) / 180 / 2);
+
+  const Lbar = (L1 + L2) / 2;
+  const Cpbar = (C1p + C2p) / 2;
+
+  let hpbar = 0;
+  if (C1p * C2p === 0) {
+    hpbar = h1p + h2p;
+  } else {
+    const sum = h1p + h2p;
+    const diff = Math.abs(h1p - h2p);
+    if (diff <= 180) hpbar = sum / 2;
+    else if (sum < 360) hpbar = (sum + 360) / 2;
+    else hpbar = (sum - 360) / 2;
+  }
+
+  const T =
+    1 -
+    0.17 * Math.cos(((hpbar - 30) * Math.PI) / 180) +
+    0.24 * Math.cos((2 * hpbar * Math.PI) / 180) +
+    0.32 * Math.cos(((3 * hpbar + 6) * Math.PI) / 180) -
+    0.2 * Math.cos(((4 * hpbar - 63) * Math.PI) / 180);
+
+  const dTheta = 30 * Math.exp(-(((hpbar - 275) / 25) ** 2));
+  const Cpbar7 = Cpbar ** 7;
+  const RC = 2 * Math.sqrt(Cpbar7 / (Cpbar7 + 25 ** 7));
+  const SL = 1 + (0.015 * (Lbar - 50) ** 2) / Math.sqrt(20 + (Lbar - 50) ** 2);
+  const SC = 1 + 0.045 * Cpbar;
+  const SH = 1 + 0.015 * Cpbar * T;
+  const RT = -Math.sin((2 * dTheta * Math.PI) / 180) * RC;
+
+  const dL = dLp / (kL * SL);
+  const dC = dCp / (kC * SC);
+  const dH = dHp / (kH * SH);
+
+  return Math.sqrt(dL * dL + dC * dC + dH * dH + RT * dC * dH);
+}
+
+const labCache = new Map<string, LabColor>();
+
+function getLabColor(rgb: RgbColor): LabColor {
+  const cacheKey = `${rgb.r},${rgb.g},${rgb.b}`;
+  const cached = labCache.get(cacheKey);
+  if (cached) return cached;
+  const lab = rgbToLab(rgb);
+  labCache.set(cacheKey, lab);
+  return lab;
+}
+
+/**
+ * 感知色差距离（CIEDE2000 ΔE00）。
+ * 约 <2 人眼难辨；2–10 可察觉；>15 明显偏色。
+ * 颜色合并滑块仍用同一数值尺度（建议保持默认 0，谨慎上调）。
+ */
 export function colorDistance(rgb1: RgbColor, rgb2: RgbColor): number {
-  const oklab1 = getOklabColor(rgb1);
-  const oklab2 = getOklabColor(rgb2);
+  return ciede2000(getLabColor(rgb1), getLabColor(rgb2));
+}
 
-  const dl = oklab1.l - oklab2.l;
-  const da = oklab1.a - oklab2.a;
-  const db = oklab1.b - oklab2.b;
-
+/** 兼容旧逻辑：Oklab 欧氏距离（×100），仅供对照/调试 */
+export function colorDistanceOklab(rgb1: RgbColor, rgb2: RgbColor): number {
+  const o1 = rgbToOklab(rgb1);
+  const o2 = rgbToOklab(rgb2);
+  const dl = o1.l - o2.l;
+  const da = o1.a - o2.a;
+  const db = o1.b - o2.b;
   return Math.sqrt(dl * dl + da * da + db * db) * 100;
 }
 
-// 查找最接近的颜色
+// 查找最接近的颜色（CIEDE2000 最小者）
 export function findClosestPaletteColor(
   targetRgb: RgbColor,
   palette: PaletteColor[]

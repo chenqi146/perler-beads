@@ -20,9 +20,9 @@ const GridTooltip: React.FC<GridTooltipProps> = ({ tooltipData, selectedColorSys
     <div
       className="absolute bg-gray-800 text-white text-xs px-2 py-1 rounded shadow-lg pointer-events-none flex items-center space-x-1.5 z-50"
       style={{
-        left: `${tooltipData.x}px`, 
-        top: `${tooltipData.y - 25}px`, // 向上偏移，使提示框显示在鼠标上方
-        transform: 'translate(-50%, -100%)', // 水平居中，不再垂直偏移
+        left: `${tooltipData.x}px`,
+        top: `${tooltipData.y}px`,
+        transform: 'translate(-50%, calc(-100% - 10px))', // 紧贴光标上方
         whiteSpace: 'nowrap',
       }}
     >

@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { Analytics } from "@vercel/analytics/next";
+import WelcomeSplash from "@/components/WelcomeSplash";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -14,13 +15,13 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "七卡瓦拼豆底稿生成器 | Perler Beads Generator",
+  title: "喵喵的拼豆小屋",
   description: "上传图片，调整精细度，一键生成像素画图纸，简单实用的像素画生成工具",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "拼豆生成器",
+    title: "喵喵的拼豆小屋",
   },
   icons: {
     icon: [
@@ -51,6 +52,7 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased overflow-x-hidden bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100`}
       >
+        <WelcomeSplash />
         {children}
         <Analytics />
       </body>

@@ -1,5 +1,6 @@
 import React, { useState, useRef, useCallback } from 'react';
 import { MappedPixel } from '../utils/pixelation';
+import { Overlay } from './ui/Overlay';
 
 interface CompletionCardProps {
   isVisible: boolean;
@@ -409,11 +410,11 @@ const CompletionCard: React.FC<CompletionCardProps> = ({
   if (!isVisible) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-lg max-w-md w-full max-h-[90vh] overflow-y-auto">
+    <>
+    <Overlay labelledBy="completion-title" onClose={onClose} panelClassName="max-h-[90vh] max-w-md overflow-y-auto rounded-lg">
         <div className="p-6">
           <div className="text-center mb-6">
-            <h2 className="text-2xl font-bold text-gray-800 mb-2">
+            <h2 id="completion-title" className="text-2xl font-bold text-gray-800 mb-2">
               🎉 作品完成 🎉
             </h2>
             <div className="text-gray-600 space-y-1">
@@ -513,12 +514,10 @@ const CompletionCard: React.FC<CompletionCardProps> = ({
             </button>
           </div>
         </div>
-      </div>
-
-      {/* 隐藏的canvas用于生成图片 */}
+    </Overlay>
       <canvas ref={canvasRef} style={{ display: 'none' }} />
       <canvas ref={cardCanvasRef} style={{ display: 'none' }} />
-    </div>
+    </>
   );
 };
 
