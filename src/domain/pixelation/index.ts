@@ -28,6 +28,8 @@ export {
   getRegionCenter,
   sortRegionsByDistance,
   sortRegionsBySize,
+  getRegionEdgeDistance,
+  sortRegionsByEdge,
 } from './floodFillUtils';
 
 export {

@@ -52,6 +52,7 @@ type EditorState = {
   showSelectionRecolor: boolean;
 
   editHistory: EditSnapshot[];
+  editRedo: EditSnapshot[];
   bgRemovalSnapshot: EditSnapshot | null;
 
   setMappedPixelData: (data: MappedPixel[][] | null) => void;
@@ -88,6 +89,7 @@ type EditorState = {
   setShowSelectionRecolor: (v: boolean) => void;
 
   setEditHistory: (h: EditSnapshot[] | ((prev: EditSnapshot[]) => EditSnapshot[])) => void;
+  setEditRedo: (h: EditSnapshot[] | ((prev: EditSnapshot[]) => EditSnapshot[])) => void;
   setBgRemovalSnapshot: (s: EditSnapshot | null) => void;
 
   hydrateFromPatternData: (data: PatternData) => void;
@@ -127,6 +129,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   showSelectionRecolor: false,
 
   editHistory: [],
+  editRedo: [],
   bgRemovalSnapshot: null,
 
   setMappedPixelData: (data) => set({ mappedPixelData: data }),
@@ -176,6 +179,10 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     set((s) => ({
       editHistory: typeof h === 'function' ? h(s.editHistory) : h,
     })),
+  setEditRedo: (h) =>
+    set((s) => ({
+      editRedo: typeof h === 'function' ? h(s.editRedo) : h,
+    })),
   setBgRemovalSnapshot: (snap) => set({ bgRemovalSnapshot: snap }),
 
   hydrateFromPatternData: (data) => {
@@ -193,6 +200,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       selectedCells: new Set(),
       cropRect: null,
       editHistory: [],
+      editRedo: [],
       bgRemovalSnapshot: null,
     });
   },
@@ -220,6 +228,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       selectedCells: new Set(),
       cropRect: null,
       editHistory: [],
+      editRedo: [],
       bgRemovalSnapshot: null,
       selectedColor: null,
     }),

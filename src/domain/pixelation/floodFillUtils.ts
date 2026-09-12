@@ -142,4 +142,33 @@ export function sortRegionsBySize(
   regions: { row: number; col: number }[][]
 ): { row: number; col: number }[][] {
   return regions.sort((a, b) => b.length - a.length);
-} 
+}
+
+/** 区域中心到画布边界的最小距离（越小越靠边缘） */
+export function getRegionEdgeDistance(
+  region: { row: number; col: number }[],
+  gridRows: number,
+  gridCols: number,
+): number {
+  const center = getRegionCenter(region);
+  return Math.min(
+    center.row,
+    center.col,
+    Math.max(0, gridRows - 1 - center.row),
+    Math.max(0, gridCols - 1 - center.col),
+  );
+}
+
+/** 边缘优先：靠边界的区域排前面 */
+export function sortRegionsByEdge(
+  regions: { row: number; col: number }[][],
+  gridRows: number,
+  gridCols: number,
+): { row: number; col: number }[][] {
+  return [...regions].sort((a, b) => {
+    const da = getRegionEdgeDistance(a, gridRows, gridCols);
+    const db = getRegionEdgeDistance(b, gridRows, gridCols);
+    if (da !== db) return da - db;
+    return b.length - a.length;
+  });
+}

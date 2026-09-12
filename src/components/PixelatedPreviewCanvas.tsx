@@ -41,6 +41,10 @@ interface PixelatedPreviewCanvasProps {
   onCropRectChange?: (rect: CropRect | null) => void;
   /** 空格 / 中键 / 空白处拖动时平移画布 */
   onPanBy?: (dx: number, dy: number) => void;
+  /** 拼豆模式：已完成格子 */
+  completedCells?: Set<string>;
+  /** 拼豆模式：当前推荐区域格子 */
+  recommendedCells?: Set<string>;
 }
 
 export function cellKey(row: number, col: number): string {
@@ -62,6 +66,8 @@ function drawPixelatedCanvas(
     gridInterval: number;
     selectedCells?: Set<string>;
     cropRect?: CropRect | null;
+    completedCells?: Set<string>;
+    recommendedCells?: Set<string>;
   }
 ) {
   const {
@@ -75,6 +81,8 @@ function drawPixelatedCanvas(
     gridInterval,
     selectedCells,
     cropRect,
+    completedCells,
+    recommendedCells,
   } = options;
 
   const { N, M } = dims;
@@ -184,6 +192,26 @@ function drawPixelatedCanvas(
         ctx.strokeStyle = 'rgba(37, 99, 235, 0.95)';
         ctx.lineWidth = 1.5;
         ctx.strokeRect(drawX + 0.75, drawY + 0.75, cellSize - 1.5, cellSize - 1.5);
+      }
+
+      if (completedCells?.has(cellKey(j, i)) && !cellData.isExternal) {
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
+        ctx.fillRect(drawX, drawY, cellSize, cellSize);
+        ctx.strokeStyle = 'rgba(196, 122, 44, 0.75)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(drawX + cellSize * 0.22, drawY + cellSize * 0.52);
+        ctx.lineTo(drawX + cellSize * 0.42, drawY + cellSize * 0.72);
+        ctx.lineTo(drawX + cellSize * 0.78, drawY + cellSize * 0.28);
+        ctx.stroke();
+      }
+
+      if (recommendedCells?.has(cellKey(j, i)) && !cellData.isExternal) {
+        ctx.strokeStyle = 'rgba(234, 88, 12, 0.95)';
+        ctx.lineWidth = Math.max(2, cellSize * 0.12);
+        ctx.strokeRect(drawX + 1, drawY + 1, cellSize - 2, cellSize - 2);
+        ctx.fillStyle = 'rgba(251, 146, 60, 0.22)';
+        ctx.fillRect(drawX, drawY, cellSize, cellSize);
       }
 
       if (showKeys && !cellData.isExternal && cellData.key !== 'ERASE') {
@@ -301,6 +329,8 @@ const PixelatedPreviewCanvas: React.FC<PixelatedPreviewCanvasProps> = ({
   cropRect,
   onCropRectChange,
   onPanBy,
+  completedCells,
+  recommendedCells,
 }) => {
   const [darkModeState, setDarkModeState] = useState<boolean | null>(null);
   const touchStartPosRef = useRef<{ x: number; y: number; pageX: number; pageY: number } | null>(null);
@@ -369,6 +399,8 @@ const PixelatedPreviewCanvas: React.FC<PixelatedPreviewCanvasProps> = ({
         gridInterval: 10,
         selectedCells,
         cropRect,
+        completedCells,
+        recommendedCells,
       });
     }
   }, [
@@ -384,6 +416,8 @@ const PixelatedPreviewCanvas: React.FC<PixelatedPreviewCanvasProps> = ({
     axisSize,
     selectedCells,
     cropRect,
+    completedCells,
+    recommendedCells,
   ]);
 
   useEffect(() => {

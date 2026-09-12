@@ -7,3 +7,4 @@ export { EditorZoomControls } from './EditorZoomControls';
 export { EditorCanvasWorkspace } from './EditorCanvasWorkspace';
 export type { EditorCanvasWorkspaceProps } from './EditorCanvasWorkspace';
 export { BeadColorList } from './BeadColorList';
+export type { RegionSortMode } from './BeadColorList';

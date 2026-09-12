@@ -20,7 +20,7 @@ function PatternsContent() {
           <p className="eyebrow">MY PATTERNS</p>
           <h1>我的图纸</h1>
         </div>
-        <Link href="/" className="primary-button">
+        <Link href="/dashboard" className="primary-button">
           新建图纸
         </Link>
       </header>

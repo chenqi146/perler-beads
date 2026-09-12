@@ -2,16 +2,28 @@
 
 import { getColorKeyByHex, type ColorSystem } from '../../domain/palette';
 
+export type RegionSortMode = 'nearest' | 'largest' | 'edge';
+
 type BeadColorListProps = {
   sortedColors: string[];
   colorCounts: Record<string, { count: number; color: string }> | null | undefined;
   colorSystem: ColorSystem;
   highlightHex: string | null;
   completedSet: Set<string>;
+  /** hex → 已完成格数 */
+  cellProgress: Record<string, { done: number; total: number }>;
   justCompleted: string | null;
+  regionSortMode: RegionSortMode;
+  onRegionSortModeChange: (mode: RegionSortMode) => void;
   onToggleHighlight: (hex: string) => void;
   onToggleComplete: (hex: string, next: boolean) => void;
 };
+
+const SORT_OPTIONS: { id: RegionSortMode; label: string }[] = [
+  { id: 'nearest', label: '最近' },
+  { id: 'largest', label: '大块' },
+  { id: 'edge', label: '边缘' },
+];
 
 export function BeadColorList({
   sortedColors,
@@ -19,7 +31,10 @@ export function BeadColorList({
   colorSystem,
   highlightHex,
   completedSet,
+  cellProgress,
   justCompleted,
+  regionSortMode,
+  onRegionSortModeChange,
   onToggleHighlight,
   onToggleComplete,
 }: BeadColorListProps) {
@@ -27,7 +42,24 @@ export function BeadColorList({
     <aside className="flex min-h-0 flex-col rounded-xl border border-[#eadfce] bg-[#fffaf3] p-3">
       <div className="mb-2 shrink-0">
         <h2 className="text-sm font-semibold text-[#3a2416]">颜色统计</h2>
-        <p className="mt-0.5 text-[11px] text-[#8a6a4a]">按色号排序 · 点击高亮</p>
+        <p className="mt-0.5 text-[11px] text-[#8a6a4a]">点色号高亮 · 点格子完成</p>
+        <div className="mt-2 flex gap-1" role="group" aria-label="区域推荐排序">
+          {SORT_OPTIONS.map((opt) => (
+            <button
+              key={opt.id}
+              type="button"
+              onClick={() => onRegionSortModeChange(opt.id)}
+              className={[
+                'h-7 flex-1 rounded-lg text-[11px] font-medium transition-colors',
+                regionSortMode === opt.id
+                  ? 'bg-[#c47a2c] text-white'
+                  : 'bg-white text-[#5c4030] ring-1 ring-[#e0d0bc] hover:bg-[#fff4e6]',
+              ].join(' ')}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
       </div>
       <div className="min-h-0 flex-1 space-y-1 overflow-y-auto overscroll-contain pr-0.5">
         {sortedColors.map((hex) => {
@@ -37,6 +69,9 @@ export function BeadColorList({
           const active = highlightHex?.toUpperCase() === hex.toUpperCase();
           const done = completedSet.has(hex.toUpperCase());
           const pop = justCompleted === hex.toUpperCase();
+          const progress = cellProgress[hex.toUpperCase()] ?? cellProgress[hex];
+          const doneCells = progress?.done ?? 0;
+          const totalCells = progress?.total ?? count;
 
           return (
             <div
@@ -64,7 +99,9 @@ export function BeadColorList({
                 >
                   {displayKey}
                 </span>
-                <span className="shrink-0 text-[11px] tabular-nums text-[#8a6a4a]">{count}</span>
+                <span className="shrink-0 text-[11px] tabular-nums text-[#8a6a4a]">
+                  {doneCells}/{totalCells}
+                </span>
               </button>
               <label className="flex shrink-0 cursor-pointer items-center gap-1 text-[11px] font-medium text-[#5c4030]">
                 <input

@@ -5,11 +5,15 @@
 import { useBeadProgressStore } from '../stores';
 
 export function getCompletedColors(patternId: string): string[] {
-  return useBeadProgressStore.getState().getCompleted(patternId);
+  return useBeadProgressStore.getState().getCompletedColors(patternId);
 }
 
-export function setColorCompleted(patternId: string, hexKey: string, completed: boolean): string[] {
-  return useBeadProgressStore.getState().setCompleted(patternId, hexKey, completed);
+export function setColorCompleted(
+  patternId: string,
+  hexKey: string,
+  completed: boolean,
+): string[] {
+  return useBeadProgressStore.getState().setColorCompleted(patternId, hexKey, completed, null);
 }
 
 export function clearBeadProgress(patternId: string) {

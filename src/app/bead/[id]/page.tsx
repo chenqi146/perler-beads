@@ -1,17 +1,30 @@
 'use client';
 
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import RequireAuth from '../../../components/RequireAuth';
 import { useAppNavSubtitle } from '../../../components/shell';
-import { BeadPageToolbar, BeadColorList } from '../../../components/editor';
-import PixelatedPreviewCanvas from '../../../components/PixelatedPreviewCanvas';
+import { BeadPageToolbar, BeadColorList, type RegionSortMode } from '../../../components/editor';
+import PixelatedPreviewCanvas, { cellKey } from '../../../components/PixelatedPreviewCanvas';
 import { getColorKeyByHex, type ColorSystem } from '../../../domain/palette';
+import {
+  getAllConnectedRegions,
+  isRegionCompleted,
+  sortRegionsByDistance,
+  sortRegionsByEdge,
+  sortRegionsBySize,
+} from '../../../domain/pixelation';
 import type { Pattern } from '../../../types/platform';
+import { useBeadProgressStore } from '../../../application/bead/beadProgressStore';
+import {
+  loadCraftSessionForPattern,
+  pushCraftSession,
+} from '../../../utils/craftSessionSync';
 import {
   useCanvasViewport,
   useBeadUi,
+  useBeadCompletedCells,
   useBeadCompletedColors,
   useBeadProgressActions,
   usePatternLoadActions,
@@ -31,19 +44,44 @@ function sortByColorKey(aKey: string, bKey: string, system: ColorSystem): number
   return a.localeCompare(b, 'zh');
 }
 
+function countColorProgress(
+  mappedPixelData: NonNullable<Pattern['data']['mappedPixelData']>,
+  hex: string,
+  cellSet: Set<string>,
+): { done: number; total: number } {
+  const target = hex.toUpperCase();
+  let total = 0;
+  let done = 0;
+  for (let r = 0; r < mappedPixelData.length; r++) {
+    const row = mappedPixelData[r];
+    if (!row) continue;
+    for (let c = 0; c < row.length; c++) {
+      const cell = row[c];
+      if (!cell || cell.isExternal) continue;
+      if ((cell.color || '').toUpperCase() !== target) continue;
+      total += 1;
+      if (cellSet.has(cellKey(r, c))) done += 1;
+    }
+  }
+  return { done, total };
+}
+
 function BeadPageContent() {
   const params = useParams<{ id: string }>();
   const patternId = params.id;
   const [pattern, setPattern] = useState<Pattern | null | undefined>(undefined);
   const [toast, setToast] = useState<string | null>(null);
   const [justCompleted, setJustCompleted] = useState<string | null>(null);
+  const [regionSortMode, setRegionSortMode] = useState<RegionSortMode>('nearest');
+  const lastClickRef = useRef<{ row: number; col: number } | null>(null);
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const viewportRef = useRef<HTMLDivElement | null>(null);
-  const panRef = useRef<{ x: number; y: number; pointerId: number } | null>(null);
 
-  const completedColors = useBeadCompletedColors(patternId);
-  const { setCompleted } = useBeadProgressActions();
+  const completedCellsArr = useBeadCompletedCells(patternId);
+  const { toggleCell, setColorCompleted, setCells } = useBeadProgressActions();
+  const startedAtRef = useRef<number>(Date.now());
+  const syncTimerRef = useRef<number | null>(null);
   const {
     previewZoom,
     canvasOffset,
@@ -59,11 +97,33 @@ function BeadPageContent() {
     const found = loadPattern(patternId);
     setPattern(found ?? null);
     resetViewport();
+    startedAtRef.current = Date.now();
+
+    void (async () => {
+      const remote = await loadCraftSessionForPattern(patternId);
+      const localCells = useBeadProgressStore.getState().getCells(patternId);
+      if (!remote) {
+        if (found) {
+          void pushCraftSession({
+            patternId,
+            completedCells: localCells,
+            patternSnapshot: found.data,
+            status: 'active',
+          });
+        }
+        return;
+      }
+      if (remote.completedCells.length >= localCells.length && remote.completedCells.length > 0) {
+        setCells(patternId, remote.completedCells);
+      }
+    })();
+
     return () => {
       resetViewport();
       setCurrentPattern(null);
+      if (syncTimerRef.current) window.clearTimeout(syncTimerRef.current);
     };
-  }, [patternId, loadPattern, setCurrentPattern, resetViewport]);
+  }, [patternId, loadPattern, setCurrentPattern, resetViewport, setCells]);
 
   const colorSystem = (pattern?.data.selectedColorSystem || 'MARD') as ColorSystem;
   const mappedPixelData = pattern?.data.mappedPixelData ?? null;
@@ -82,10 +142,85 @@ function BeadPageContent() {
       .sort((a, b) => sortByColorKey(a, b, colorSystem));
   }, [colorCounts, colorSystem]);
 
+  const completedColors = useBeadCompletedColors(patternId, mappedPixelData, sortedColors);
+
+  // debounce 推送制作会话
+  useEffect(() => {
+    if (!pattern) return;
+    if (syncTimerRef.current) window.clearTimeout(syncTimerRef.current);
+    syncTimerRef.current = window.setTimeout(() => {
+      const elapsedSeconds = Math.floor((Date.now() - startedAtRef.current) / 1000);
+      const doneSet = new Set(completedColors.map((c) => c.toUpperCase()));
+      const allDone =
+        sortedColors.length > 0 && sortedColors.every((hex) => doneSet.has(hex.toUpperCase()));
+      void pushCraftSession({
+        patternId,
+        completedCells: completedCellsArr,
+        elapsedSeconds,
+        status: allDone ? 'completed' : 'active',
+        patternSnapshot: pattern.data,
+      });
+    }, 800);
+    return () => {
+      if (syncTimerRef.current) window.clearTimeout(syncTimerRef.current);
+    };
+  }, [pattern, patternId, completedCellsArr, completedColors, sortedColors]);
+
   const completedSet = useMemo(
     () => new Set(completedColors.map((c) => c.toUpperCase())),
     [completedColors],
   );
+
+  const completedCellSet = useMemo(() => new Set(completedCellsArr), [completedCellsArr]);
+
+  const cellProgress = useMemo(() => {
+    const result: Record<string, { done: number; total: number }> = {};
+    if (!mappedPixelData) return result;
+    for (const hex of sortedColors) {
+      const progress = countColorProgress(mappedPixelData, hex, completedCellSet);
+      result[hex.toUpperCase()] = progress;
+      result[hex] = progress;
+    }
+    return result;
+  }, [mappedPixelData, sortedColors, completedCellSet]);
+
+  const recommendedCells = useMemo(() => {
+    if (!mappedPixelData || !highlightHex || !gridDimensions) return new Set<string>();
+    const targetUpper = highlightHex.toUpperCase();
+    let exactColor = highlightHex;
+    outer: for (let r = 0; r < mappedPixelData.length; r++) {
+      const row = mappedPixelData[r];
+      if (!row) continue;
+      for (let c = 0; c < row.length; c++) {
+        const cell = row[c];
+        if (cell && !cell.isExternal && (cell.color || '').toUpperCase() === targetUpper) {
+          exactColor = cell.color;
+          break outer;
+        }
+      }
+    }
+    const regions = getAllConnectedRegions(mappedPixelData, exactColor).filter(
+      (region) => !isRegionCompleted(region, completedCellSet),
+    );
+    if (regions.length === 0) return new Set<string>();
+
+    const ref = lastClickRef.current ?? {
+      row: Math.floor(gridDimensions.M / 2),
+      col: Math.floor(gridDimensions.N / 2),
+    };
+
+    let sorted = regions;
+    if (regionSortMode === 'nearest') {
+      sorted = sortRegionsByDistance([...regions], ref);
+    } else if (regionSortMode === 'largest') {
+      sorted = sortRegionsBySize([...regions]);
+    } else {
+      sorted = sortRegionsByEdge([...regions], gridDimensions.M, gridDimensions.N);
+    }
+
+    const first = sorted[0] ?? [];
+    return new Set(first.map(({ row, col }) => cellKey(row, col)));
+  }, [mappedPixelData, highlightHex, gridDimensions, completedCellSet, regionSortMode]);
 
   const doneCount = sortedColors.filter((hex) => completedSet.has(hex.toUpperCase())).length;
   const allDone = sortedColors.length > 0 && doneCount === sortedColors.length;
@@ -104,23 +239,92 @@ function BeadPageContent() {
     return () => window.clearTimeout(t);
   }, [justCompleted]);
 
+  const advanceHighlightIfNeeded = useCallback(
+    (hexJustDone: string, doneColors: Iterable<string>) => {
+      if (highlightHex?.toUpperCase() !== hexJustDone.toUpperCase()) return;
+      const doneUpper = new Set(Array.from(doneColors, (c) => c.toUpperCase()));
+      const nextColor = sortedColors.find((c) => !doneUpper.has(c.toUpperCase()));
+      setHighlightColorKey(nextColor ?? null);
+    },
+    [highlightHex, sortedColors, setHighlightColorKey],
+  );
+
   const toggleComplete = (hex: string, next: boolean) => {
     if (!pattern) return;
-    const updated = setCompleted(pattern.id, hex, next);
+    setColorCompleted(pattern.id, hex, next, mappedPixelData);
     if (next) {
       setJustCompleted(hex.toUpperCase());
-      const key = getColorKeyByHex(hex, colorSystem);
-      setToast(`完成 ${key} 🎉`);
-      if (highlightHex?.toUpperCase() === hex.toUpperCase()) {
-        const nextColor = sortedColors.find(
-          (c) =>
-            c.toUpperCase() !== hex.toUpperCase() &&
-            !updated.map((u) => u.toUpperCase()).includes(c.toUpperCase()),
-        );
-        setHighlightColorKey(nextColor ?? null);
-      }
+      setToast(`完成 ${getColorKeyByHex(hex, colorSystem)} 🎉`);
+      const updated = new Set(completedColors.map((c) => c.toUpperCase()));
+      updated.add(hex.toUpperCase());
+      advanceHighlightIfNeeded(hex, updated);
     }
   };
+
+  const handleInteraction = useCallback(
+    (
+      clientX: number,
+      clientY: number,
+      _pageX: number,
+      _pageY: number,
+      isClick: boolean,
+      isTouchEnd?: boolean,
+    ) => {
+      if ((!isClick && !isTouchEnd) || !pattern || !mappedPixelData || !canvasRef.current) return;
+      if (clientX === 0 && clientY === 0) return;
+
+      const canvas = canvasRef.current;
+      const rect = canvas.getBoundingClientRect();
+      const scaleX = canvas.width / rect.width;
+      const scaleY = canvas.height / rect.height;
+      const canvasX = (clientX - rect.left) * scaleX;
+      const canvasY = (clientY - rect.top) * scaleY;
+      const cellSize = Math.max(4, Math.round(16 * previewZoom));
+      const axisSize = Math.max(18, Math.min(36, Math.round(cellSize * 1.4)));
+      const col = Math.floor((canvasX - axisSize) / cellSize);
+      const row = Math.floor((canvasY - axisSize) / cellSize);
+      const M = mappedPixelData.length;
+      const N = mappedPixelData[0]?.length ?? 0;
+      if (row < 0 || col < 0 || row >= M || col >= N) return;
+
+      const cell = mappedPixelData[row]?.[col];
+      if (!cell || cell.isExternal) return;
+
+      const hex = (cell.color || '').toUpperCase();
+      if (!hex) return;
+
+      if (highlightHex?.toUpperCase() !== hex) {
+        setHighlightColorKey(cell.color);
+      }
+
+      lastClickRef.current = { row, col };
+      const beforeDone = completedSet.has(hex);
+      const { cells } = toggleCell(pattern.id, cellKey(row, col));
+      const cellSet = new Set(cells);
+      const { done, total } = countColorProgress(mappedPixelData, hex, cellSet);
+      const nowDone = total > 0 && done === total;
+
+      if (nowDone && !beforeDone) {
+        setJustCompleted(hex);
+        setToast(`完成 ${getColorKeyByHex(hex, colorSystem)} 🎉`);
+        const updated = new Set(completedColors.map((c) => c.toUpperCase()));
+        updated.add(hex);
+        advanceHighlightIfNeeded(hex, updated);
+      }
+    },
+    [
+      pattern,
+      mappedPixelData,
+      previewZoom,
+      highlightHex,
+      setHighlightColorKey,
+      toggleCell,
+      completedSet,
+      completedColors,
+      colorSystem,
+      advanceHighlightIfNeeded,
+    ],
+  );
 
   if (pattern === undefined) {
     return (
@@ -153,7 +357,9 @@ function BeadPageContent() {
             色
             {allDone ? <span className="ml-2 font-semibold text-[#c47a2c]">全部完成！</span> : null}
           </p>
-          <p className="mt-0.5 text-[11px] text-[#a08060]">点色号高亮 · 勾选标记完成 · 拖动画布空白处平移</p>
+          <p className="mt-0.5 text-[11px] text-[#a08060]">
+            点格子标记完成 · 空格拖拽平移 · 推荐区橙色描边
+          </p>
         </div>
         <BeadPageToolbar patternId={patternId} onFitCanvas={fitCanvasToViewport} />
       </div>
@@ -163,33 +369,7 @@ function BeadPageContent() {
           ref={viewportRef}
           className="relative min-h-0 min-w-0 overflow-hidden rounded-xl border border-[#eadfce] bg-[#eef0f3]"
         >
-          <div
-            className="absolute inset-0 cursor-grab overflow-hidden active:cursor-grabbing"
-            onWheel={(event) => {
-              event.preventDefault();
-              panBy(-event.deltaX, -event.deltaY);
-            }}
-            onPointerDown={(event) => {
-              if (event.button !== 0) return;
-              event.preventDefault();
-              panRef.current = { x: event.clientX, y: event.clientY, pointerId: event.pointerId };
-              event.currentTarget.setPointerCapture(event.pointerId);
-            }}
-            onPointerMove={(event) => {
-              const pan = panRef.current;
-              if (!pan || pan.pointerId !== event.pointerId) return;
-              const dx = event.clientX - pan.x;
-              const dy = event.clientY - pan.y;
-              panRef.current = { ...pan, x: event.clientX, y: event.clientY };
-              panBy(dx, dy);
-            }}
-            onPointerUp={(event) => {
-              if (panRef.current?.pointerId === event.pointerId) panRef.current = null;
-            }}
-            onPointerCancel={() => {
-              panRef.current = null;
-            }}
-          >
+          <div className="absolute inset-0 overflow-hidden">
             <div
               className="absolute left-0 top-0"
               style={{ transform: `translate(${canvasOffset.x}px, ${canvasOffset.y}px)` }}
@@ -199,7 +379,7 @@ function BeadPageContent() {
                   canvasRef={canvasRef}
                   mappedPixelData={mappedPixelData}
                   gridDimensions={gridDimensions}
-                  onInteraction={() => {}}
+                  onInteraction={handleInteraction}
                   highlightColorKey={highlightHex}
                   persistentHighlight
                   selectedColorSystem={colorSystem}
@@ -207,6 +387,8 @@ function BeadPageContent() {
                   toolMode="select"
                   selectedCells={new Set()}
                   onPanBy={panBy}
+                  completedCells={completedCellSet}
+                  recommendedCells={recommendedCells}
                 />
               </div>
             </div>
@@ -227,7 +409,10 @@ function BeadPageContent() {
           colorSystem={colorSystem}
           highlightHex={highlightHex}
           completedSet={completedSet}
+          cellProgress={cellProgress}
           justCompleted={justCompleted}
+          regionSortMode={regionSortMode}
+          onRegionSortModeChange={setRegionSortMode}
           onToggleHighlight={toggleHighlightColorKey}
           onToggleComplete={toggleComplete}
         />

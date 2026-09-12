@@ -3,18 +3,54 @@
 import Link from 'next/link';
 import { FormEvent, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { applyAuthSuccess } from '@/utils/authClient';
 
 export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
-  const submit = (event: FormEvent) => {
+  const submit = async (event: FormEvent) => {
     event.preventDefault();
     if (!email || !password) return;
-    localStorage.setItem('perler-user-email', email);
-    localStorage.setItem('perler-user-id', `user_${email.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`);
-    router.push('/dashboard');
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ email, password }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        // 仅开发环境在无 D1 时允许本地假登录
+        if (res.status === 503 && process.env.NODE_ENV === 'development') {
+          const fallbackId = `user_${email.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
+          applyAuthSuccess({
+            id: fallbackId,
+            name: email.split('@')[0] || '拼豆玩家',
+            email,
+          });
+          router.push('/dashboard');
+          return;
+        }
+        setError(typeof data.error === 'string' ? data.error : '登录失败');
+        return;
+      }
+      applyAuthSuccess({
+        id: String(data.id),
+        name: String(data.name || email.split('@')[0] || '拼豆玩家'),
+        email: String(data.email || email),
+      });
+      router.push('/dashboard');
+    } catch {
+      setError('网络异常，请稍后重试');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -51,8 +87,9 @@ export default function LoginPage() {
             required
           />
         </label>
-        <button className="primary-button" type="submit">
-          登录
+        {error ? <p className="text-sm text-red-600">{error}</p> : null}
+        <button className="primary-button" type="submit" disabled={loading}>
+          {loading ? '登录中…' : '登录'}
         </button>
         <Link href="/auth/register" className="platform-link">
           注册新账号

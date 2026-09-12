@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useContext } from 'react';
 import { NavSubtitleStateContext } from './navSubtitleContext';
+import { UserMenu } from './UserMenu';
 
 const NAV_LINKS = [
   {
@@ -37,7 +38,7 @@ function linkClass(active: boolean) {
   ].join(' ');
 }
 
-/** 纯展示顶栏：品牌 + 可选副标题 + 主导航。页面操作按钮不放这里。 */
+/** 纯展示顶栏：品牌 + 可选副标题 + 主导航 + 个人信息。页面操作按钮不放这里。 */
 export function AppNavBar() {
   const pathname = usePathname() || '/';
   const { subtitle } = useContext(NavSubtitleStateContext);
@@ -66,6 +67,8 @@ export function AppNavBar() {
             </Link>
           ))}
         </nav>
+        <span className="hidden h-4 w-px shrink-0 bg-[#e0d0bc] sm:block" aria-hidden="true" />
+        <UserMenu />
       </div>
     </header>
   );

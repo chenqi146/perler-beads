@@ -3,20 +3,50 @@
 import Link from 'next/link';
 import { FormEvent, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { applyAuthSuccess } from '@/utils/authClient';
 
 export default function RegisterPage() {
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
-  const submit = (event: FormEvent) => {
+  const submit = async (event: FormEvent) => {
     event.preventDefault();
     if (!email || password.length < 8 || !name.trim()) return;
-    localStorage.setItem('perler-user-email', email);
-    localStorage.setItem('perler-user-name', name);
-    localStorage.setItem('perler-user-id', `user_${email.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`);
-    router.push('/dashboard');
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ email, password, name: name.trim() }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        if (res.status === 503 && process.env.NODE_ENV === 'development') {
+          const fallbackId = `user_${email.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
+          applyAuthSuccess({ id: fallbackId, name: name.trim(), email });
+          router.push('/dashboard');
+          return;
+        }
+        setError(typeof data.error === 'string' ? data.error : '注册失败');
+        return;
+      }
+      applyAuthSuccess({
+        id: String(data.id),
+        name: String(data.name || name.trim()),
+        email: String(data.email || email),
+      });
+      router.push('/dashboard');
+    } catch {
+      setError('网络异常，请稍后重试');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -62,8 +92,9 @@ export default function RegisterPage() {
             required
           />
         </label>
-        <button className="primary-button" type="submit">
-          注册并进入
+        {error ? <p className="text-sm text-red-600">{error}</p> : null}
+        <button className="primary-button" type="submit" disabled={loading}>
+          {loading ? '注册中…' : '注册并进入'}
         </button>
         <Link href="/auth/login" className="platform-link">
           已有账号，去登录

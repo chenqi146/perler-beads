@@ -18,6 +18,7 @@ function DashboardContent() {
 
   useEffect(() => {
     refreshPatterns();
+    void usePatternStore.getState().refreshPatternsFromCloud();
   }, [refreshPatterns]);
 
   const create = () => {

@@ -1,14 +1,17 @@
 import { create } from 'zustand';
 import type { Pattern, PatternData, PatternInput, Visibility } from '../../domain/pattern';
 import { localPatternRepository } from '../../infrastructure/storage';
+import { pullPatternsFromCloud, pushPatternToCloud } from '../../utils/patternSync';
 
 type PatternState = {
   patterns: Pattern[];
   publicPatterns: Pattern[];
   currentPatternId: string | null;
   currentPattern: Pattern | null;
+  syncMessage: string | null;
 
   refreshPatterns: () => void;
+  refreshPatternsFromCloud: () => Promise<void>;
   refreshPublicPatterns: () => void;
   loadPattern: (id: string) => Pattern | null;
   setCurrentPattern: (pattern: Pattern | null) => void;
@@ -25,12 +28,25 @@ export const usePatternStore = create<PatternState>((set, get) => ({
   publicPatterns: [],
   currentPatternId: null,
   currentPattern: null,
+  syncMessage: null,
 
   refreshPatterns: () => {
     try {
       set({ patterns: repo.listByOwner() });
     } catch {
       set({ patterns: [] });
+    }
+  },
+
+  refreshPatternsFromCloud: async () => {
+    const result = await pullPatternsFromCloud();
+    try {
+      set({
+        patterns: repo.listByOwner(),
+        syncMessage: result.ok ? null : result.message,
+      });
+    } catch {
+      set({ patterns: [], syncMessage: result.ok ? null : result.message });
     }
   },
 
@@ -64,9 +80,14 @@ export const usePatternStore = create<PatternState>((set, get) => ({
     const { currentPatternId } = get();
     set((state) => ({
       patterns: repo.listByOwner(),
-      currentPattern: currentPatternId === saved.id || !currentPatternId ? saved : state.currentPattern,
+      currentPattern:
+        currentPatternId === saved.id || !currentPatternId ? saved : state.currentPattern,
       currentPatternId: currentPatternId ?? saved.id,
     }));
+    void pushPatternToCloud(saved).then((result) => {
+      if (!result.ok) set({ syncMessage: result.message });
+      else set({ syncMessage: null });
+    });
     return saved;
   },
 
@@ -81,7 +102,10 @@ export const usePatternStore = create<PatternState>((set, get) => ({
 
   duplicatePattern: (patternId) => {
     const copy = repo.duplicate(patternId) ?? undefined;
-    if (copy) set({ patterns: repo.listByOwner() });
+    if (copy) {
+      set({ patterns: repo.listByOwner() });
+      void pushPatternToCloud(copy);
+    }
     return copy;
   },
 }));

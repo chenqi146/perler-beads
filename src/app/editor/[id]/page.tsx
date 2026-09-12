@@ -17,7 +17,7 @@ function EditorRouteContent() {
   return (
     <main className="platform-page">
       <p>正在打开图纸编辑器...</p>
-      <Link href="/">返回编辑器</Link>
+      <Link href="/dashboard">返回我的图纸</Link>
     </main>
   );
 }

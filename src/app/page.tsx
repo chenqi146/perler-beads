@@ -209,9 +209,11 @@ function Editor() {
 
   const {
     editHistory,
+    editRedo,
     bgRemovalSnapshot,
     saveEditSnapshot,
     handleUndoEdit,
+    handleRedoEdit,
     handleUndoBgRemoval,
     clearEditHistory,
     setBgRemovalSnapshot,
@@ -399,7 +401,7 @@ function Editor() {
     }
   }, []); // 只在组件首次加载时执行
 
-  // Ctrl/Cmd+Z 撤销改色、裁剪等编辑
+  // Ctrl/Cmd+Z 撤回；Ctrl/Cmd+Shift+Z 或 Ctrl/Cmd+Y 重做
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
@@ -415,8 +417,6 @@ function Editor() {
       }
       const isMod = event.ctrlKey || event.metaKey;
       if (!isMod) return;
-      if (event.key !== 'z' && event.key !== 'Z') return;
-      if (event.shiftKey) return; // 留给系统/后续 redo
 
       const target = event.target as HTMLElement | null;
       const tag = target?.tagName?.toLowerCase();
@@ -429,6 +429,17 @@ function Editor() {
         return;
       }
 
+      const key = event.key.toLowerCase();
+      const isRedo = (key === 'z' && event.shiftKey) || key === 'y';
+      const isUndo = key === 'z' && !event.shiftKey;
+
+      if (isRedo) {
+        if (editRedo.length === 0) return;
+        event.preventDefault();
+        handleRedoEdit();
+        return;
+      }
+      if (!isUndo) return;
       if (editHistory.length === 0) return;
       event.preventDefault();
       handleUndoEdit();
@@ -436,7 +447,16 @@ function Editor() {
 
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [editHistory.length, handleUndoEdit, showSelectionRecolor, selectedCells.size, highlightColorKey, handleClearCellSelection]);
+  }, [
+    editHistory.length,
+    editRedo.length,
+    handleUndoEdit,
+    handleRedoEdit,
+    showSelectionRecolor,
+    selectedCells.size,
+    highlightColorKey,
+    handleClearCellSelection,
+  ]);
 
   useAppNavSubtitle(patternName.trim() || '未命名图纸');
 

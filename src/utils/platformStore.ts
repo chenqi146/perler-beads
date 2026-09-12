@@ -15,6 +15,58 @@ export function getLoggedInUserId(): string | null {
   return localStorage.getItem('perler-user-id');
 }
 
+export type LoggedInUser = {
+  id: string;
+  email: string | null;
+  name: string | null;
+  displayName: string;
+  initial: string;
+};
+
+/** 读取本地登录用户展示信息（昵称优先，其次邮箱前缀） */
+export function getLoggedInUser(): LoggedInUser | null {
+  if (typeof window === 'undefined') return null;
+  const id = localStorage.getItem('perler-user-id');
+  if (!id) return null;
+  const email = localStorage.getItem('perler-user-email');
+  const name = localStorage.getItem('perler-user-name');
+  const fromEmail = email?.split('@')[0]?.trim() || null;
+  const displayName = (name?.trim() || fromEmail || '拼豆玩家').trim();
+  const initial = Array.from(displayName)[0]?.toUpperCase() || '豆';
+  return { id, email, name, displayName, initial };
+}
+
+/** 清除本地登录态 */
+export function clearLoggedInUser(): void {
+  if (typeof window === 'undefined') return;
+  localStorage.removeItem('perler-user-id');
+  localStorage.removeItem('perler-user-email');
+  localStorage.removeItem('perler-user-name');
+}
+
+/** 将本地图纸/会话/作品的 ownerId 从旧假 id 迁到新 UUID */
+export function remapLocalOwnerId(fromOwnerId: string, toOwnerId: string): void {
+  if (typeof window === 'undefined' || !fromOwnerId || !toOwnerId || fromOwnerId === toOwnerId) return;
+  const store = read();
+  let changed = false;
+  store.patterns = store.patterns.map((p) => {
+    if (p.ownerId !== fromOwnerId) return p;
+    changed = true;
+    return { ...p, ownerId: toOwnerId, updatedAt: Date.now() };
+  });
+  store.sessions = store.sessions.map((s) => {
+    if (s.ownerId !== fromOwnerId) return s;
+    changed = true;
+    return { ...s, ownerId: toOwnerId, updatedAt: Date.now() };
+  });
+  store.works = store.works.map((w) => {
+    if (w.ownerId !== fromOwnerId) return w;
+    changed = true;
+    return { ...w, ownerId: toOwnerId };
+  });
+  if (changed) write(store);
+}
+
 const ownerId = () => {
   const value = getLoggedInUserId();
   if (!value) throw new Error('请先登录后再操作图纸');

@@ -2,7 +2,7 @@
   "name": "喵喵的拼豆小屋",
   "short_name": "喵喵的拼豆小屋",
   "description": "七卡瓦拼豆底稿生成器，让你轻松制作精美的像素画作品",
-  "start_url": "/",
+  "start_url": "/dashboard",
   "display": "standalone",
   "background_color": "#E8F4FD",
   "theme_color": "#5CA4F5",

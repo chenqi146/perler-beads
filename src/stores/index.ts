@@ -23,6 +23,7 @@ export {
   useEditorSettings,
   useBeadUi,
   useBeadCompletedColors,
+  useBeadCompletedCells,
   useBeadProgressActions,
   usePatternLoadActions,
 } from '../application';

@@ -14,6 +14,7 @@ export { useBeadProgressStore } from './bead/beadProgressStore';
 export {
   useBeadUi,
   useBeadCompletedColors,
+  useBeadCompletedCells,
   useBeadProgressActions,
   usePatternLoadActions,
 } from './bead/beadSelectors';
