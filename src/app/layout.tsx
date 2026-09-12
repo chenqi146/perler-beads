@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { Analytics } from "@vercel/analytics/next";
 import WelcomeSplash from "@/components/WelcomeSplash";
+import { AppShell } from "@/components/shell";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -35,11 +36,9 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#000000",
+  themeColor: "#c47a2c",
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
 };
 
 export default function RootLayout({
@@ -48,12 +47,12 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="">
+    <html lang="zh-CN" className="" suppressHydrationWarning>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased overflow-x-hidden bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100`}
+        className={`${geistSans.variable} ${geistMono.variable} antialiased overflow-x-hidden bg-[#f7f4ef] text-[#3a2416]`}
       >
         <WelcomeSplash />
-        {children}
+        <AppShell>{children}</AppShell>
         <Analytics />
       </body>
     </html>

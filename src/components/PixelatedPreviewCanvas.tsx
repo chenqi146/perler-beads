@@ -3,7 +3,7 @@
 import React, { useEffect, useRef, useState, MouseEvent, TouchEvent } from 'react';
 import { MappedPixel } from '../utils/pixelation';
 import { ColorSystem, getDisplayColorKey } from '../utils/colorSystemUtils';
-import { getContrastColor } from '../utils/color';
+import { getContrastColor, getHighlightRenderStyle } from '../utils/color';
 
 export type CanvasToolMode = 'select' | 'crop';
 
@@ -28,6 +28,8 @@ interface PixelatedPreviewCanvasProps {
     isTouchEnd?: boolean
   ) => void;
   highlightColorKey?: string | null;
+  /** 为 true 时高亮一直保持，直到 highlightColorKey 清空 */
+  persistentHighlight?: boolean;
   onHighlightComplete?: () => void;
   selectedColorSystem?: ColorSystem;
   previewZoom?: number;
@@ -54,6 +56,7 @@ function drawPixelatedCanvas(
   dims: { N: number; M: number },
   options: {
     highlightColorKey?: string | null;
+    persistentHighlight?: boolean;
     isHighlighting?: boolean;
     isDarkMode: boolean;
     selectedColorSystem: ColorSystem;
@@ -66,6 +69,7 @@ function drawPixelatedCanvas(
 ) {
   const {
     highlightColorKey,
+    persistentHighlight = false,
     isHighlighting,
     isDarkMode,
     selectedColorSystem,
@@ -135,6 +139,21 @@ function drawPixelatedCanvas(
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
 
+  const highlightActive = Boolean(
+    (persistentHighlight || isHighlighting) && highlightColorKey
+  );
+  const highlightKeyUpper = highlightColorKey?.toUpperCase() ?? '';
+  const highlightStyle = highlightActive
+    ? getHighlightRenderStyle(highlightColorKey!, isDarkMode)
+    : null;
+
+  const isAccentCell = (row: number, col: number): boolean => {
+    if (!highlightActive) return false;
+    const cell = dataToDraw[row]?.[col];
+    if (!cell || cell.isExternal) return false;
+    return (cell.color || '#FFFFFF').toUpperCase() === highlightKeyUpper;
+  };
+
   for (let j = 0; j < M; j++) {
     for (let i = 0; i < N; i++) {
       const cellData = dataToDraw[j]?.[i];
@@ -142,6 +161,7 @@ function drawPixelatedCanvas(
 
       const drawX = axisSize + i * cellSize;
       const drawY = axisSize + j * cellSize;
+      const isAccent = isAccentCell(j, i);
 
       if (cellData.isExternal) {
         ctx.fillStyle = externalBackgroundColor;
@@ -150,13 +170,15 @@ function drawPixelatedCanvas(
       }
       ctx.fillRect(drawX, drawY, cellSize, cellSize);
 
-      if (isHighlighting && highlightColorKey) {
-        const shouldDim =
-          cellData.isExternal || cellData.color.toUpperCase() !== highlightColorKey.toUpperCase();
-        if (shouldDim) {
-          ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
-          ctx.fillRect(drawX, drawY, cellSize, cellSize);
-        }
+      if (highlightStyle && isAccent) {
+        ctx.save();
+        ctx.globalCompositeOperation = highlightStyle.accentLiftComposite;
+        ctx.fillStyle = highlightStyle.accentLift;
+        ctx.fillRect(drawX, drawY, cellSize, cellSize);
+        ctx.restore();
+      } else if (highlightStyle && !isAccent) {
+        ctx.fillStyle = highlightStyle.dimOverlay;
+        ctx.fillRect(drawX, drawY, cellSize, cellSize);
       }
 
       if (selectedCells?.has(cellKey(j, i))) {
@@ -168,15 +190,57 @@ function drawPixelatedCanvas(
       }
 
       if (showKeys && !cellData.isExternal && cellData.key !== 'ERASE') {
-        const displayKey = getDisplayColorKey(cellData.color || '#FFFFFF', selectedColorSystem);
-        ctx.fillStyle = getContrastColor(cellData.color || '#FFFFFF');
-        ctx.fillText(displayKey, drawX + cellSize / 2, drawY + cellSize / 2);
+        if (!highlightStyle || isAccent) {
+          const displayKey = getDisplayColorKey(cellData.color || '#FFFFFF', selectedColorSystem);
+          ctx.fillStyle = getContrastColor(cellData.color || '#FFFFFF');
+          ctx.fillText(displayKey, drawX + cellSize / 2, drawY + cellSize / 2);
+        }
       }
 
-      ctx.strokeStyle = gridLineColor;
+      if (highlightStyle) {
+        ctx.strokeStyle = isAccent ? highlightStyle.accentGridColor : highlightStyle.mutedGridColor;
+      } else {
+        ctx.strokeStyle = gridLineColor;
+      }
       ctx.lineWidth = 0.5;
       ctx.strokeRect(drawX + 0.5, drawY + 0.5, cellSize, cellSize);
     }
+  }
+
+  // 只描色块外轮廓，避免每格描边像铁丝网
+  if (highlightStyle) {
+    const lineW = Math.max(1.25, Math.min(2.25, cellSize * 0.11));
+    ctx.strokeStyle = highlightStyle.silhouetteStroke;
+    ctx.lineWidth = lineW;
+    ctx.lineCap = 'square';
+    ctx.lineJoin = 'miter';
+    ctx.beginPath();
+
+    for (let j = 0; j < M; j++) {
+      for (let i = 0; i < N; i++) {
+        if (!isAccentCell(j, i)) continue;
+        const x = axisSize + i * cellSize;
+        const y = axisSize + j * cellSize;
+        // 邻格不是目标色 → 画这条边
+        if (!isAccentCell(j - 1, i)) {
+          ctx.moveTo(x, y);
+          ctx.lineTo(x + cellSize, y);
+        }
+        if (!isAccentCell(j + 1, i)) {
+          ctx.moveTo(x, y + cellSize);
+          ctx.lineTo(x + cellSize, y + cellSize);
+        }
+        if (!isAccentCell(j, i - 1)) {
+          ctx.moveTo(x, y);
+          ctx.lineTo(x, y + cellSize);
+        }
+        if (!isAccentCell(j, i + 1)) {
+          ctx.moveTo(x + cellSize, y);
+          ctx.lineTo(x + cellSize, y + cellSize);
+        }
+      }
+    }
+    ctx.stroke();
   }
 
   ctx.strokeStyle = sectionLineColor;
@@ -230,6 +294,7 @@ const PixelatedPreviewCanvas: React.FC<PixelatedPreviewCanvasProps> = ({
   canvasRef,
   onInteraction,
   highlightColorKey,
+  persistentHighlight = false,
   onHighlightComplete,
   selectedColorSystem = 'MARD',
   previewZoom = 1,
@@ -280,8 +345,8 @@ const PixelatedPreviewCanvas: React.FC<PixelatedPreviewCanvasProps> = ({
   }, []);
 
   const baseCellSize = 16;
-  const cellSize = Math.max(8, Math.round(baseCellSize * previewZoom));
-  const axisSize = Math.max(22, Math.min(36, Math.round(cellSize * 1.4)));
+  const cellSize = Math.max(4, Math.round(baseCellSize * previewZoom));
+  const axisSize = Math.max(18, Math.min(36, Math.round(cellSize * 1.4)));
   layoutRef.current = { cellSize, axisSize };
 
   useEffect(() => {
@@ -300,6 +365,7 @@ const PixelatedPreviewCanvas: React.FC<PixelatedPreviewCanvasProps> = ({
     if (mappedPixelData && gridDimensions && canvasRef.current && darkModeState !== null) {
       drawPixelatedCanvas(mappedPixelData, canvasRef.current, gridDimensions, {
         highlightColorKey,
+        persistentHighlight,
         isHighlighting,
         isDarkMode: darkModeState,
         selectedColorSystem,
@@ -316,6 +382,7 @@ const PixelatedPreviewCanvas: React.FC<PixelatedPreviewCanvasProps> = ({
     canvasRef,
     darkModeState,
     highlightColorKey,
+    persistentHighlight,
     isHighlighting,
     selectedColorSystem,
     cellSize,
@@ -325,6 +392,10 @@ const PixelatedPreviewCanvas: React.FC<PixelatedPreviewCanvasProps> = ({
   ]);
 
   useEffect(() => {
+    if (persistentHighlight) {
+      setIsHighlighting(Boolean(highlightColorKey));
+      return;
+    }
     if (highlightColorKey && mappedPixelData && gridDimensions) {
       setIsHighlighting(true);
       const timer = setTimeout(() => {
@@ -333,7 +404,7 @@ const PixelatedPreviewCanvas: React.FC<PixelatedPreviewCanvasProps> = ({
       }, 300);
       return () => clearTimeout(timer);
     }
-  }, [highlightColorKey, mappedPixelData, gridDimensions, onHighlightComplete]);
+  }, [highlightColorKey, mappedPixelData, gridDimensions, onHighlightComplete, persistentHighlight]);
 
   const resolveCell = (clientX: number, clientY: number) => {
     const canvas = canvasRef.current;

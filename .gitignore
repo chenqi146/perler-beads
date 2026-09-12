@@ -15,7 +15,12 @@
 
 # next.js
 /.next/
+/.next.concurrent-check/
 /out/
+
+# Cloudflare / OpenNext build output
+/.open-next/
+/.wrangler/
 
 # production
 /build

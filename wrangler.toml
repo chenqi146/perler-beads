@@ -1,0 +1,14 @@
+name = "perler-beads"
+compatibility_date = "2026-09-10"
+main = ".open-next/worker.js"
+assets = { directory = ".open-next/assets", binding = "ASSETS" }
+
+[[d1_databases]]
+binding = "perler_beads"
+database_name = "perler-beads"
+database_id = "28ded290-d9a2-4877-8583-c1a52608c8d5"
+migrations_dir = "migrations"
+
+[[r2_buckets]]
+binding = "perler_beads_assets"
+bucket_name = "perler-beads-assets"

@@ -68,7 +68,7 @@ npm run dev
 
 ### 调色板数据
 
-色板数据定义在 [`src/app/colorSystemMapping.json`](src/app/colorSystemMapping.json)，包含 291 种标准颜色到 5 个品牌色号体系的完整映射。色板组合在 [`src/app/page.tsx`](src/app/page.tsx) 的 `paletteOptions` 中配置。
+色板数据定义在 [`src/domain/palette/colorSystemMapping.json`](src/domain/palette/colorSystemMapping.json)，包含 291 种标准颜色到 5 种品牌色号体系的完整映射。
 
 ## Roadmap
 

@@ -84,10 +84,40 @@ const CAT: { c: number; r: number; color: string }[] = [
 const COLS = 11;
 const ROWS = 9;
 
+const WELCOME_SEEN_KEY = 'perler-welcome-seen';
+
+function markWelcomeSeen() {
+  try {
+    localStorage.setItem(WELCOME_SEEN_KEY, '1');
+    sessionStorage.setItem(WELCOME_SEEN_KEY, '1');
+  } catch {
+    // ignore quota / private mode
+  }
+}
+
+function hasSeenWelcome() {
+  try {
+    return localStorage.getItem(WELCOME_SEEN_KEY) === '1' || sessionStorage.getItem(WELCOME_SEEN_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
 export default function WelcomeSplash() {
-  const [phase, setPhase] = useState<'play' | 'exit' | 'gone'>('play');
+  // pending：水合前不渲染，避免跳转新页面时先闪出动画再消失
+  const [phase, setPhase] = useState<'pending' | 'play' | 'exit' | 'gone'>('pending');
+
+  useEffect(() => {
+    if (hasSeenWelcome()) {
+      setPhase('gone');
+      return;
+    }
+    markWelcomeSeen();
+    setPhase('play');
+  }, []);
 
   const dismiss = useCallback(() => {
+    markWelcomeSeen();
     setPhase((current) => (current === 'play' ? 'exit' : current));
   }, []);
 
@@ -96,7 +126,7 @@ export default function WelcomeSplash() {
 
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     const holdMs = reduced ? 900 : 3200;
-    const timer = window.setTimeout(dismiss, holdMs);
+    const timer = window.setTimeout(() => { markWelcomeSeen(); setPhase('gone'); }, holdMs);
 
     const onKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape' || event.key === 'Enter' || event.key === ' ') {
@@ -122,14 +152,15 @@ export default function WelcomeSplash() {
     return () => window.clearTimeout(timer);
   }, [phase]);
 
-  if (phase === 'gone') return null;
+  if (phase === 'pending' || phase === 'gone') return null;
 
   return (
     <div
       className={`welcome-splash${phase === 'exit' ? ' is-exit' : ''}`}
       role="dialog"
+      aria-modal="true"
       aria-label={TITLE}
-      onPointerDown={dismiss}
+      onPointerDown={(event) => { if (event.target === event.currentTarget) dismiss(); }}
     >
       <style>{`
         .welcome-splash {
@@ -231,6 +262,7 @@ export default function WelcomeSplash() {
           animation: welcome-char-in 500ms ease both;
           animation-delay: 1500ms;
         }
+        .welcome-skip { margin-top: 14px; border: 1px solid rgba(90, 52, 24, .25); border-radius: 999px; padding: 7px 18px; color: rgba(90, 52, 24, .7); background: rgba(255,255,255,.28); cursor: pointer; }
         @keyframes welcome-bead-pop {
           0% { opacity: 0; transform: translateY(-14px) scale(0.62); }
           68% { opacity: 1; transform: translateY(2px) scale(1.08); }
@@ -310,6 +342,7 @@ export default function WelcomeSplash() {
             ))}
           </h1>
           <p className="welcome-hint">点击任意处跳过</p>
+          <button type="button" className="welcome-skip" onPointerDown={(event) => { event.stopPropagation(); dismiss(); }} onClick={(event) => { event.stopPropagation(); dismiss(); }}>跳过</button>
         </div>
       </div>
     </div>

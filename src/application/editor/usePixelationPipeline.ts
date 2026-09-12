@@ -1,0 +1,492 @@
+'use client';
+
+import { useCallback, useEffect, useState, type MutableRefObject, type RefObject } from 'react';
+import {
+  PixelationMode,
+  calculatePixelGrid,
+  colorDistance,
+  TRANSPARENT_KEY,
+  limitColorCount,
+  removeEdgeBackground,
+  recountColors,
+  type RgbColor,
+  type PaletteColor,
+  type MappedPixel,
+} from '../../domain/pixelation';
+import { useEditorStore } from './editorStore';
+
+export type DraftPixelateLock = {
+  locked: boolean;
+  granularity: number;
+  gridHeight: number;
+  similarityThreshold: number;
+  maxColorCount: number;
+  autoRemoveWhiteBg: boolean;
+  pixelationMode: string;
+  remapTrigger: number;
+};
+
+export type UsePixelationPipelineOptions = {
+  originalCanvasRef: RefObject<HTMLCanvasElement | null>;
+  pixelatedCanvasRef: RefObject<HTMLCanvasElement | null>;
+  draftPixelateLockRef: MutableRefObject<DraftPixelateLock | null>;
+  suppressPixelateUntilRef: MutableRefObject<number>;
+  showToast: (msg: string) => void;
+  clearEditHistory: () => void;
+};
+
+/**
+ * 图像 → 像素网格管线：pixelateImage、参数变更重跑、预处理确认/取消。
+ * 算法行为与原先 page.tsx 内联实现保持一致。
+ */
+export function usePixelationPipeline({
+  originalCanvasRef,
+  pixelatedCanvasRef,
+  draftPixelateLockRef,
+  suppressPixelateUntilRef,
+  showToast,
+  clearEditHistory,
+}: UsePixelationPipelineOptions) {
+  const originalImageSrc = useEditorStore((s) => s.originalImageSrc);
+  const setOriginalImageSrc = useEditorStore((s) => s.setOriginalImageSrc);
+  const preAiImageSrc = useEditorStore((s) => s.preAiImageSrc);
+  const setPreAiImageSrc = useEditorStore((s) => s.setPreAiImageSrc);
+
+  const granularity = useEditorStore((s) => s.granularity);
+  const setGranularity = useEditorStore((s) => s.setGranularity);
+  const setGranularityInput = useEditorStore((s) => s.setGranularityInput);
+  const gridHeight = useEditorStore((s) => s.gridHeight);
+  const setGridHeight = useEditorStore((s) => s.setGridHeight);
+  const setGridHeightInput = useEditorStore((s) => s.setGridHeightInput);
+  const setImageAspectRatio = useEditorStore((s) => s.setImageAspectRatio);
+  const similarityThreshold = useEditorStore((s) => s.similarityThreshold);
+  const maxColorCount = useEditorStore((s) => s.maxColorCount);
+  const autoRemoveWhiteBg = useEditorStore((s) => s.autoRemoveWhiteBg);
+  const setAutoRemoveWhiteBg = useEditorStore((s) => s.setAutoRemoveWhiteBg);
+  const pixelationMode = useEditorStore((s) => s.pixelationMode);
+  const remapTrigger = useEditorStore((s) => s.remapTrigger);
+  const setRemapTrigger = useEditorStore((s) => s.setRemapTrigger);
+
+  const activeBeadPalette = useEditorStore((s) => s.activeBeadPalette);
+  const customPaletteSelections = useEditorStore((s) => s.customPaletteSelections);
+
+  const setMappedPixelData = useEditorStore((s) => s.setMappedPixelData);
+  const setGridDimensions = useEditorStore((s) => s.setGridDimensions);
+  const setColorCounts = useEditorStore((s) => s.setColorCounts);
+  const setTotalBeadCount = useEditorStore((s) => s.setTotalBeadCount);
+  const setInitialGridColorKeys = useEditorStore((s) => s.setInitialGridColorKeys);
+  const setExcludedColorKeys = useEditorStore((s) => s.setExcludedColorKeys);
+  const setIsManualColoringMode = useEditorStore((s) => s.setIsManualColoringMode);
+  const setSelectedColor = useEditorStore((s) => s.setSelectedColor);
+  const setSelectedCells = useEditorStore((s) => s.setSelectedCells);
+  const setShowSelectionRecolor = useEditorStore((s) => s.setShowSelectionRecolor);
+  const setCropRect = useEditorStore((s) => s.setCropRect);
+  const setCanvasToolMode = useEditorStore((s) => s.setCanvasToolMode);
+  const setBgRemovalSnapshot = useEditorStore((s) => s.setBgRemovalSnapshot);
+
+  // 上传后预处理弹窗（裁剪 + 可选 AI 抠图）— 状态留在管线内，page 只消费返回值
+  const [pendingPrepImageSrc, setPendingPrepImageSrc] = useState<string | null>(null);
+  const [isImagePrepOpen, setIsImagePrepOpen] = useState(false);
+
+  const pixelateImage = useCallback(
+    (
+      imageSrc: string,
+      gridW: number,
+      gridH: number,
+      threshold: number,
+      currentPalette: PaletteColor[],
+      mode: PixelationMode,
+      colorLimit: number,
+      doAutoRemoveBg: boolean,
+    ) => {
+      console.log(
+        `Attempting to pixelate with size: ${gridW}x${gridH}, threshold: ${threshold}, mode: ${mode}, colorLimit: ${colorLimit}`,
+      );
+      const originalCanvas = originalCanvasRef.current;
+      const pixelatedCanvas = pixelatedCanvasRef.current;
+
+      if (!originalCanvas || !pixelatedCanvas) {
+        console.error('Canvas ref(s) not available.');
+        return;
+      }
+      const originalCtx = originalCanvas.getContext('2d', { willReadFrequently: true });
+      const pixelatedCtx = pixelatedCanvas.getContext('2d');
+      if (!originalCtx || !pixelatedCtx) {
+        console.error('Canvas context(s) not found.');
+        return;
+      }
+      console.log('Canvas contexts obtained.');
+
+      if (currentPalette.length === 0) {
+        console.error(
+          'Cannot pixelate: The selected color palette is empty (likely due to exclusions).',
+        );
+        alert(
+          '错误：当前可用颜色板为空（可能所有颜色都被排除了），无法处理图像。请尝试恢复部分颜色。',
+        );
+        pixelatedCtx.clearRect(0, 0, pixelatedCanvas.width, pixelatedCanvas.height);
+        setMappedPixelData(null);
+        setGridDimensions(null);
+        return;
+      }
+      const t1FallbackColor =
+        currentPalette.find((p) => p.key === 'T1') ||
+        currentPalette.find((p) => p.hex.toUpperCase() === '#FFFFFF') ||
+        currentPalette[0];
+      console.log('Using fallback color for empty cells:', t1FallbackColor);
+
+      const img = new window.Image();
+
+      img.onerror = (error: Event | string) => {
+        console.error('Image loading failed:', error);
+        alert('无法加载图片。');
+        setOriginalImageSrc(null);
+        setMappedPixelData(null);
+        setGridDimensions(null);
+        setColorCounts(null);
+        setInitialGridColorKeys(new Set());
+      };
+
+      img.onload = () => {
+        console.log('Image loaded successfully.');
+        const aspectRatio = img.height / img.width;
+        setImageAspectRatio(aspectRatio);
+
+        const N = Math.max(1, gridW);
+        const M = Math.max(1, gridH);
+        console.log(`Grid size: ${N}x${M}`);
+
+        originalCanvas.width = img.width;
+        originalCanvas.height = img.height;
+        originalCtx.drawImage(img, 0, 0, img.width, img.height);
+        console.log('Original image drawn.');
+
+        const initialMappedData = calculatePixelGrid(
+          originalCtx,
+          img.width,
+          img.height,
+          N,
+          M,
+          currentPalette,
+          mode,
+          t1FallbackColor,
+        );
+        console.log(
+          `Initial data mapping complete using mode ${mode}. Starting global color merging...`,
+        );
+
+        const keyToRgbMap = new Map<string, RgbColor>();
+        const keyToColorDataMap = new Map<string, PaletteColor>();
+        currentPalette.forEach((p) => {
+          keyToRgbMap.set(p.key, p.rgb);
+          keyToColorDataMap.set(p.key, p);
+        });
+
+        const initialColorCounts: { [key: string]: number } = {};
+        initialMappedData.flat().forEach((cell) => {
+          if (cell && cell.key && !cell.isExternal && cell.key !== TRANSPARENT_KEY) {
+            initialColorCounts[cell.key] = (initialColorCounts[cell.key] || 0) + 1;
+          }
+        });
+        console.log('Initial color counts:', initialColorCounts);
+
+        const colorsByFrequency = Object.entries(initialColorCounts)
+          .sort((a, b) => b[1] - a[1])
+          .map((entry) => entry[0]);
+
+        if (colorsByFrequency.length === 0) {
+          console.log('No non-background colors found! Skipping merging.');
+        }
+
+        console.log('Colors sorted by frequency:', colorsByFrequency);
+
+        const mergedData: MappedPixel[][] = initialMappedData.map((row) =>
+          row.map((cell) => ({ ...cell, isExternal: cell.isExternal ?? false })),
+        );
+
+        const similarityThresholdValue = threshold;
+        const replacedColors = new Set<string>();
+
+        for (let i = 0; i < colorsByFrequency.length; i++) {
+          const currentKey = colorsByFrequency[i];
+
+          if (replacedColors.has(currentKey)) continue;
+
+          const currentRgb = keyToRgbMap.get(currentKey);
+          if (!currentRgb) {
+            console.warn(`RGB not found for key ${currentKey}. Skipping.`);
+            continue;
+          }
+
+          for (let j = i + 1; j < colorsByFrequency.length; j++) {
+            const lowerFreqKey = colorsByFrequency[j];
+
+            if (replacedColors.has(lowerFreqKey)) continue;
+
+            const lowerFreqRgb = keyToRgbMap.get(lowerFreqKey);
+            if (!lowerFreqRgb) {
+              console.warn(`RGB not found for key ${lowerFreqKey}. Skipping.`);
+              continue;
+            }
+
+            const dist = colorDistance(currentRgb, lowerFreqRgb);
+
+            if (dist < similarityThresholdValue) {
+              console.log(
+                `Merging color ${lowerFreqKey} into ${currentKey} (Distance: ${dist.toFixed(2)})`,
+              );
+
+              replacedColors.add(lowerFreqKey);
+
+              for (let r = 0; r < M; r++) {
+                for (let c = 0; c < N; c++) {
+                  if (mergedData[r][c].key === lowerFreqKey) {
+                    const colorData = keyToColorDataMap.get(currentKey);
+                    if (colorData) {
+                      mergedData[r][c] = {
+                        key: currentKey,
+                        color: colorData.hex,
+                        isExternal: false,
+                      };
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+
+        if (replacedColors.size > 0) {
+          console.log(
+            `Merged ${replacedColors.size} less frequent similar colors into more frequent ones.`,
+          );
+        } else {
+          console.log('No colors were similar enough to merge.');
+        }
+
+        let finalData = limitColorCount(mergedData, currentPalette, colorLimit);
+
+        if (doAutoRemoveBg) {
+          finalData = removeEdgeBackground(finalData, true);
+        }
+
+        if (pixelatedCanvasRef.current) {
+          setMappedPixelData(finalData);
+          setGridDimensions({ N, M });
+
+          const { counts, total } = recountColors(finalData);
+          setColorCounts(counts);
+          setTotalBeadCount(total);
+          setInitialGridColorKeys(new Set(Object.keys(counts)));
+          console.log('Color counts updated:', counts);
+          console.log('Total bead count:', total);
+        } else {
+          console.error('Pixelated canvas ref is null, skipping draw call in pixelateImage.');
+        }
+      };
+
+      console.log('Setting image source...');
+      img.src = imageSrc;
+      setIsManualColoringMode(false);
+      setSelectedColor(null);
+    },
+    [
+      originalCanvasRef,
+      pixelatedCanvasRef,
+      setMappedPixelData,
+      setGridDimensions,
+      setOriginalImageSrc,
+      setColorCounts,
+      setInitialGridColorKeys,
+      setImageAspectRatio,
+      setTotalBeadCount,
+      setIsManualColoringMode,
+      setSelectedColor,
+    ],
+  );
+
+  // 当 remapTrigger 变化时清空撤回历史（参数调整/颜色排除/新图上传等均会触发 remap）
+  useEffect(() => {
+    clearEditHistory();
+    setBgRemovalSnapshot(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [remapTrigger]);
+
+  // 参数变更时触发重像素化（含草稿锁 / 抑制窗口）
+  useEffect(() => {
+    const lock = draftPixelateLockRef.current;
+    if (lock?.locked) {
+      const unchanged =
+        lock.granularity === granularity &&
+        lock.gridHeight === gridHeight &&
+        lock.similarityThreshold === similarityThreshold &&
+        lock.maxColorCount === maxColorCount &&
+        lock.autoRemoveWhiteBg === autoRemoveWhiteBg &&
+        lock.pixelationMode === pixelationMode &&
+        lock.remapTrigger === remapTrigger;
+      if (unchanged) {
+        return;
+      }
+      draftPixelateLockRef.current = null;
+    }
+    if (Date.now() < suppressPixelateUntilRef.current) {
+      return;
+    }
+    if (originalImageSrc && activeBeadPalette.length > 0) {
+      const timeoutId = setTimeout(() => {
+        if (Date.now() < suppressPixelateUntilRef.current) {
+          return;
+        }
+        if (
+          originalImageSrc &&
+          originalCanvasRef.current &&
+          pixelatedCanvasRef.current &&
+          activeBeadPalette.length > 0
+        ) {
+          console.log(
+            'useEffect triggered: Processing image due to src, size, threshold, palette, mode, colorLimit or remap trigger.',
+          );
+          pixelateImage(
+            originalImageSrc,
+            granularity,
+            gridHeight,
+            similarityThreshold,
+            activeBeadPalette,
+            pixelationMode,
+            maxColorCount,
+            autoRemoveWhiteBg,
+          );
+        } else {
+          console.warn(
+            'useEffect check failed inside timeout: Refs or active palette not ready/empty.',
+          );
+        }
+      }, 50);
+      return () => clearTimeout(timeoutId);
+    } else if (originalImageSrc && activeBeadPalette.length === 0) {
+      console.warn(
+        'Image selected, but the active palette is empty after exclusions. Cannot process. Clearing preview.',
+      );
+      const pixelatedCanvas = pixelatedCanvasRef.current;
+      const pixelatedCtx = pixelatedCanvas?.getContext('2d');
+      if (pixelatedCtx && pixelatedCanvas) {
+        pixelatedCtx.clearRect(0, 0, pixelatedCanvas.width, pixelatedCanvas.height);
+        pixelatedCtx.fillStyle = '#6b7280';
+        pixelatedCtx.font = '16px sans-serif';
+        pixelatedCtx.textAlign = 'center';
+        pixelatedCtx.fillText(
+          '无可用颜色，请恢复部分排除的颜色',
+          pixelatedCanvas.width / 2,
+          pixelatedCanvas.height / 2,
+        );
+      }
+      setMappedPixelData(null);
+      setGridDimensions(null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    originalImageSrc,
+    granularity,
+    gridHeight,
+    similarityThreshold,
+    customPaletteSelections,
+    pixelationMode,
+    maxColorCount,
+    autoRemoveWhiteBg,
+    remapTrigger,
+  ]);
+
+  /** 应用新原图（预处理确认后）并重新生成图纸 */
+  const applyPreparedImage = useCallback((dataUrl: string) => {
+    setExcludedColorKeys(new Set());
+    setSelectedCells(new Set());
+    setShowSelectionRecolor(false);
+    setCropRect(null);
+    setCanvasToolMode('select');
+    setIsManualColoringMode(false);
+    setSelectedColor(null);
+    setOriginalImageSrc(dataUrl);
+    setRemapTrigger((prev) => prev + 1);
+  }, [
+    setExcludedColorKeys,
+    setSelectedCells,
+    setShowSelectionRecolor,
+    setCropRect,
+    setCanvasToolMode,
+    setIsManualColoringMode,
+    setSelectedColor,
+    setOriginalImageSrc,
+    setRemapTrigger,
+  ]);
+
+  const openImagePrep = useCallback((src: string) => {
+    setPendingPrepImageSrc(src);
+    setIsImagePrepOpen(true);
+  }, []);
+
+  const handlePrepConfirm = useCallback(
+    (preparedDataUrl: string, meta: { usedAiMatting: boolean }) => {
+      if (meta.usedAiMatting && pendingPrepImageSrc) {
+        setPreAiImageSrc(pendingPrepImageSrc);
+        setAutoRemoveWhiteBg(true);
+      }
+
+      const probe = new window.Image();
+      probe.onload = () => {
+        const ratio = probe.height / Math.max(1, probe.width);
+        setImageAspectRatio(ratio);
+        const defaultW = 50;
+        const defaultH = Math.max(10, Math.min(300, Math.round(defaultW * ratio)));
+        setGranularity(defaultW);
+        setGranularityInput(String(defaultW));
+        setGridHeight(defaultH);
+        setGridHeightInput(String(defaultH));
+        applyPreparedImage(preparedDataUrl);
+        setIsImagePrepOpen(false);
+        setPendingPrepImageSrc(null);
+        showToast(meta.usedAiMatting ? '已抠图并生成图纸' : '已裁剪并生成图纸');
+      };
+      probe.onerror = () => {
+        applyPreparedImage(preparedDataUrl);
+        setIsImagePrepOpen(false);
+        setPendingPrepImageSrc(null);
+      };
+      probe.src = preparedDataUrl;
+    },
+    [
+      pendingPrepImageSrc,
+      applyPreparedImage,
+      showToast,
+      setPreAiImageSrc,
+      setAutoRemoveWhiteBg,
+      setImageAspectRatio,
+      setGranularity,
+      setGranularityInput,
+      setGridHeight,
+      setGridHeightInput,
+    ],
+  );
+
+  const handlePrepCancel = useCallback(() => {
+    setIsImagePrepOpen(false);
+    setPendingPrepImageSrc(null);
+  }, []);
+
+  const handleUndoAiMatting = useCallback(() => {
+    if (!preAiImageSrc) return;
+    openImagePrep(preAiImageSrc);
+    setPreAiImageSrc(null);
+    showToast('已恢复抠图前原图，请重新确认');
+  }, [preAiImageSrc, openImagePrep, showToast, setPreAiImageSrc]);
+
+  return {
+    pixelateImage,
+    applyPreparedImage,
+    openImagePrep,
+    handlePrepConfirm,
+    handlePrepCancel,
+    handleUndoAiMatting,
+    pendingPrepImageSrc,
+    isImagePrepOpen,
+  };
+}

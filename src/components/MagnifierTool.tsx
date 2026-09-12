@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { MappedPixel } from '../utils/pixelation';
 import { getColorKeyByHex, ColorSystem } from '../utils/colorSystemUtils';
+import { getHighlightRenderStyle } from '../utils/color';
 
 interface MagnifierToolProps {
   isActive: boolean;
@@ -94,6 +95,18 @@ const MagnifierTool: React.FC<MagnifierToolProps> = ({
     const endRow = Math.max(selectionArea.startRow, selectionArea.endRow);
     const startCol = Math.min(selectionArea.startCol, selectionArea.endCol);
     const endCol = Math.max(selectionArea.startCol, selectionArea.endCol);
+    const highlightStyle = highlightColorKey
+      ? getHighlightRenderStyle(highlightColorKey)
+      : null;
+    const highlightKeyUpper = highlightColorKey?.toUpperCase() ?? '';
+
+    const isAccentAt = (row: number, col: number): boolean => {
+      if (!highlightStyle) return false;
+      if (row < 0 || col < 0 || row >= mappedPixelData.length || col >= mappedPixelData[0].length) {
+        return false;
+      }
+      return mappedPixelData[row][col].color.toUpperCase() === highlightKeyUpper;
+    };
 
     for (let row = startRow; row <= endRow; row++) {
       for (let col = startCol; col <= endCol; col++) {
@@ -101,8 +114,8 @@ const MagnifierTool: React.FC<MagnifierToolProps> = ({
           const pixel = mappedPixelData[row][col];
           const canvasRow = row - startRow;
           const canvasCol = col - startCol;
+          const isAccent = isAccentAt(row, col);
           
-          // 绘制像素
           ctx.fillStyle = pixel.color;
           ctx.fillRect(
             canvasCol * magnifiedCellSize,
@@ -111,9 +124,19 @@ const MagnifierTool: React.FC<MagnifierToolProps> = ({
             magnifiedCellSize
           );
 
-          // 如果有高亮颜色且当前像素不是目标颜色，添加灰度蒙版
-          if (highlightColorKey && pixel.color.toUpperCase() !== highlightColorKey.toUpperCase()) {
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.6)'; // 60% 透明度的黑色蒙版，与预览画布一致
+          if (highlightStyle && isAccent) {
+            ctx.save();
+            ctx.globalCompositeOperation = highlightStyle.accentLiftComposite;
+            ctx.fillStyle = highlightStyle.accentLift;
+            ctx.fillRect(
+              canvasCol * magnifiedCellSize,
+              canvasRow * magnifiedCellSize,
+              magnifiedCellSize,
+              magnifiedCellSize
+            );
+            ctx.restore();
+          } else if (highlightStyle && !isAccent) {
+            ctx.fillStyle = highlightStyle.dimOverlay;
             ctx.fillRect(
               canvasCol * magnifiedCellSize,
               canvasRow * magnifiedCellSize,
@@ -122,8 +145,9 @@ const MagnifierTool: React.FC<MagnifierToolProps> = ({
             );
           }
 
-          // 绘制网格线
-          ctx.strokeStyle = '#e0e0e0';
+          ctx.strokeStyle = highlightStyle
+            ? (isAccent ? highlightStyle.accentGridColor : highlightStyle.mutedGridColor)
+            : '#e0e0e0';
           ctx.lineWidth = 1;
           ctx.strokeRect(
             canvasCol * magnifiedCellSize,
@@ -133,6 +157,39 @@ const MagnifierTool: React.FC<MagnifierToolProps> = ({
           );
         }
       }
+    }
+
+    if (highlightStyle) {
+      const lineW = Math.max(1.5, magnifiedCellSize * 0.08);
+      ctx.strokeStyle = highlightStyle.silhouetteStroke;
+      ctx.lineWidth = lineW;
+      ctx.lineCap = 'square';
+      ctx.beginPath();
+
+      for (let row = startRow; row <= endRow; row++) {
+        for (let col = startCol; col <= endCol; col++) {
+          if (!isAccentAt(row, col)) continue;
+          const x = (col - startCol) * magnifiedCellSize;
+          const y = (row - startRow) * magnifiedCellSize;
+          if (!isAccentAt(row - 1, col)) {
+            ctx.moveTo(x, y);
+            ctx.lineTo(x + magnifiedCellSize, y);
+          }
+          if (!isAccentAt(row + 1, col)) {
+            ctx.moveTo(x, y + magnifiedCellSize);
+            ctx.lineTo(x + magnifiedCellSize, y + magnifiedCellSize);
+          }
+          if (!isAccentAt(row, col - 1)) {
+            ctx.moveTo(x, y);
+            ctx.lineTo(x, y + magnifiedCellSize);
+          }
+          if (!isAccentAt(row, col + 1)) {
+            ctx.moveTo(x + magnifiedCellSize, y);
+            ctx.lineTo(x + magnifiedCellSize, y + magnifiedCellSize);
+          }
+        }
+      }
+      ctx.stroke();
     }
   }, [selectionArea, mappedPixelData, getSelectionDimensions, highlightColorKey]);
 
