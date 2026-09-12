@@ -4,7 +4,6 @@ import { useCallback, type Dispatch, type MutableRefObject, type SetStateAction 
 import {
   TRANSPARENT_KEY,
   transparentColorData,
-  floodFillErase as floodFillEraseAlgo,
   recalculateColorStats,
 } from '../../domain/pixelation';
 import { useEditorStore, type EditSnapshot } from './editorStore';
@@ -18,27 +17,24 @@ export type CanvasTooltipData = {
 };
 
 export type UseCanvasInteractionOptions = {
-  saveEditSnapshot: () => void;
   setBgRemovalSnapshot: (snapshot: EditSnapshot | null) => void;
   clearEditHistory: () => void;
   pixelatedCanvasRef: MutableRefObject<HTMLCanvasElement | null>;
   mainRef: MutableRefObject<HTMLElement | null>;
   tooltipData: CanvasTooltipData | null;
   setTooltipData: Dispatch<SetStateAction<CanvasTooltipData | null>>;
-  handlePaintCell: (row: number, col: number) => void;
 };
 
-/** 画布点击/悬停、一键去背景、颜色替换选源、高亮完成 */
+/** 画布点击/悬停、一键去背景、高亮完成 */
 export function useCanvasInteraction({
-  saveEditSnapshot,
   setBgRemovalSnapshot,
   clearEditHistory,
   pixelatedCanvasRef,
   mainRef,
   tooltipData,
   setTooltipData,
-  handlePaintCell,
 }: UseCanvasInteractionOptions) {
+
   const mappedPixelData = useEditorStore((s) => s.mappedPixelData);
   const setMappedPixelData = useEditorStore((s) => s.setMappedPixelData);
   const gridDimensions = useEditorStore((s) => s.gridDimensions);
@@ -46,15 +42,8 @@ export function useCanvasInteraction({
   const setColorCounts = useEditorStore((s) => s.setColorCounts);
   const totalBeadCount = useEditorStore((s) => s.totalBeadCount);
   const setTotalBeadCount = useEditorStore((s) => s.setTotalBeadCount);
-  const setInitialGridColorKeys = useEditorStore((s) => s.setInitialGridColorKeys);
   const granularity = useEditorStore((s) => s.granularity);
   const gridHeight = useEditorStore((s) => s.gridHeight);
-  const isManualColoringMode = useEditorStore((s) => s.isManualColoringMode);
-  const selectedColor = useEditorStore((s) => s.selectedColor);
-  const isEraseMode = useEditorStore((s) => s.isEraseMode);
-  const setIsEraseMode = useEditorStore((s) => s.setIsEraseMode);
-  const colorReplaceState = useEditorStore((s) => s.colorReplaceState);
-  const setColorReplaceState = useEditorStore((s) => s.setColorReplaceState);
 
   const previewZoom = useEditorUiStore((s) => s.previewZoom);
   const setHighlightColorKey = useEditorUiStore((s) => s.setHighlightColorKey);
@@ -153,7 +142,6 @@ export function useCanvasInteraction({
 
     setColorCounts(newColorCounts);
     setTotalBeadCount(newTotalCount);
-    setInitialGridColorKeys(new Set(Object.keys(newColorCounts)));
   }, [
     mappedPixelData,
     gridDimensions,
@@ -166,55 +154,7 @@ export function useCanvasInteraction({
     setMappedPixelData,
     setColorCounts,
     setTotalBeadCount,
-    setInitialGridColorKeys,
   ]);
-
-  const runFloodFillErase = useCallback(
-    (startRow: number, startCol: number, targetKey: string) => {
-      if (!mappedPixelData || !gridDimensions) return;
-
-      const newPixelData = floodFillEraseAlgo(
-        mappedPixelData,
-        gridDimensions,
-        startRow,
-        startCol,
-        targetKey,
-      );
-
-      saveEditSnapshot();
-      setMappedPixelData(newPixelData);
-
-      if (colorCounts) {
-        const { colorCounts: newColorCounts, totalCount: newTotalCount } =
-          recalculateColorStats(newPixelData);
-        setColorCounts(newColorCounts);
-        setTotalBeadCount(newTotalCount);
-      }
-    },
-    [
-      mappedPixelData,
-      gridDimensions,
-      colorCounts,
-      saveEditSnapshot,
-      setMappedPixelData,
-      setColorCounts,
-      setTotalBeadCount,
-    ],
-  );
-
-  const handleCanvasColorSelect = useCallback(
-    (colorData: { key: string; color: string }) => {
-      if (colorReplaceState.isActive && colorReplaceState.step === 'select-source') {
-        setHighlightColorKey(colorData.color);
-        setColorReplaceState({
-          isActive: true,
-          step: 'select-target',
-          sourceColor: colorData,
-        });
-      }
-    },
-    [colorReplaceState.isActive, colorReplaceState.step, setHighlightColorKey, setColorReplaceState],
-  );
 
   const handleHighlightComplete = useCallback(() => {
     setHighlightColorKey(null);
@@ -258,67 +198,38 @@ export function useCanvasInteraction({
       if (i >= 0 && i < N && j >= 0 && j < M) {
         const cellData = mappedPixelData[j][i];
 
-        if (isClick && colorReplaceState.isActive && colorReplaceState.step === 'select-source') {
-          if (cellData && !cellData.isExternal && cellData.key && cellData.key !== TRANSPARENT_KEY) {
-            handleCanvasColorSelect({
+        if (cellData && !cellData.isExternal && cellData.key) {
+          if (isClick && tooltipData) {
+            const tooltipRect = canvas.getBoundingClientRect();
+            const prevX = tooltipData.x;
+            const prevY = tooltipData.y;
+            const prevCanvasX = (prevX - tooltipRect.left) * scaleX;
+            const prevCanvasY = (prevY - tooltipRect.top) * scaleY;
+            const prevCellI = Math.floor((prevCanvasX - axisSize) / cellSize);
+            const prevCellJ = Math.floor((prevCanvasY - axisSize) / cellSize);
+
+            if (i === prevCellI && j === prevCellJ) {
+              setTooltipData(null);
+              return;
+            }
+          }
+
+          const mainElement = mainRef.current;
+          if (mainElement) {
+            const mainRect = mainElement.getBoundingClientRect();
+            setTooltipData({
+              x: clientX - mainRect.left,
+              y: clientY - mainRect.top,
               key: cellData.key,
               color: cellData.color,
             });
-            setTooltipData(null);
-          }
-          return;
-        }
-
-        if (isClick && isEraseMode) {
-          if (cellData && !cellData.isExternal && cellData.key && cellData.key !== TRANSPARENT_KEY) {
-            runFloodFillErase(j, i, cellData.key);
-            setIsEraseMode(false);
-            setTooltipData(null);
-          }
-          return;
-        }
-
-        if (isClick && isManualColoringMode && selectedColor) {
-          handlePaintCell(j, i);
-          return;
-        }
-
-        if (!isManualColoringMode || !selectedColor) {
-          if (cellData && !cellData.isExternal && cellData.key) {
-            if (isClick && tooltipData) {
-              const tooltipRect = canvas.getBoundingClientRect();
-              const prevX = tooltipData.x;
-              const prevY = tooltipData.y;
-              const prevCanvasX = (prevX - tooltipRect.left) * scaleX;
-              const prevCanvasY = (prevY - tooltipRect.top) * scaleY;
-              const prevCellI = Math.floor((prevCanvasX - axisSize) / cellSize);
-              const prevCellJ = Math.floor((prevCanvasY - axisSize) / cellSize);
-
-              if (i === prevCellI && j === prevCellJ) {
-                setTooltipData(null);
-                return;
-              }
-            }
-
-            const mainElement = mainRef.current;
-            if (mainElement) {
-              const mainRect = mainElement.getBoundingClientRect();
-              setTooltipData({
-                x: clientX - mainRect.left,
-                y: clientY - mainRect.top,
-                key: cellData.key,
-                color: cellData.color,
-              });
-            } else {
-              setTooltipData({
-                x: clientX,
-                y: clientY,
-                key: cellData.key,
-                color: cellData.color,
-              });
-            }
           } else {
-            setTooltipData(null);
+            setTooltipData({
+              x: clientX,
+              y: clientY,
+              key: cellData.key,
+              color: cellData.color,
+            });
           }
         } else {
           setTooltipData(null);
@@ -332,24 +243,14 @@ export function useCanvasInteraction({
       mappedPixelData,
       gridDimensions,
       previewZoom,
-      colorReplaceState.isActive,
-      colorReplaceState.step,
-      isEraseMode,
-      isManualColoringMode,
-      selectedColor,
       tooltipData,
       mainRef,
       setTooltipData,
-      handleCanvasColorSelect,
-      runFloodFillErase,
-      setIsEraseMode,
-      handlePaintCell,
     ],
   );
 
   return {
     handleCanvasInteraction,
-    handleCanvasColorSelect,
     handleAutoRemoveBackground,
     handleHighlightComplete,
   };

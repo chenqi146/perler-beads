@@ -45,13 +45,12 @@ export function useEditorGenerationParams() {
       setPixelationMode: s.setPixelationMode,
       remapTrigger: s.remapTrigger,
       setRemapTrigger: s.setRemapTrigger,
-      setIsManualColoringMode: s.setIsManualColoringMode,
       setSelectedColor: s.setSelectedColor,
     })),
   );
 }
 
-/** 色板 / 色号体系 / 排除色 */
+/** 色板 / 色号体系 / 自定义色板勾选 */
 export function useEditorPaletteState() {
   return useEditorStore(
     useShallow((s) => ({
@@ -59,18 +58,16 @@ export function useEditorPaletteState() {
       setSelectedColorSystem: s.setSelectedColorSystem,
       activeBeadPalette: s.activeBeadPalette,
       setActiveBeadPalette: s.setActiveBeadPalette,
-      excludedColorKeys: s.excludedColorKeys,
       customPaletteSelections: s.customPaletteSelections,
       setCustomPaletteSelections: s.setCustomPaletteSelections,
     })),
   );
 }
 
-/** 画布工具：手动上色、选择、裁剪 */
+/** 画布工具：选择、裁剪、框选改色 */
 export function useEditorToolState() {
   return useEditorStore(
     useShallow((s) => ({
-      isManualColoringMode: s.isManualColoringMode,
       canvasToolMode: s.canvasToolMode,
       setCanvasToolMode: s.setCanvasToolMode,
       selectedCells: s.selectedCells,

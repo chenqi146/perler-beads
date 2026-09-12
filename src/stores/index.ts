@@ -14,7 +14,6 @@ export {
   useCanvasViewport,
   measureCanvasPixels,
   usePixelationPipeline,
-  useColorExclusion,
   usePatternExport,
   useCustomPaletteIO,
   useEditorCanvasTools,
@@ -27,7 +26,7 @@ export {
   useBeadProgressActions,
   usePatternLoadActions,
 } from '../application';
-export type { EditSnapshot, ColorReplaceState } from '../application';
+export type { EditSnapshot } from '../application';
 export type { PatternInput, PatternData, Visibility } from '../application';
 export type {
   DraftPixelateLock,

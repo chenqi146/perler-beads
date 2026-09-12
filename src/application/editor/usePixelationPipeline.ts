@@ -74,9 +74,6 @@ export function usePixelationPipeline({
   const setGridDimensions = useEditorStore((s) => s.setGridDimensions);
   const setColorCounts = useEditorStore((s) => s.setColorCounts);
   const setTotalBeadCount = useEditorStore((s) => s.setTotalBeadCount);
-  const setInitialGridColorKeys = useEditorStore((s) => s.setInitialGridColorKeys);
-  const setExcludedColorKeys = useEditorStore((s) => s.setExcludedColorKeys);
-  const setIsManualColoringMode = useEditorStore((s) => s.setIsManualColoringMode);
   const setSelectedColor = useEditorStore((s) => s.setSelectedColor);
   const setSelectedCells = useEditorStore((s) => s.setSelectedCells);
   const setShowSelectionRecolor = useEditorStore((s) => s.setShowSelectionRecolor);
@@ -118,12 +115,8 @@ export function usePixelationPipeline({
       console.log('Canvas contexts obtained.');
 
       if (currentPalette.length === 0) {
-        console.error(
-          'Cannot pixelate: The selected color palette is empty (likely due to exclusions).',
-        );
-        alert(
-          '错误：当前可用颜色板为空（可能所有颜色都被排除了），无法处理图像。请尝试恢复部分颜色。',
-        );
+        console.error('Cannot pixelate: The selected color palette is empty.');
+        alert('错误：当前可用颜色板为空，无法处理图像。请在色板管理中勾选颜色。');
         pixelatedCtx.clearRect(0, 0, pixelatedCanvas.width, pixelatedCanvas.height);
         setMappedPixelData(null);
         setGridDimensions(null);
@@ -144,7 +137,6 @@ export function usePixelationPipeline({
         setMappedPixelData(null);
         setGridDimensions(null);
         setColorCounts(null);
-        setInitialGridColorKeys(new Set());
       };
 
       img.onload = () => {
@@ -277,7 +269,6 @@ export function usePixelationPipeline({
           const { counts, total } = recountColors(finalData);
           setColorCounts(counts);
           setTotalBeadCount(total);
-          setInitialGridColorKeys(new Set(Object.keys(counts)));
           console.log('Color counts updated:', counts);
           console.log('Total bead count:', total);
         } else {
@@ -287,7 +278,6 @@ export function usePixelationPipeline({
 
       console.log('Setting image source...');
       img.src = imageSrc;
-      setIsManualColoringMode(false);
       setSelectedColor(null);
     },
     [
@@ -297,15 +287,13 @@ export function usePixelationPipeline({
       setGridDimensions,
       setOriginalImageSrc,
       setColorCounts,
-      setInitialGridColorKeys,
       setImageAspectRatio,
       setTotalBeadCount,
-      setIsManualColoringMode,
       setSelectedColor,
     ],
   );
 
-  // 当 remapTrigger 变化时清空撤回历史（参数调整/颜色排除/新图上传等均会触发 remap）
+  // 当 remapTrigger 变化时清空撤回历史（参数调整/新图上传等均会触发 remap）
   useEffect(() => {
     clearEditHistory();
     setBgRemovalSnapshot(null);
@@ -365,7 +353,7 @@ export function usePixelationPipeline({
       return () => clearTimeout(timeoutId);
     } else if (originalImageSrc && activeBeadPalette.length === 0) {
       console.warn(
-        'Image selected, but the active palette is empty after exclusions. Cannot process. Clearing preview.',
+        'Image selected, but the active palette is empty. Cannot process. Clearing preview.',
       );
       const pixelatedCanvas = pixelatedCanvasRef.current;
       const pixelatedCtx = pixelatedCanvas?.getContext('2d');
@@ -375,7 +363,7 @@ export function usePixelationPipeline({
         pixelatedCtx.font = '16px sans-serif';
         pixelatedCtx.textAlign = 'center';
         pixelatedCtx.fillText(
-          '无可用颜色，请恢复部分排除的颜色',
+          '无可用颜色，请在色板管理中勾选颜色',
           pixelatedCanvas.width / 2,
           pixelatedCanvas.height / 2,
         );
@@ -398,22 +386,18 @@ export function usePixelationPipeline({
 
   /** 应用新原图（预处理确认后）并重新生成图纸 */
   const applyPreparedImage = useCallback((dataUrl: string) => {
-    setExcludedColorKeys(new Set());
     setSelectedCells(new Set());
     setShowSelectionRecolor(false);
     setCropRect(null);
     setCanvasToolMode('select');
-    setIsManualColoringMode(false);
     setSelectedColor(null);
     setOriginalImageSrc(dataUrl);
     setRemapTrigger((prev) => prev + 1);
   }, [
-    setExcludedColorKeys,
     setSelectedCells,
     setShowSelectionRecolor,
     setCropRect,
     setCanvasToolMode,
-    setIsManualColoringMode,
     setSelectedColor,
     setOriginalImageSrc,
     setRemapTrigger,

@@ -199,7 +199,6 @@ function BeadPageContent() {
                   canvasRef={canvasRef}
                   mappedPixelData={mappedPixelData}
                   gridDimensions={gridDimensions}
-                  isManualColoringMode={false}
                   onInteraction={() => {}}
                   highlightColorKey={highlightHex}
                   persistentHighlight

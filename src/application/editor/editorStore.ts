@@ -18,12 +18,6 @@ export type EditSnapshot = {
   gridHeight: number;
 };
 
-export type ColorReplaceState = {
-  isActive: boolean;
-  step: 'select-source' | 'select-target';
-  sourceColor?: { key: string; color: string };
-};
-
 type ColorCounts = { [key: string]: { count: number; color: string } } | null;
 
 type EditorState = {
@@ -49,18 +43,13 @@ type EditorState = {
 
   selectedColorSystem: ColorSystem;
   activeBeadPalette: PaletteColor[];
-  excludedColorKeys: Set<string>;
-  initialGridColorKeys: Set<string>;
   customPaletteSelections: PaletteSelections;
 
-  isManualColoringMode: boolean;
   selectedColor: MappedPixel | null;
-  isEraseMode: boolean;
   canvasToolMode: CanvasToolMode;
   selectedCells: Set<string>;
   cropRect: CropRect | null;
   showSelectionRecolor: boolean;
-  colorReplaceState: ColorReplaceState;
 
   editHistory: EditSnapshot[];
   bgRemovalSnapshot: EditSnapshot | null;
@@ -88,22 +77,15 @@ type EditorState = {
 
   setSelectedColorSystem: (s: ColorSystem) => void;
   setActiveBeadPalette: (p: PaletteColor[]) => void;
-  setExcludedColorKeys: (keys: Set<string> | ((prev: Set<string>) => Set<string>)) => void;
-  setInitialGridColorKeys: (keys: Set<string> | ((prev: Set<string>) => Set<string>)) => void;
   setCustomPaletteSelections: (
     sel: PaletteSelections | ((prev: PaletteSelections) => PaletteSelections),
   ) => void;
 
-  setIsManualColoringMode: (v: boolean) => void;
   setSelectedColor: (c: MappedPixel | null) => void;
-  setIsEraseMode: (v: boolean) => void;
   setCanvasToolMode: (m: CanvasToolMode) => void;
   setSelectedCells: (cells: Set<string> | ((prev: Set<string>) => Set<string>)) => void;
   setCropRect: (r: CropRect | null | ((prev: CropRect | null) => CropRect | null)) => void;
   setShowSelectionRecolor: (v: boolean) => void;
-  setColorReplaceState: (
-    s: ColorReplaceState | ((prev: ColorReplaceState) => ColorReplaceState),
-  ) => void;
 
   setEditHistory: (h: EditSnapshot[] | ((prev: EditSnapshot[]) => EditSnapshot[])) => void;
   setBgRemovalSnapshot: (s: EditSnapshot | null) => void;
@@ -136,18 +118,13 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
   selectedColorSystem: 'MARD',
   activeBeadPalette: [],
-  excludedColorKeys: new Set(),
-  initialGridColorKeys: new Set(),
   customPaletteSelections: {},
 
-  isManualColoringMode: false,
   selectedColor: null,
-  isEraseMode: false,
   canvasToolMode: 'select',
   selectedCells: new Set(),
   cropRect: null,
   showSelectionRecolor: false,
-  colorReplaceState: { isActive: false, step: 'select-source' },
 
   editHistory: [],
   bgRemovalSnapshot: null,
@@ -178,22 +155,12 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
   setSelectedColorSystem: (sys) => set({ selectedColorSystem: sys }),
   setActiveBeadPalette: (p) => set({ activeBeadPalette: p }),
-  setExcludedColorKeys: (keys) =>
-    set((s) => ({
-      excludedColorKeys: typeof keys === 'function' ? keys(s.excludedColorKeys) : keys,
-    })),
-  setInitialGridColorKeys: (keys) =>
-    set((s) => ({
-      initialGridColorKeys: typeof keys === 'function' ? keys(s.initialGridColorKeys) : keys,
-    })),
   setCustomPaletteSelections: (sel) =>
     set((s) => ({
       customPaletteSelections: typeof sel === 'function' ? sel(s.customPaletteSelections) : sel,
     })),
 
-  setIsManualColoringMode: (v) => set({ isManualColoringMode: v }),
   setSelectedColor: (c) => set({ selectedColor: c }),
-  setIsEraseMode: (v) => set({ isEraseMode: v }),
   setCanvasToolMode: (m) => set({ canvasToolMode: m }),
   setSelectedCells: (cells) =>
     set((s) => ({
@@ -204,10 +171,6 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       cropRect: typeof r === 'function' ? r(s.cropRect) : r,
     })),
   setShowSelectionRecolor: (v) => set({ showSelectionRecolor: v }),
-  setColorReplaceState: (st) =>
-    set((s) => ({
-      colorReplaceState: typeof st === 'function' ? st(s.colorReplaceState) : st,
-    })),
 
   setEditHistory: (h) =>
     set((s) => ({
@@ -223,7 +186,6 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       totalBeadCount: data.totalBeadCount,
       originalImageSrc: data.originalImageSrc,
       selectedColorSystem: (data.selectedColorSystem as ColorSystem) || 'MARD',
-      initialGridColorKeys: new Set(Object.keys(data.colorCounts || {})),
       granularity: data.gridDimensions.N || 50,
       granularityInput: String(data.gridDimensions.N || 50),
       gridHeight: data.gridDimensions.M || 50,
@@ -232,7 +194,6 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       cropRect: null,
       editHistory: [],
       bgRemovalSnapshot: null,
-      excludedColorKeys: new Set(),
     });
   },
 
@@ -256,8 +217,6 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       totalBeadCount: 0,
       originalImageSrc: null,
       preAiImageSrc: null,
-      initialGridColorKeys: new Set(),
-      excludedColorKeys: new Set(),
       selectedCells: new Set(),
       cropRect: null,
       editHistory: [],

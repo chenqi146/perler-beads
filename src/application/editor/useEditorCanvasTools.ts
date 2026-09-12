@@ -17,7 +17,7 @@ export type UseEditorCanvasToolsOptions = {
   suppressPixelateUntilRef: MutableRefObject<number>;
 };
 
-/** 画布选区 / 改色 / 裁剪 / 单格上色 */
+/** 画布选区 / 改色 / 裁剪 */
 export function useEditorCanvasTools({
   saveEditSnapshot,
   suppressPixelateUntilRef,
@@ -26,16 +26,12 @@ export function useEditorCanvasTools({
   const setMappedPixelData = useEditorStore((s) => s.setMappedPixelData);
   const gridDimensions = useEditorStore((s) => s.gridDimensions);
   const setGridDimensions = useEditorStore((s) => s.setGridDimensions);
-  const colorCounts = useEditorStore((s) => s.colorCounts);
   const setColorCounts = useEditorStore((s) => s.setColorCounts);
-  const totalBeadCount = useEditorStore((s) => s.totalBeadCount);
   const setTotalBeadCount = useEditorStore((s) => s.setTotalBeadCount);
   const setGranularity = useEditorStore((s) => s.setGranularity);
   const setGranularityInput = useEditorStore((s) => s.setGranularityInput);
   const setGridHeight = useEditorStore((s) => s.setGridHeight);
   const setGridHeightInput = useEditorStore((s) => s.setGridHeightInput);
-  const setInitialGridColorKeys = useEditorStore((s) => s.setInitialGridColorKeys);
-  const selectedColor = useEditorStore((s) => s.selectedColor);
   const setSelectedColor = useEditorStore((s) => s.setSelectedColor);
   const selectedCells = useEditorStore((s) => s.selectedCells);
   const setSelectedCells = useEditorStore((s) => s.setSelectedCells);
@@ -165,7 +161,6 @@ export function useEditorCanvasTools({
     const { counts, total } = recountColors(cropped);
     setColorCounts(counts);
     setTotalBeadCount(total);
-    setInitialGridColorKeys(new Set(Object.keys(counts)));
     setCropRect(null);
     setCanvasToolMode('select');
     handleClearCellSelection();
@@ -182,7 +177,6 @@ export function useEditorCanvasTools({
     setGridHeightInput,
     setColorCounts,
     setTotalBeadCount,
-    setInitialGridColorKeys,
     setCropRect,
     setCanvasToolMode,
   ]);
@@ -208,75 +202,6 @@ export function useEditorCanvasTools({
     applyCropBounds(result.bounds);
   }, [mappedPixelData, applyCropBounds]);
 
-  const handlePaintCell = useCallback((row: number, col: number) => {
-    if (!mappedPixelData || !gridDimensions || !selectedColor) return;
-    if (row < 0 || col < 0 || row >= gridDimensions.M || col >= gridDimensions.N) return;
-
-    const oldPixel = mappedPixelData[row][col];
-    if (!oldPixel) return;
-
-    const nextKey = selectedColor.key;
-    const nextColor = selectedColor.color;
-    const nextExternal = nextKey === TRANSPARENT_KEY;
-
-    if (
-      oldPixel.key === nextKey &&
-      Boolean(oldPixel.isExternal) === nextExternal
-    ) {
-      return;
-    }
-
-    const newPixelData = mappedPixelData.map((rowData, r) =>
-      rowData.map((pixel, c) => {
-        if (r === row && c === col) {
-          return nextExternal
-            ? { ...transparentColorData }
-            : { key: nextKey, color: nextColor, isExternal: false };
-        }
-        return pixel;
-      })
-    );
-
-    saveEditSnapshot();
-    setMappedPixelData(newPixelData);
-
-    if (colorCounts) {
-      const newColorCounts = { ...colorCounts };
-      let newTotal = totalBeadCount;
-      const oldHex = oldPixel.color?.toUpperCase();
-      const wasCounted = !oldPixel.isExternal && oldPixel.key !== TRANSPARENT_KEY;
-
-      if (wasCounted && oldHex && newColorCounts[oldHex]) {
-        newColorCounts[oldHex].count--;
-        if (newColorCounts[oldHex].count <= 0) delete newColorCounts[oldHex];
-        newTotal--;
-      }
-
-      if (!nextExternal) {
-        const newHex = nextColor.toUpperCase();
-        if (newColorCounts[newHex]) {
-          newColorCounts[newHex].count++;
-        } else {
-          newColorCounts[newHex] = { count: 1, color: nextColor };
-        }
-        newTotal++;
-      }
-
-      setColorCounts(newColorCounts);
-      setTotalBeadCount(newTotal);
-    }
-  }, [
-    mappedPixelData,
-    gridDimensions,
-    selectedColor,
-    colorCounts,
-    totalBeadCount,
-    saveEditSnapshot,
-    setMappedPixelData,
-    setColorCounts,
-    setTotalBeadCount,
-  ]);
-
   return {
     handleSelectCells,
     handleClearCellSelection,
@@ -286,6 +211,5 @@ export function useEditorCanvasTools({
     applyCropBounds,
     handleConfirmCrop,
     handleAutoCrop,
-    handlePaintCell,
   };
 }

@@ -27,13 +27,9 @@ export function useImageUpload({ openImagePrep }: UseImageUploadOptions) {
   const setTotalBeadCount = useEditorStore((s) => s.setTotalBeadCount);
   const setOriginalImageSrc = useEditorStore((s) => s.setOriginalImageSrc);
   const setPreAiImageSrc = useEditorStore((s) => s.setPreAiImageSrc);
-  const setInitialGridColorKeys = useEditorStore((s) => s.setInitialGridColorKeys);
-  const setExcludedColorKeys = useEditorStore((s) => s.setExcludedColorKeys);
   const setGranularity = useEditorStore((s) => s.setGranularity);
   const setGranularityInput = useEditorStore((s) => s.setGranularityInput);
-  const setIsManualColoringMode = useEditorStore((s) => s.setIsManualColoringMode);
   const setSelectedColor = useEditorStore((s) => s.setSelectedColor);
-  const setIsEraseMode = useEditorStore((s) => s.setIsEraseMode);
 
   const setPreviewZoom = useEditorUiStore((s) => s.setPreviewZoom);
 
@@ -89,7 +85,6 @@ export function useImageUpload({ openImagePrep }: UseImageUploadOptions) {
 
             setColorCounts(colorCountsMap);
             setTotalBeadCount(totalCount);
-            setInitialGridColorKeys(new Set(Object.keys(colorCountsMap)));
 
             const syntheticImageSrc = generateSyntheticImageFromPixelData(
               mappedPixelData,
@@ -97,9 +92,7 @@ export function useImageUpload({ openImagePrep }: UseImageUploadOptions) {
             );
             setOriginalImageSrc(syntheticImageSrc);
 
-            setIsManualColoringMode(false);
             setSelectedColor(null);
-            setIsEraseMode(false);
 
             setGranularity(gridDimensions.N);
             setGranularityInput(gridDimensions.N.toString());
@@ -118,7 +111,6 @@ export function useImageUpload({ openImagePrep }: UseImageUploadOptions) {
           setGridDimensions(null);
           setColorCounts(null);
           setTotalBeadCount(0);
-          setInitialGridColorKeys(new Set());
           setPreviewZoom(1);
           setSelectedColor(null);
           setPreAiImageSrc(null);
@@ -143,7 +135,6 @@ export function useImageUpload({ openImagePrep }: UseImageUploadOptions) {
             .catch((error) => {
               console.error('GIF 处理失败:', error);
               alert('无法读取 GIF 文件。');
-              setInitialGridColorKeys(new Set());
             });
         } else {
           const reader = new FileReader();
@@ -153,14 +144,11 @@ export function useImageUpload({ openImagePrep }: UseImageUploadOptions) {
           reader.onerror = () => {
             console.error('文件读取失败');
             alert('无法读取文件。');
-            setInitialGridColorKeys(new Set());
           };
           reader.readAsDataURL(file);
         }
 
-        setIsManualColoringMode(false);
         setSelectedColor(null);
-        setIsEraseMode(false);
       }
     },
     [
@@ -171,12 +159,9 @@ export function useImageUpload({ openImagePrep }: UseImageUploadOptions) {
       setTotalBeadCount,
       setOriginalImageSrc,
       setPreAiImageSrc,
-      setInitialGridColorKeys,
       setGranularity,
       setGranularityInput,
-      setIsManualColoringMode,
       setSelectedColor,
-      setIsEraseMode,
       setPreviewZoom,
     ],
   );
@@ -231,7 +216,6 @@ export function useImageUpload({ openImagePrep }: UseImageUploadOptions) {
       if (file) {
         const { isImageFile, isCsvFile } = isSupportedUploadFile(file);
         if (isImageFile || isCsvFile) {
-          setExcludedColorKeys(new Set());
           processFile(file);
         } else {
           alert(
@@ -244,7 +228,7 @@ export function useImageUpload({ openImagePrep }: UseImageUploadOptions) {
         event.target.value = '';
       }
     },
-    [processFile, setExcludedColorKeys],
+    [processFile],
   );
 
   const handleDrop = useCallback(
@@ -258,7 +242,6 @@ export function useImageUpload({ openImagePrep }: UseImageUploadOptions) {
           const { isImageFile, isCsvFile } = isSupportedUploadFile(file);
 
           if (isImageFile || isCsvFile) {
-            setExcludedColorKeys(new Set());
             processFile(file);
           } else {
             alert(
@@ -272,7 +255,7 @@ export function useImageUpload({ openImagePrep }: UseImageUploadOptions) {
         alert('处理文件时发生错误，请重试。');
       }
     },
-    [processFile, setExcludedColorKeys],
+    [processFile],
   );
 
   const handleDragOver = useCallback((event: DragEvent<HTMLDivElement>) => {
@@ -289,7 +272,6 @@ export function useImageUpload({ openImagePrep }: UseImageUploadOptions) {
           const file = item.getAsFile();
           if (file) {
             event.preventDefault();
-            setExcludedColorKeys(new Set());
             processFile(file);
           }
           break;
@@ -298,7 +280,7 @@ export function useImageUpload({ openImagePrep }: UseImageUploadOptions) {
     };
     window.addEventListener('paste', onPaste);
     return () => window.removeEventListener('paste', onPaste);
-  }, [processFile, setExcludedColorKeys]);
+  }, [processFile]);
 
   return {
     fileInputRef,

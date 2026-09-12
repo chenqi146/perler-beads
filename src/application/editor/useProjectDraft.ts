@@ -84,10 +84,6 @@ export function useProjectDraft({
   const setPixelationMode = useEditorStore((s) => s.setPixelationMode);
   const selectedColorSystem = useEditorStore((s) => s.selectedColorSystem);
   const setSelectedColorSystem = useEditorStore((s) => s.setSelectedColorSystem);
-  const excludedColorKeys = useEditorStore((s) => s.excludedColorKeys);
-  const setExcludedColorKeys = useEditorStore((s) => s.setExcludedColorKeys);
-  const initialGridColorKeys = useEditorStore((s) => s.initialGridColorKeys);
-  const setInitialGridColorKeys = useEditorStore((s) => s.setInitialGridColorKeys);
 
   // 启动时恢复上次图纸草稿（有 patternId 时跳过，由 pattern 水合优先）
   useEffect(() => {
@@ -140,8 +136,7 @@ export function useProjectDraft({
     ) {
       setSelectedColorSystem(draft.selectedColorSystem);
     }
-    setExcludedColorKeys(new Set(draft.excludedColorKeys || []));
-    setInitialGridColorKeys(new Set(draft.initialGridColorKeys || Object.keys(draft.colorCounts || {})));
+    // 旧草稿中的 excludedColorKeys / initialGridColorKeys 已废弃，忽略
 
     const src =
       draft.originalImageSrc ||
@@ -175,8 +170,6 @@ export function useProjectDraft({
         autoRemoveWhiteBg,
         pixelationMode,
         selectedColorSystem,
-        excludedColorKeys: Array.from(excludedColorKeys),
-        initialGridColorKeys: Array.from(initialGridColorKeys),
       });
       if (!result.ok) {
         setDraftSaveHint(result.reason);
@@ -198,8 +191,6 @@ export function useProjectDraft({
     autoRemoveWhiteBg,
     pixelationMode,
     selectedColorSystem,
-    excludedColorKeys,
-    initialGridColorKeys,
   ]);
 
   return {

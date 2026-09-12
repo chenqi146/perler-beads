@@ -21,8 +21,6 @@ export type EditorCanvasWorkspaceProps = {
   onHighlightComplete?: () => void;
   selectedColorSystem: ColorSystem;
   toolMode: CanvasToolMode;
-  forceSelectMode?: boolean;
-  isManualColoringMode: boolean;
   selectedCells: Set<string>;
   onSelectCells: (keys: string[], mode: 'add' | 'toggle' | 'set') => void;
   onSelectionDoubleClick?: () => void;
@@ -57,8 +55,6 @@ export function EditorCanvasWorkspace({
   onHighlightComplete,
   selectedColorSystem,
   toolMode,
-  forceSelectMode,
-  isManualColoringMode,
   selectedCells,
   onSelectCells,
   onSelectionDoubleClick,
@@ -161,14 +157,12 @@ export function EditorCanvasWorkspace({
                 canvasRef={canvasRef}
                 mappedPixelData={mappedPixelData}
                 gridDimensions={gridDimensions}
-                isManualColoringMode={isManualColoringMode}
                 onInteraction={onInteraction}
                 highlightColorKey={highlightColorKey}
                 onHighlightComplete={onHighlightComplete}
                 selectedColorSystem={selectedColorSystem}
                 previewZoom={previewZoom}
                 toolMode={toolMode}
-                forceSelectMode={forceSelectMode}
                 selectedCells={selectedCells}
                 onSelectCells={onSelectCells}
                 onSelectionDoubleClick={onSelectionDoubleClick}

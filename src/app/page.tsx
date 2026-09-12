@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
-import { useSearchParams } from 'next/navigation';
+import React, { useState, useRef, useEffect, useMemo, useCallback, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Script from 'next/script';
 
 // 导入像素化工具和类型
@@ -70,7 +70,6 @@ import {
   useCanvasViewport,
   measureCanvasPixels,
   usePixelationPipeline,
-  useColorExclusion,
   usePatternExport,
   useCustomPaletteIO,
   useEditorCanvasTools,
@@ -86,7 +85,6 @@ function Editor() {
   const [patternDescription, setPatternDescription] = useState('');
   const [patternVisibility, setPatternVisibility] = useState<'private' | 'public'>('private');
   const [isPatternInfoOpen, setIsPatternInfoOpen] = useState(false);
-
   const {
     mappedPixelData,
     gridDimensions,
@@ -101,13 +99,11 @@ function Editor() {
     setSelectedColorSystem,
     activeBeadPalette,
     setActiveBeadPalette,
-    excludedColorKeys,
     customPaletteSelections,
     setCustomPaletteSelections,
   } = useEditorPaletteState();
 
   const {
-    isManualColoringMode,
     canvasToolMode,
     setCanvasToolMode,
     selectedCells,
@@ -221,13 +217,6 @@ function Editor() {
     setBgRemovalSnapshot,
   } = useEditorHistory({ suppressPixelateUntilRef, showToast });
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- color-management surface; list currently highlights only
-  const { handleToggleExcludeColor } = useColorExclusion({
-    clearEditHistory,
-    setBgRemovalSnapshot,
-    pixelatedCanvasRef,
-  });
-
   const {
     isDownloadSettingsOpen,
     setIsDownloadSettingsOpen,
@@ -301,7 +290,6 @@ function Editor() {
     handleSelectAllByColor,
     handleConfirmCrop,
     handleAutoCrop,
-    handlePaintCell,
   } = useEditorCanvasTools({
     saveEditSnapshot,
     suppressPixelateUntilRef,
@@ -315,30 +303,26 @@ function Editor() {
     handleAutoRemoveBackground,
     handleHighlightComplete,
   } = useCanvasInteraction({
-    saveEditSnapshot,
     setBgRemovalSnapshot,
     clearEditHistory,
     pixelatedCanvasRef,
     mainRef,
     tooltipData,
     setTooltipData,
-    handlePaintCell,
   });
 
   // --- Derived State ---
 
-  // Update active palette based on selection and exclusions
+  // Update active palette based on custom selections
   useEffect(() => {
     const newActiveBeadPalette = fullBeadPalette.filter(color => {
       const normalizedHex = color.hex.toUpperCase();
-      const isSelectedInCustomPalette = customPaletteSelections[normalizedHex];
-      const isNotExcluded = !excludedColorKeys.has(normalizedHex);
-      return isSelectedInCustomPalette && isNotExcluded;
+      return customPaletteSelections[normalizedHex];
     });
     // 根据选择的色号系统转换调色板
     const convertedPalette = convertPaletteToColorSystem(newActiveBeadPalette, selectedColorSystem);
     setActiveBeadPalette(convertedPalette);
-  }, [customPaletteSelections, excludedColorKeys, remapTrigger, selectedColorSystem, setActiveBeadPalette]);
+  }, [customPaletteSelections, remapTrigger, selectedColorSystem, setActiveBeadPalette]);
 
   // ++ Calculate unique colors currently on the grid for the palette ++
   const currentGridColors = useMemo(() => {
@@ -538,64 +522,42 @@ function Editor() {
               onDragOver={handleDragOver}
             />
 
-            {!isManualColoringMode && (
-              <EditorSettingsPanel
-                mappedPixelData={mappedPixelData}
-                gridDimensions={gridDimensions}
-                selectedColorSystem={selectedColorSystem}
-                onSelectedColorSystemChange={setSelectedColorSystem}
-                keepAspectRatio={keepAspectRatio}
-                onKeepAspectRatioChange={setKeepAspectRatio}
-                granularityInput={granularityInput}
-                gridHeightInput={gridHeightInput}
-                onGranularityInputChange={handleGranularityInputChange}
-                onGridHeightInputChange={handleGridHeightInputChange}
-                onApplyGridWidth={applyGridWidth}
-                onApplyGridHeight={applyGridHeight}
-                onConfirmParameters={handleConfirmParameters}
-                maxColorCount={maxColorCount}
-                onMaxColorCountChange={setMaxColorCount}
-                autoRemoveWhiteBg={autoRemoveWhiteBg}
-                onAutoRemoveWhiteBgChange={setAutoRemoveWhiteBg}
-                similarityThresholdInput={similarityThresholdInput}
-                onSimilarityThresholdInputChange={handleSimilarityThresholdInputChange}
-                pixelationMode={pixelationMode}
-                onPixelationModeChange={handlePixelationModeChange}
-                customPaletteSelections={customPaletteSelections}
-                onOpenCustomPaletteEditor={() => setIsCustomPaletteEditorOpen(true)}
-                onAutoRemoveBackground={handleAutoRemoveBackground}
-                onUndoBgRemoval={handleUndoBgRemoval}
-                bgRemovalSnapshot={bgRemovalSnapshot}
-              />
-            )}
+            <EditorSettingsPanel
+              mappedPixelData={mappedPixelData}
+              gridDimensions={gridDimensions}
+              selectedColorSystem={selectedColorSystem}
+              onSelectedColorSystemChange={setSelectedColorSystem}
+              keepAspectRatio={keepAspectRatio}
+              onKeepAspectRatioChange={setKeepAspectRatio}
+              granularityInput={granularityInput}
+              gridHeightInput={gridHeightInput}
+              onGranularityInputChange={handleGranularityInputChange}
+              onGridHeightInputChange={handleGridHeightInputChange}
+              onApplyGridWidth={applyGridWidth}
+              onApplyGridHeight={applyGridHeight}
+              onConfirmParameters={handleConfirmParameters}
+              maxColorCount={maxColorCount}
+              onMaxColorCountChange={setMaxColorCount}
+              autoRemoveWhiteBg={autoRemoveWhiteBg}
+              onAutoRemoveWhiteBgChange={setAutoRemoveWhiteBg}
+              similarityThresholdInput={similarityThresholdInput}
+              onSimilarityThresholdInputChange={handleSimilarityThresholdInputChange}
+              pixelationMode={pixelationMode}
+              onPixelationModeChange={handlePixelationModeChange}
+              customPaletteSelections={customPaletteSelections}
+              onOpenCustomPaletteEditor={() => setIsCustomPaletteEditorOpen(true)}
+              onAutoRemoveBackground={handleAutoRemoveBackground}
+              onUndoBgRemoval={handleUndoBgRemoval}
+              bgRemovalSnapshot={bgRemovalSnapshot}
+            />
 
-        {/* Message if palette becomes empty (Also hide in manual mode) */}
-         {!isManualColoringMode && originalImageSrc && activeBeadPalette.length === 0 && excludedColorKeys.size > 0 && (
-             // Apply dark mode styles to the warning box
+        {originalImageSrc && activeBeadPalette.length === 0 && (
              <div className="w-full bg-yellow-100 dark:bg-yellow-900/50 p-4 rounded-lg shadow border border-yellow-200 dark:border-yellow-800/60 text-center text-sm text-yellow-800 dark:text-yellow-300">
-                 当前可用颜色过少或为空。请在色板管理中恢复颜色，或更换色板。
-                 {excludedColorKeys.size > 0 && (
-                      // Apply dark mode styles to the inline "restore all" button
-                      <button
-                          onClick={() => {
-                            // 滚动到颜色列表处
-                            setTimeout(() => {
-                              const listElement = document.querySelector('.color-stats-panel');
-                              if (listElement) {
-                                listElement.scrollIntoView({ behavior: 'smooth' });
-                              }
-                            }, 100);
-                          }}
-                          className="mt-2 ml-2 text-xs py-1 px-2 bg-yellow-200 dark:bg-yellow-700/60 text-yellow-900 dark:text-yellow-200 rounded hover:bg-yellow-300 dark:hover:bg-yellow-600/70 transition-colors"
-                      >
-                          查看已排除颜色 ({excludedColorKeys.size})
-                      </button>
-                  )}
+                 当前可用颜色过少或为空。请在色板管理中勾选颜色。
              </div>
          )}
 
-        {/* ++ HIDE Download Buttons in manual mode ++ */}
-        {!isManualColoringMode && originalImageSrc && mappedPixelData && (
+        {originalImageSrc && mappedPixelData && (
             <div className="w-full mt-4">
               {/* 使用一个大按钮，现在所有的下载设置都通过弹窗控制 */}
               <button
@@ -617,7 +579,7 @@ function Editor() {
                 {ingredientBill ? ` · ${ingredientBill.colorCount} 色` : ''}
               </button>
             </div>
-        )} {/* ++ End of HIDE Download Buttons ++ */}
+        )}
 
           </aside>
 
@@ -658,8 +620,6 @@ function Editor() {
                   onHighlightComplete={handleHighlightComplete}
                   selectedColorSystem={selectedColorSystem}
                   toolMode={canvasToolMode}
-                  forceSelectMode={isManualColoringMode}
-                  isManualColoringMode={isManualColoringMode}
                   selectedCells={selectedCells}
                   onSelectCells={handleSelectCells}
                   onSelectionDoubleClick={handleOpenSelectionRecolor}
@@ -879,10 +839,41 @@ function Editor() {
   );
 }
 
+/** 无 patternId 时不挂载编辑器，直接去「我的图纸」 */
+function EditorEntry() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const patternId = searchParams.get('patternId');
+
+  useEffect(() => {
+    if (!patternId) {
+      router.replace('/dashboard');
+    }
+  }, [patternId, router]);
+
+  if (!patternId) {
+    return (
+      <main className="platform-page">
+        <p>正在前往我的图纸...</p>
+      </main>
+    );
+  }
+
+  return <Editor />;
+}
+
 export default function Home() {
   return (
     <RequireAuth>
-      <Editor />
+      <Suspense
+        fallback={
+          <main className="platform-page">
+            <p>加载中...</p>
+          </main>
+        }
+      >
+        <EditorEntry />
+      </Suspense>
     </RequireAuth>
   );
 }

@@ -15,9 +15,7 @@ export function useCustomPaletteIO({ onAfterSave }: UseCustomPaletteIOOptions = 
   const customPaletteSelections = useEditorStore((s) => s.customPaletteSelections);
   const setCustomPaletteSelections = useEditorStore((s) => s.setCustomPaletteSelections);
   const setRemapTrigger = useEditorStore((s) => s.setRemapTrigger);
-  const setIsManualColoringMode = useEditorStore((s) => s.setIsManualColoringMode);
   const setSelectedColor = useEditorStore((s) => s.setSelectedColor);
-  const setIsEraseMode = useEditorStore((s) => s.setIsEraseMode);
 
   const importPaletteInputRef = useRef<HTMLInputElement>(null);
 
@@ -35,16 +33,12 @@ export function useCustomPaletteIO({ onAfterSave }: UseCustomPaletteIOOptions = 
     savePaletteSelections(customPaletteSelections);
     onAfterSave?.();
     setRemapTrigger((prev) => prev + 1);
-    setIsManualColoringMode(false);
     setSelectedColor(null);
-    setIsEraseMode(false);
   }, [
     customPaletteSelections,
     onAfterSave,
     setRemapTrigger,
-    setIsManualColoringMode,
     setSelectedColor,
-    setIsEraseMode,
   ]);
 
   const handleExportCustomPalette = useCallback(() => {

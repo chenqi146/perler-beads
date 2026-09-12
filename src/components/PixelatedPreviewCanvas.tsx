@@ -17,7 +17,6 @@ export type CropRect = {
 interface PixelatedPreviewCanvasProps {
   mappedPixelData: MappedPixel[][] | null;
   gridDimensions: { N: number; M: number } | null;
-  isManualColoringMode: boolean;
   canvasRef: React.RefObject<HTMLCanvasElement | null>;
   onInteraction: (
     clientX: number,
@@ -38,8 +37,6 @@ interface PixelatedPreviewCanvasProps {
   selectedCells?: Set<string>;
   onSelectCells?: (keys: string[], mode: 'add' | 'toggle' | 'set') => void;
   onSelectionDoubleClick?: () => void;
-  /** 手动编辑里的改色：即使处于上色模式也走框选，不触发画笔 */
-  forceSelectMode?: boolean;
   cropRect?: CropRect | null;
   onCropRectChange?: (rect: CropRect | null) => void;
   /** 空格 / 中键 / 空白处拖动时平移画布 */
@@ -290,7 +287,6 @@ function drawPixelatedCanvas(
 const PixelatedPreviewCanvas: React.FC<PixelatedPreviewCanvasProps> = ({
   mappedPixelData,
   gridDimensions,
-  isManualColoringMode,
   canvasRef,
   onInteraction,
   highlightColorKey,
@@ -302,7 +298,6 @@ const PixelatedPreviewCanvas: React.FC<PixelatedPreviewCanvasProps> = ({
   selectedCells,
   onSelectCells,
   onSelectionDoubleClick,
-  forceSelectMode = false,
   cropRect,
   onCropRectChange,
   onPanBy,
@@ -435,8 +430,8 @@ const PixelatedPreviewCanvas: React.FC<PixelatedPreviewCanvasProps> = ({
     return keys;
   };
 
-  const selectGesture = (forceSelectMode || toolMode === 'select') && !!onSelectCells;
-  const cropGesture = !forceSelectMode && toolMode === 'crop' && !!onCropRectChange;
+  const selectGesture = toolMode === 'select' && !!onSelectCells;
+  const cropGesture = toolMode === 'crop' && !!onCropRectChange;
 
   const wantsPan = (event: { button: number; altKey: boolean }) =>
     !!onPanBy && (event.button === 1 || event.altKey);
@@ -505,7 +500,7 @@ const PixelatedPreviewCanvas: React.FC<PixelatedPreviewCanvasProps> = ({
       }
     }
 
-    if (!isManualColoringMode && !forceSelectMode) {
+    if (!isDraggingRef.current) {
       onInteraction(event.clientX, event.clientY, event.pageX, event.pageY, false);
     }
   };
@@ -531,7 +526,6 @@ const PixelatedPreviewCanvas: React.FC<PixelatedPreviewCanvasProps> = ({
       return;
     }
     if (event.button !== 0) return;
-    if (isManualColoringMode && !forceSelectMode) return;
     const cell = resolveCell(event.clientX, event.clientY);
     if (!cell) {
       if (onPanBy) {
@@ -584,11 +578,6 @@ const PixelatedPreviewCanvas: React.FC<PixelatedPreviewCanvasProps> = ({
       ignoreClickRef.current = false;
       return;
     }
-    if (forceSelectMode) return;
-    if (isManualColoringMode) {
-      onInteraction(event.clientX, event.clientY, event.pageX, event.pageY, true);
-      return;
-    }
     if (toolMode === 'crop') return;
     if (toolMode === 'select') {
       onInteraction(event.clientX, event.clientY, event.pageX, event.pageY, true);
@@ -597,7 +586,6 @@ const PixelatedPreviewCanvas: React.FC<PixelatedPreviewCanvasProps> = ({
 
   const handleDoubleClick = (event: MouseEvent<HTMLCanvasElement>) => {
     if (!selectGesture) return;
-    if (isManualColoringMode && !forceSelectMode) return;
     event.preventDefault();
     onSelectionDoubleClick?.();
   };
@@ -613,11 +601,6 @@ const PixelatedPreviewCanvas: React.FC<PixelatedPreviewCanvasProps> = ({
       pageY: touch.pageY,
     };
     touchMovedRef.current = false;
-
-    if (isManualColoringMode && !forceSelectMode) {
-      onInteraction(touch.clientX, touch.clientY, touch.pageX, touch.pageY, false);
-      return;
-    }
 
     if (!selectGesture && !cropGesture) return;
 
@@ -691,8 +674,6 @@ const PixelatedPreviewCanvas: React.FC<PixelatedPreviewCanvasProps> = ({
       selectMovedRef.current = false;
     }
     if (
-      !isManualColoringMode &&
-      !forceSelectMode &&
       !touchMovedRef.current &&
       !ignoreClickRef.current &&
       touchStartPosRef.current &&
@@ -725,7 +706,7 @@ const PixelatedPreviewCanvas: React.FC<PixelatedPreviewCanvasProps> = ({
       onTouchEnd={handleTouchEnd}
       onTouchCancel={handleTouchEnd}
       className={`max-w-none h-auto block select-none ${
-        forceSelectMode || toolMode === 'crop' ? 'cursor-crosshair' : 'cursor-cell'
+        toolMode === 'crop' ? 'cursor-crosshair' : 'cursor-cell'
       }`}
       style={{ imageRendering: 'pixelated', touchAction: 'none' }}
     />

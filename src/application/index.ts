@@ -1,7 +1,7 @@
 export { usePatternStore } from './pattern/patternStore';
 export type { PatternInput, PatternData, Visibility } from './pattern/patternStore';
 export { useEditorStore } from './editor/editorStore';
-export type { EditSnapshot, ColorReplaceState } from './editor/editorStore';
+export type { EditSnapshot } from './editor/editorStore';
 export { useEditorUiStore } from './editor/editorUiStore';
 export {
   useEditorDocument,
@@ -25,7 +25,6 @@ export type {
   DraftPixelateLock,
   UsePixelationPipelineOptions,
 } from './editor/usePixelationPipeline';
-export { useColorExclusion } from './editor/useColorExclusion';
 export { usePatternExport } from './editor/usePatternExport';
 export { useCustomPaletteIO } from './editor/useCustomPaletteIO';
 export { useEditorCanvasTools } from './editor/useEditorCanvasTools';

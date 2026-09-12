@@ -36,7 +36,6 @@ export function useEditorSettings({ showToast }: UseEditorSettingsOptions) {
     setPixelationMode,
     remapTrigger,
     setRemapTrigger,
-    setIsManualColoringMode,
     setSelectedColor,
   } = useEditorGenerationParams();
 
@@ -79,7 +78,6 @@ export function useEditorSettings({ showToast }: UseEditorSettingsOptions) {
         setGranularity(width);
         setGridHeight(height);
         setRemapTrigger((prev) => prev + 1);
-        setIsManualColoringMode(false);
         setSelectedColor(null);
       }
       setGranularityInput(width.toString());
@@ -93,7 +91,6 @@ export function useEditorSettings({ showToast }: UseEditorSettingsOptions) {
       setGranularity,
       setGridHeight,
       setRemapTrigger,
-      setIsManualColoringMode,
       setSelectedColor,
       setGranularityInput,
       setGridHeightInput,
@@ -115,7 +112,6 @@ export function useEditorSettings({ showToast }: UseEditorSettingsOptions) {
         setGranularity(width);
         setGridHeight(height);
         setRemapTrigger((prev) => prev + 1);
-        setIsManualColoringMode(false);
         setSelectedColor(null);
       }
       setGranularityInput(width.toString());
@@ -130,7 +126,6 @@ export function useEditorSettings({ showToast }: UseEditorSettingsOptions) {
       setGranularity,
       setGridHeight,
       setRemapTrigger,
-      setIsManualColoringMode,
       setSelectedColor,
       setGranularityInput,
       setGridHeightInput,
@@ -169,7 +164,6 @@ export function useEditorSettings({ showToast }: UseEditorSettingsOptions) {
 
     if (sizeChanged || similarityChanged) {
       setRemapTrigger((prev) => prev + 1);
-      setIsManualColoringMode(false);
       setSelectedColor(null);
     }
 
@@ -190,7 +184,6 @@ export function useEditorSettings({ showToast }: UseEditorSettingsOptions) {
     setGridHeight,
     setSimilarityThreshold,
     setRemapTrigger,
-    setIsManualColoringMode,
     setSelectedColor,
     setGranularityInput,
     setGridHeightInput,
@@ -204,13 +197,12 @@ export function useEditorSettings({ showToast }: UseEditorSettingsOptions) {
       if (Object.values(PixelationMode).includes(newMode)) {
         setPixelationMode(newMode);
         setRemapTrigger((prev) => prev + 1);
-        setIsManualColoringMode(false);
         setSelectedColor(null);
       } else {
         console.warn(`无效的像素化模式: ${newMode}`);
       }
     },
-    [setPixelationMode, setRemapTrigger, setIsManualColoringMode, setSelectedColor],
+    [setPixelationMode, setRemapTrigger, setSelectedColor],
   );
 
   return {

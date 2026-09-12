@@ -16,8 +16,10 @@ export interface ProjectDraftV1 {
   autoRemoveWhiteBg: boolean;
   pixelationMode: string;
   selectedColorSystem: string;
-  excludedColorKeys: string[];
-  initialGridColorKeys: string[];
+  /** @deprecated 旧草稿可能仍含此字段，加载时忽略 */
+  excludedColorKeys?: string[];
+  /** @deprecated 旧草稿可能仍含此字段，加载时忽略 */
+  initialGridColorKeys?: string[];
 }
 
 export type SaveProjectDraftResult =
