@@ -6,16 +6,18 @@ import RequireAuth from '../../components/RequireAuth';
 import { usePatternStore } from '../../stores';
 import { listWorks } from '../../utils/platformStore';
 import { applyAuthSuccess } from '../../utils/authClient';
+import { apiFetch } from '../../utils/apiClient';
+import { useToast } from '../../components/ui/ToastProvider';
 
 type Me = { id: string; email: string | null; name: string | null };
 
 function ProfileContent() {
+  const toast = useToast();
   const patterns = usePatternStore((s) => s.patterns);
   const refreshPatterns = usePatternStore((s) => s.refreshPatterns);
   const [me, setMe] = useState<Me | null>(null);
   const [name, setName] = useState('');
   const [worksCount, setWorksCount] = useState(0);
-  const [message, setMessage] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -23,37 +25,35 @@ function ProfileContent() {
     setWorksCount(listWorks().length);
     void (async () => {
       try {
-        const res = await fetch('/api/me', { credentials: 'include' });
+        const res = await apiFetch('/api/me');
         if (!res.ok) return;
         const data = await res.json();
         setMe(data);
         setName(String(data.name || ''));
-        const cloudWorks = await fetch('/api/works', { credentials: 'include' });
+        const cloudWorks = await apiFetch('/api/works');
         if (cloudWorks.ok) {
           const w = await cloudWorks.json();
           if (Array.isArray(w.works)) setWorksCount(w.works.length);
         }
       } catch {
-        // ignore
+        toast('加载个人信息失败');
       }
     })();
-  }, [refreshPatterns]);
+  }, [refreshPatterns, toast]);
 
   const saveName = async (event: FormEvent) => {
     event.preventDefault();
     if (!name.trim()) return;
     setSaving(true);
-    setMessage(null);
     try {
-      const res = await fetch('/api/me', {
+      const res = await apiFetch('/api/me', {
         method: 'PATCH',
-        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: name.trim() }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setMessage(typeof data.error === 'string' ? data.error : '保存失败');
+        if (res.status !== 401) toast(typeof data.error === 'string' ? data.error : '保存失败');
         return;
       }
       setMe(data);
@@ -66,9 +66,9 @@ function ProfileContent() {
       } else {
         localStorage.setItem('perler-user-name', String(data.name || name.trim()));
       }
-      setMessage('昵称已更新');
+      toast('昵称已更新');
     } catch {
-      setMessage('网络异常');
+      toast('网络异常');
     } finally {
       setSaving(false);
     }
@@ -111,7 +111,6 @@ function ProfileContent() {
               required
             />
           </label>
-          {message ? <p className="text-sm text-[#8a6a4a]">{message}</p> : null}
           <button type="submit" className="primary-button" disabled={saving}>
             {saving ? '保存中…' : '保存昵称'}
           </button>

@@ -1,5 +1,7 @@
+# Production (default) — used by `wrangler deploy`
 name = "perler-beads"
 compatibility_date = "2026-09-10"
+compatibility_flags = ["nodejs_compat"]
 main = ".open-next/worker.js"
 assets = { directory = ".open-next/assets", binding = "ASSETS" }
 
@@ -12,3 +14,19 @@ migrations_dir = "migrations"
 [[r2_buckets]]
 binding = "perler_beads_assets"
 bucket_name = "perler-beads-assets"
+
+# Development — used by local `next dev` (remote bindings → 开发库，不碰生产数据)
+[env.development]
+name = "perler-beads-dev"
+
+[[env.development.d1_databases]]
+binding = "perler_beads"
+database_name = "perler-beads-dev"
+database_id = "38031e71-be11-499a-a88f-4892543076c4"
+migrations_dir = "migrations"
+remote = true
+
+[[env.development.r2_buckets]]
+binding = "perler_beads_assets"
+bucket_name = "perler-beads-assets-dev"
+remote = true

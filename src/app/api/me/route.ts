@@ -6,7 +6,7 @@ export async function GET() {
   const userId = await getSessionUserId();
   if (!userId) return NextResponse.json({ error: '未登录' }, { status: 401 });
 
-  const db = getDB();
+  const db = await getDB();
   if (!db) {
     // 无 D1 时仍可根据 session 返回最小身份（配合本地 localStorage）
     return NextResponse.json({ id: userId, email: null, name: null, offline: true });
@@ -31,7 +31,7 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: '昵称需为 1–40 个字符' }, { status: 400 });
   }
 
-  const db = getDB();
+  const db = await getDB();
   if (!db) return NextResponse.json({ error: 'D1 未绑定' }, { status: 503 });
 
   await db.prepare('UPDATE users SET name = ? WHERE id = ?').bind(name, userId).run();

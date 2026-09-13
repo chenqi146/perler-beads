@@ -5,9 +5,12 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { usePatternStore } from '../../stores';
 import RequireAuth from '../../components/RequireAuth';
+import { useToast } from '../../components/ui/ToastProvider';
+import type { Pattern } from '../../types/platform';
 
 function DashboardContent() {
   const router = useRouter();
+  const toast = useToast();
   const patterns = usePatternStore((s) => s.patterns);
   const refreshPatterns = usePatternStore((s) => s.refreshPatterns);
   const savePattern = usePatternStore((s) => s.savePattern);
@@ -38,6 +41,21 @@ function DashboardContent() {
       },
     });
     router.push(`/editor/${raw.id}`);
+  };
+
+  const toggleVisibility = (pattern: Pattern) => {
+    const next = pattern.visibility === 'public' ? 'private' : 'public';
+    savePattern(
+      {
+        name: pattern.name,
+        description: pattern.description,
+        tags: pattern.tags,
+        visibility: next,
+        data: pattern.data,
+      },
+      pattern.id,
+    );
+    toast(next === 'public' ? '已设为公开，会出现在公开浏览' : '已设为私有');
   };
 
   return (
@@ -91,19 +109,29 @@ function DashboardContent() {
         {patterns.length ? (
           patterns.map((pattern) => (
             <article className="pattern-card" key={pattern.id}>
-              <Link href={`/editor/${pattern.id}`} className="pattern-preview">
-                {pattern.data.originalImageSrc && (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={pattern.data.originalImageSrc} alt="" />
-                )}
-              </Link>
-              <h2>{pattern.name}</h2>
-              <p>{pattern.description || '暂无描述'}</p>
-              <small>
-                {pattern.visibility === 'public' ? '公开' : '私有'} · {pattern.data.gridDimensions.N} ×{' '}
-                {pattern.data.gridDimensions.M}
-              </small>
-              <div className="detail-actions">
+              <div className="pattern-card-media">
+                <Link href={`/editor/${pattern.id}`} className="pattern-preview">
+                  {pattern.data.originalImageSrc ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={pattern.data.originalImageSrc} alt="" />
+                  ) : (
+                    <span>暂无预览</span>
+                  )}
+                </Link>
+                <span
+                  className={`pattern-badge ${pattern.visibility === 'public' ? 'is-public' : 'is-private'}`}
+                >
+                  {pattern.visibility === 'public' ? '公开' : '私有'}
+                </span>
+              </div>
+              <div className="pattern-card-body">
+                <h2>{pattern.name}</h2>
+                {pattern.description ? <p>{pattern.description}</p> : null}
+                <small>
+                  {pattern.data.gridDimensions.N} × {pattern.data.gridDimensions.M}
+                </small>
+              </div>
+              <div className="pattern-card-actions">
                 <Link href={`/editor/${pattern.id}`} className="secondary-button">
                   编辑
                 </Link>
@@ -114,11 +142,18 @@ function DashboardContent() {
                 >
                   开始拼豆
                 </Link>
+              </div>
+              <div className="pattern-card-tools">
+                <button type="button" onClick={() => toggleVisibility(pattern)}>
+                  {pattern.visibility === 'public' ? '取消公开' : '设为公开'}
+                </button>
+                <span aria-hidden="true">·</span>
                 <button
                   type="button"
-                  className="platform-link danger"
+                  className="danger"
                   onClick={() => {
                     deletePattern(pattern.id);
+                    toast('已删除');
                   }}
                 >
                   删除

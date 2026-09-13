@@ -5,6 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useId, useRef, useState } from 'react';
 import { clearLoggedInUser, getLoggedInUser, type LoggedInUser } from '@/utils/platformStore';
 import { logoutRemote } from '@/utils/authClient';
+import { toast } from '@/components/ui/ToastProvider';
 
 /** 顶栏右上角：已登录展示头像+昵称下拉；未登录展示登录入口 */
 export function UserMenu() {
@@ -60,6 +61,7 @@ export function UserMenu() {
     clearLoggedInUser();
     setOpen(false);
     setUser(null);
+    toast('已退出登录');
     router.push('/auth/login');
   };
 

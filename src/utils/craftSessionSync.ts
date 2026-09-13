@@ -1,4 +1,4 @@
-/** 拼豆进度 ↔ craft-sessions 云端桥接 */
+import { apiFetch } from './apiClient';
 
 export type CraftSessionPushInput = {
   id?: string;
@@ -24,9 +24,8 @@ export function setLocalCraftSessionId(patternId: string, sessionId: string) {
 export async function pushCraftSession(input: CraftSessionPushInput): Promise<string | null> {
   try {
     const existingId = input.id || getLocalCraftSessionId(input.patternId) || undefined;
-    const res = await fetch('/api/craft-sessions', {
+    const res = await apiFetch('/api/craft-sessions', {
       method: 'POST',
-      credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         id: existingId,
@@ -54,9 +53,9 @@ export async function loadCraftSessionForPattern(patternId: string): Promise<{
   status: string;
 } | null> {
   try {
-    const res = await fetch(`/api/craft-sessions?patternId=${encodeURIComponent(patternId)}`, {
-      credentials: 'include',
-    });
+    const res = await apiFetch(
+      `/api/craft-sessions?patternId=${encodeURIComponent(patternId)}`,
+    );
     if (!res.ok) return null;
     const data = await res.json();
     const sessions = Array.isArray(data.sessions) ? data.sessions : [];

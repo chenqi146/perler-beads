@@ -47,7 +47,7 @@ function rowToWork(row: WorkRow): Work {
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const visibility = searchParams.get('visibility');
-  const db = getDB();
+  const db = await getDB();
   if (!db) {
     return NextResponse.json({ works: [], message: 'D1 未绑定' }, { status: 503 });
   }
@@ -81,7 +81,7 @@ export async function POST(request: Request) {
   const userId = await getSessionUserId();
   if (!userId) return NextResponse.json({ error: '未登录' }, { status: 401 });
 
-  const db = getDB();
+  const db = await getDB();
   if (!db) return NextResponse.json({ error: 'D1 未绑定' }, { status: 503 });
 
   const body = await request.json().catch(() => null);

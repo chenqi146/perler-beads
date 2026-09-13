@@ -11,7 +11,7 @@ export async function GET(_request: Request, context: Ctx) {
     return NextResponse.json({ error: '无效 key' }, { status: 400 });
   }
 
-  const r2 = getR2();
+  const r2 = await getR2();
   if (!r2) return NextResponse.json({ error: 'R2 未绑定' }, { status: 503 });
 
   const obj = await r2.get(raw);

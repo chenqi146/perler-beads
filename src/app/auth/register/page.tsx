@@ -4,20 +4,20 @@ import Link from 'next/link';
 import { FormEvent, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { applyAuthSuccess } from '@/utils/authClient';
+import { useToast } from '@/components/ui/ToastProvider';
 
 export default function RegisterPage() {
   const router = useRouter();
+  const toast = useToast();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
-  const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     if (!email || password.length < 8 || !name.trim()) return;
     setLoading(true);
-    setError(null);
     try {
       const res = await fetch('/api/auth/register', {
         method: 'POST',
@@ -30,10 +30,11 @@ export default function RegisterPage() {
         if (res.status === 503 && process.env.NODE_ENV === 'development') {
           const fallbackId = `user_${email.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
           applyAuthSuccess({ id: fallbackId, name: name.trim(), email });
+          toast('开发模式：已本地注册登录（无 D1）');
           router.push('/dashboard');
           return;
         }
-        setError(typeof data.error === 'string' ? data.error : '注册失败');
+        toast(typeof data.error === 'string' ? data.error : '注册失败');
         return;
       }
       applyAuthSuccess({
@@ -41,9 +42,10 @@ export default function RegisterPage() {
         name: String(data.name || name.trim()),
         email: String(data.email || email),
       });
+      toast('注册成功');
       router.push('/dashboard');
     } catch {
-      setError('网络异常，请稍后重试');
+      toast('网络异常，请稍后重试');
     } finally {
       setLoading(false);
     }
@@ -92,7 +94,6 @@ export default function RegisterPage() {
             required
           />
         </label>
-        {error ? <p className="text-sm text-red-600">{error}</p> : null}
         <button className="primary-button" type="submit" disabled={loading}>
           {loading ? '注册中…' : '注册并进入'}
         </button>

@@ -49,7 +49,7 @@ function rowToPattern(row: PatternRow): Pattern {
 }
 
 export async function GET(request: Request) {
-  const db = getDB();
+  const db = await getDB();
   if (!db) {
     return NextResponse.json({ patterns: [], message: 'D1 未绑定' }, { status: 503 });
   }
@@ -87,7 +87,7 @@ export async function POST(request: Request) {
   if (!userId) {
     return NextResponse.json({ error: '未登录' }, { status: 401 });
   }
-  const db = getDB();
+  const db = await getDB();
   if (!db) {
     return NextResponse.json({ error: 'D1 未绑定' }, { status: 503 });
   }

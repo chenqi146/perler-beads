@@ -29,7 +29,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: '图片不能超过 10MB' }, { status: 413 });
   }
 
-  const r2 = getR2();
+  const r2 = await getR2();
   if (!r2) {
     return NextResponse.json({ error: 'R2 未绑定' }, { status: 503 });
   }

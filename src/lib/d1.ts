@@ -1,3 +1,5 @@
+import { getCloudflareContext } from '@opennextjs/cloudflare';
+
 export interface D1Database {
   prepare(sql: string): {
     bind(...values: unknown[]): {
@@ -27,35 +29,36 @@ type EnvBag = {
   perler_beads_assets?: R2Bucket;
 };
 
-function readEnvBag(): EnvBag {
-  const g = globalThis as typeof globalThis & EnvBag & { env?: EnvBag };
-  const bag: EnvBag = {};
-  if (g.perler_beads) bag.perler_beads = g.perler_beads;
-  if (g.DB) bag.DB = g.DB;
-  if (g.perler_beads_assets) bag.perler_beads_assets = g.perler_beads_assets;
-  if (g.env) {
-    if (g.env.perler_beads) bag.perler_beads = g.env.perler_beads;
-    if (g.env.DB) bag.DB = g.env.DB;
-    if (g.env.perler_beads_assets) bag.perler_beads_assets = g.env.perler_beads_assets;
-  }
-  try {
-    const proc = process as unknown as { env?: EnvBag };
-    if (proc.env?.perler_beads) bag.perler_beads = proc.env.perler_beads;
-    if (proc.env?.DB) bag.DB = proc.env.DB;
-    if (proc.env?.perler_beads_assets) bag.perler_beads_assets = proc.env.perler_beads_assets;
-  } catch {
-    // ignore
-  }
-  return bag;
+function fromBag(env: EnvBag | undefined | null): EnvBag {
+  return env || {};
 }
 
-/** 读取 D1：兼容 Wrangler 绑定 `perler_beads`、旧 `DB` */
-export function getDB(): D1Database | null {
-  const env = readEnvBag();
-  return env.perler_beads || env.DB || null;
+/**
+ * 读取 D1：优先 OpenNext/Workers 的 getCloudflareContext().env（本地 next dev + 生产 Worker）
+ */
+export async function getDB(): Promise<D1Database | null> {
+  try {
+    const { env } = await getCloudflareContext({ async: true });
+    const bag = fromBag(env as EnvBag);
+    if (bag.perler_beads || bag.DB) return bag.perler_beads || bag.DB || null;
+  } catch {
+    // fall through
+  }
+
+  const g = globalThis as typeof globalThis & EnvBag & { env?: EnvBag };
+  return g.perler_beads || g.DB || g.env?.perler_beads || g.env?.DB || null;
 }
 
 /** 读取 R2：绑定名 `perler_beads_assets` */
-export function getR2(): R2Bucket | null {
-  return readEnvBag().perler_beads_assets || null;
+export async function getR2(): Promise<R2Bucket | null> {
+  try {
+    const { env } = await getCloudflareContext({ async: true });
+    const bag = fromBag(env as EnvBag);
+    if (bag.perler_beads_assets) return bag.perler_beads_assets;
+  } catch {
+    // fall through
+  }
+
+  const g = globalThis as typeof globalThis & EnvBag & { env?: EnvBag };
+  return g.perler_beads_assets || g.env?.perler_beads_assets || null;
 }

@@ -28,19 +28,29 @@ function PatternsContent() {
         {patterns.length ? (
           patterns.map((pattern) => (
             <article className="pattern-card" key={pattern.id}>
-              <Link href={`/editor/${pattern.id}`} className="pattern-preview">
-                {pattern.data.originalImageSrc && (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={pattern.data.originalImageSrc} alt="" />
-                )}
-              </Link>
-              <h2>{pattern.name}</h2>
-              <p>{pattern.description || '暂无描述'}</p>
-              <small>
-                {pattern.visibility === 'public' ? '公开' : '私有'} · {pattern.data.gridDimensions.N} ×{' '}
-                {pattern.data.gridDimensions.M}
-              </small>
-              <div className="detail-actions">
+              <div className="pattern-card-media">
+                <Link href={`/editor/${pattern.id}`} className="pattern-preview">
+                  {pattern.data.originalImageSrc ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={pattern.data.originalImageSrc} alt="" />
+                  ) : (
+                    <span>暂无预览</span>
+                  )}
+                </Link>
+                <span
+                  className={`pattern-badge ${pattern.visibility === 'public' ? 'is-public' : 'is-private'}`}
+                >
+                  {pattern.visibility === 'public' ? '公开' : '私有'}
+                </span>
+              </div>
+              <div className="pattern-card-body">
+                <h2>{pattern.name}</h2>
+                {pattern.description ? <p>{pattern.description}</p> : null}
+                <small>
+                  {pattern.data.gridDimensions.N} × {pattern.data.gridDimensions.M}
+                </small>
+              </div>
+              <div className="pattern-card-actions pattern-card-actions--footer">
                 <Link className="secondary-button" href={`/editor/${pattern.id}`}>
                   编辑
                 </Link>

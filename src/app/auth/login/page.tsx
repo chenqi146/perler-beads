@@ -4,19 +4,24 @@ import Link from 'next/link';
 import { FormEvent, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { applyAuthSuccess } from '@/utils/authClient';
+import { useToast } from '@/components/ui/ToastProvider';
+
+function loginNextPath() {
+  if (typeof window === 'undefined') return '/dashboard';
+  return new URLSearchParams(window.location.search).get('next') || '/dashboard';
+}
 
 export default function LoginPage() {
   const router = useRouter();
+  const toast = useToast();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     if (!email || !password) return;
     setLoading(true);
-    setError(null);
     try {
       const res = await fetch('/api/auth/login', {
         method: 'POST',
@@ -26,7 +31,6 @@ export default function LoginPage() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        // 仅开发环境在无 D1 时允许本地假登录
         if (res.status === 503 && process.env.NODE_ENV === 'development') {
           const fallbackId = `user_${email.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
           applyAuthSuccess({
@@ -34,10 +38,11 @@ export default function LoginPage() {
             name: email.split('@')[0] || '拼豆玩家',
             email,
           });
-          router.push('/dashboard');
+          toast('开发模式：已本地登录（无 D1）');
+          router.push(loginNextPath());
           return;
         }
-        setError(typeof data.error === 'string' ? data.error : '登录失败');
+        toast(typeof data.error === 'string' ? data.error : '登录失败');
         return;
       }
       applyAuthSuccess({
@@ -45,9 +50,10 @@ export default function LoginPage() {
         name: String(data.name || email.split('@')[0] || '拼豆玩家'),
         email: String(data.email || email),
       });
-      router.push('/dashboard');
+      toast('登录成功');
+      router.push(loginNextPath());
     } catch {
-      setError('网络异常，请稍后重试');
+      toast('网络异常，请稍后重试');
     } finally {
       setLoading(false);
     }
@@ -87,7 +93,6 @@ export default function LoginPage() {
             required
           />
         </label>
-        {error ? <p className="text-sm text-red-600">{error}</p> : null}
         <button className="primary-button" type="submit" disabled={loading}>
           {loading ? '登录中…' : '登录'}
         </button>

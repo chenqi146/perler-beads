@@ -15,7 +15,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: '邮箱、昵称和至少8位密码为必填项' }, { status: 400 });
   }
 
-  const db = getDB();
+  const db = await getDB();
   if (!db) return NextResponse.json({ error: 'D1 未绑定' }, { status: 503 });
 
   const id = crypto.randomUUID();

@@ -9,7 +9,7 @@ export async function POST(request: Request) {
     .trim()
     .toLowerCase();
   const password = String(body?.password || '');
-  const db = getDB();
+  const db = await getDB();
   if (!db) return NextResponse.json({ error: 'D1 未绑定' }, { status: 503 });
 
   const user = await db

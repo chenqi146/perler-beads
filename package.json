@@ -6,6 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "cf:build": "opennextjs-cloudflare build",
+    "cf:deploy": "npm run cf:build && wrangler deploy",
+    "db:migrate:dev": "wrangler d1 migrations apply perler-beads-dev --remote --env development",
+    "db:migrate:prod": "wrangler d1 migrations apply perler-beads --remote",
     "start": "next start",
     "lint": "next lint"
   },

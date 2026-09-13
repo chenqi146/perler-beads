@@ -4,12 +4,14 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { usePatternStore } from '../../stores';
 import type { Pattern, Work } from '../../types/platform';
+import { apiFetch } from '../../utils/apiClient';
+import { useToast } from '../../components/ui/ToastProvider';
 
 export default function ExplorePage() {
+  const toast = useToast();
   const refreshPublicPatterns = usePatternStore((s) => s.refreshPublicPatterns);
   const [patterns, setPatterns] = useState<Pattern[]>([]);
   const [works, setWorks] = useState<Work[]>([]);
-  const [note, setNote] = useState<string | null>(null);
 
   useEffect(() => {
     refreshPublicPatterns();
@@ -17,22 +19,22 @@ export default function ExplorePage() {
       const local = usePatternStore.getState().publicPatterns;
       try {
         const [pRes, wRes] = await Promise.all([
-          fetch('/api/patterns?visibility=public', { credentials: 'include' }),
-          fetch('/api/works?visibility=public', { credentials: 'include' }),
+          apiFetch('/api/patterns?visibility=public', undefined, { authRedirect: false }),
+          apiFetch('/api/works?visibility=public', undefined, { authRedirect: false }),
         ]);
         if (pRes.ok) {
           const data = await pRes.json();
           const remote = Array.isArray(data.patterns) ? (data.patterns as Pattern[]) : [];
           if (remote.length) {
             setPatterns(remote);
-            setNote(null);
           } else {
             setPatterns(local);
-            setNote(local.length ? '暂无云端公开图纸，显示本地公开' : null);
+            if (local.length) toast('暂无云端公开图纸，显示本地公开');
           }
         } else {
           setPatterns(local);
-          setNote('云端不可用，显示本地公开图纸');
+          if (pRes.status === 503) toast('云端未就绪，显示本地公开图纸');
+          else toast('拉取公开图纸失败，显示本地');
         }
         if (wRes.ok) {
           const data = await wRes.json();
@@ -40,10 +42,10 @@ export default function ExplorePage() {
         }
       } catch {
         setPatterns(local);
-        setNote('网络异常，显示本地公开图纸');
+        toast('网络异常，显示本地公开图纸');
       }
     })();
-  }, [refreshPublicPatterns]);
+  }, [refreshPublicPatterns, toast]);
 
   return (
     <main className="platform-page">
@@ -51,7 +53,6 @@ export default function ExplorePage() {
         <div>
           <p className="eyebrow">COMMUNITY</p>
           <h1>公开图纸</h1>
-          {note ? <p className="mt-1 text-xs text-[#8a6a4a]">{note}</p> : null}
         </div>
       </header>
       <section className="pattern-grid">
@@ -64,11 +65,13 @@ export default function ExplorePage() {
                   <img src={pattern.data.originalImageSrc} alt="" />
                 )}
               </div>
-              <h2>{pattern.name}</h2>
-              <p>{pattern.description || '暂无描述'}</p>
-              <small>
-                {pattern.data.gridDimensions.N} × {pattern.data.gridDimensions.M}
-              </small>
+              <div className="pattern-card-body pattern-card-body--padded">
+                <h2>{pattern.name}</h2>
+                {pattern.description ? <p>{pattern.description}</p> : null}
+                <small>
+                  {pattern.data.gridDimensions.N} × {pattern.data.gridDimensions.M}
+                </small>
+              </div>
             </Link>
           ))
         ) : (
@@ -93,8 +96,10 @@ export default function ExplorePage() {
                     <img src={work.imageUrl} alt={work.title} />
                   ) : null}
                 </div>
-                <h2>{work.title}</h2>
-                <p>{work.description || '暂无描述'}</p>
+                <div className="pattern-card-body pattern-card-body--padded">
+                  <h2>{work.title}</h2>
+                  {work.description ? <p>{work.description}</p> : null}
+                </div>
               </Link>
             ))}
           </section>
