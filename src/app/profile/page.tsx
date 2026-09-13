@@ -89,7 +89,7 @@ function ProfileContent() {
       <section className="mx-auto max-w-lg rounded-2xl border border-[#eadfce] bg-[#fffaf3] p-6">
         <dl className="space-y-3 text-sm">
           <div>
-            <dt className="text-[#8a6a4a]">邮箱</dt>
+            <dt className="text-[#8a6a4a]">账号</dt>
             <dd className="mt-1 font-medium text-[#3a2416]">{me?.email || '—'}</dd>
           </div>
           <div>

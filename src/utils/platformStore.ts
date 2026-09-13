@@ -23,7 +23,7 @@ export type LoggedInUser = {
   initial: string;
 };
 
-/** 读取本地登录用户展示信息（昵称优先，其次邮箱前缀） */
+/** 读取本地登录用户展示信息（昵称优先，其次账号） */
 export function getLoggedInUser(): LoggedInUser | null {
   if (typeof window === 'undefined') return null;
   const id = localStorage.getItem('perler-user-id');

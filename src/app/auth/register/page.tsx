@@ -9,27 +9,27 @@ import { useToast } from '@/components/ui/ToastProvider';
 export default function RegisterPage() {
   const router = useRouter();
   const toast = useToast();
-  const [email, setEmail] = useState('');
+  const [account, setAccount] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [loading, setLoading] = useState(false);
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
-    if (!email || password.length < 8 || !name.trim()) return;
+    if (!account.trim() || !password || !name.trim()) return;
     setLoading(true);
     try {
       const res = await fetch('/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ email, password, name: name.trim() }),
+        body: JSON.stringify({ account: account.trim(), password, name: name.trim() }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         if (res.status === 503 && process.env.NODE_ENV === 'development') {
-          const fallbackId = `user_${email.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
-          applyAuthSuccess({ id: fallbackId, name: name.trim(), email });
+          const fallbackId = `user_${account.toLowerCase().replace(/[^a-z0-9\u4e00-\u9fff]+/gi, '-')}`;
+          applyAuthSuccess({ id: fallbackId, name: name.trim(), email: account.trim() });
           toast('开发模式：已本地注册登录（无 D1）');
           router.push('/dashboard');
           return;
@@ -40,7 +40,7 @@ export default function RegisterPage() {
       applyAuthSuccess({
         id: String(data.id),
         name: String(data.name || name.trim()),
-        email: String(data.email || email),
+        email: String(data.account || data.email || account.trim()),
       });
       toast('注册成功');
       router.push('/dashboard');
@@ -67,16 +67,17 @@ export default function RegisterPage() {
             required
           />
         </label>
-        <label htmlFor="register-email">
-          邮箱
+        <label htmlFor="register-account">
+          账号
           <input
-            id="register-email"
-            name="email"
-            type="email"
-            autoComplete="email"
+            id="register-account"
+            name="username"
+            type="text"
+            autoComplete="username"
             spellCheck={false}
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
+            value={account}
+            onChange={(event) => setAccount(event.target.value)}
+            placeholder="任意字符均可"
             required
           />
         </label>
@@ -87,10 +88,9 @@ export default function RegisterPage() {
             name="password"
             type="password"
             autoComplete="new-password"
-            minLength={8}
             value={password}
             onChange={(event) => setPassword(event.target.value)}
-            placeholder="至少 8 位…"
+            placeholder="自行设定"
             required
           />
         </label>

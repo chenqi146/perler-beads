@@ -5,14 +5,15 @@ import { hashPassword } from '../../../../lib/password';
 
 export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
-  const email = String(body?.email || '')
+  // users.email 列复用为登录账号（不限邮箱格式）
+  const account = String(body?.account || body?.email || '')
     .trim()
     .toLowerCase();
   const name = String(body?.name || '').trim();
   const password = String(body?.password || '');
 
-  if (!email || !password || !name || password.length < 8) {
-    return NextResponse.json({ error: '邮箱、昵称和至少8位密码为必填项' }, { status: 400 });
+  if (!account || !password || !name) {
+    return NextResponse.json({ error: '账号、昵称和密码为必填项' }, { status: 400 });
   }
 
   const db = await getDB();
@@ -22,12 +23,12 @@ export async function POST(request: Request) {
   try {
     await db
       .prepare('INSERT INTO users (id,email,name,password_hash,created_at) VALUES (?,?,?,?,?)')
-      .bind(id, email, name, await hashPassword(password), Date.now())
+      .bind(id, account, name, await hashPassword(password), Date.now())
       .run();
-    const res = NextResponse.json({ id, name, email });
+    const res = NextResponse.json({ id, name, email: account, account });
     res.cookies.set(await buildSessionCookie(id));
     return res;
   } catch {
-    return NextResponse.json({ error: '邮箱已注册' }, { status: 409 });
+    return NextResponse.json({ error: '账号已被占用' }, { status: 409 });
   }
 }

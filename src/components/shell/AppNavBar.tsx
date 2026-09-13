@@ -31,24 +31,24 @@ const NAV_LINKS = [
 
 function linkClass(active: boolean) {
   return [
-    'rounded-lg px-2.5 py-1.5 text-xs font-medium transition-[background-color,color] duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e8b86a]',
+    'rounded-lg px-2.5 py-1.5 text-xs font-medium whitespace-nowrap transition-[background-color,color] duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e8b86a]',
     active
       ? 'bg-[#f3e6d4] text-[#3a2416]'
       : 'text-[#8a6a4a] hover:bg-[#f3e6d4] hover:text-[#3a2416]',
   ].join(' ');
 }
 
-/** 纯展示顶栏：品牌 + 可选副标题 + 主导航 + 个人信息。页面操作按钮不放这里。 */
+/** 顶栏：左侧品牌在条外；右侧短 nav + 用户菜单。 */
 export function AppNavBar() {
   const pathname = usePathname() || '/';
   const { subtitle } = useContext(NavSubtitleStateContext);
 
   return (
-    <header className="app-nav mb-3 flex shrink-0 flex-wrap items-center justify-between gap-2 rounded-2xl border border-[#eadfce] bg-[#fffaf3] px-3 py-2 shadow-[0_1px_0_rgba(90,52,24,0.04)] sm:mb-4 sm:px-3.5">
-      <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
+    <header className="app-nav mb-3 flex shrink-0 items-center justify-between gap-3 sm:mb-4">
+      <div className="flex min-w-0 items-center gap-2 sm:gap-3">
         <Link
           href="/dashboard"
-          className="shrink-0 rounded-lg px-1.5 py-1 text-sm font-semibold text-[#3a2416] transition-[background-color] duration-150 hover:bg-[#f3e6d4] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e8b86a]"
+          className="shrink-0 rounded-lg px-0.5 py-1 text-base font-semibold tracking-tight text-[#3a2416] transition-[color,opacity] duration-150 hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e8b86a] sm:text-lg"
         >
           喵喵的拼豆小屋
         </Link>
@@ -60,7 +60,10 @@ export function AppNavBar() {
             </span>
           </>
         ) : null}
-        <nav className="ml-auto flex items-center gap-0.5 overflow-x-auto sm:gap-1" aria-label="主导航">
+      </div>
+
+      <div className="flex w-fit max-w-full shrink-0 items-center gap-1 overflow-x-auto rounded-2xl border border-[#eadfce] bg-[#fffaf3] px-1.5 py-1 shadow-[0_1px_0_rgba(90,52,24,0.04)] sm:gap-1.5 sm:px-2">
+        <nav className="flex items-center gap-0.5 sm:gap-1" aria-label="主导航">
           {NAV_LINKS.map((item) => (
             <Link key={item.href} href={item.href} className={linkClass(item.match(pathname))}>
               {item.label}

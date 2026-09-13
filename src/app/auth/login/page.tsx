@@ -14,29 +14,29 @@ function loginNextPath() {
 export default function LoginPage() {
   const router = useRouter();
   const toast = useToast();
-  const [email, setEmail] = useState('');
+  const [account, setAccount] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
-    if (!email || !password) return;
+    if (!account.trim() || !password) return;
     setLoading(true);
     try {
       const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ account: account.trim(), password }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         if (res.status === 503 && process.env.NODE_ENV === 'development') {
-          const fallbackId = `user_${email.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
+          const fallbackId = `user_${account.toLowerCase().replace(/[^a-z0-9\u4e00-\u9fff]+/gi, '-')}`;
           applyAuthSuccess({
             id: fallbackId,
-            name: email.split('@')[0] || '拼豆玩家',
-            email,
+            name: account.trim() || '拼豆玩家',
+            email: account.trim(),
           });
           toast('开发模式：已本地登录（无 D1）');
           router.push(loginNextPath());
@@ -47,8 +47,8 @@ export default function LoginPage() {
       }
       applyAuthSuccess({
         id: String(data.id),
-        name: String(data.name || email.split('@')[0] || '拼豆玩家'),
-        email: String(data.email || email),
+        name: String(data.name || account.trim() || '拼豆玩家'),
+        email: String(data.account || data.email || account.trim()),
       });
       toast('登录成功');
       router.push(loginNextPath());
@@ -65,17 +65,17 @@ export default function LoginPage() {
         <p className="eyebrow">WELCOME BACK</p>
         <h1>登录</h1>
         <p>登录后可保存图纸、管理作品。</p>
-        <label htmlFor="login-email">
-          邮箱
+        <label htmlFor="login-account">
+          账号
           <input
-            id="login-email"
-            name="email"
-            type="email"
-            autoComplete="email"
+            id="login-account"
+            name="username"
+            type="text"
+            autoComplete="username"
             spellCheck={false}
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-            placeholder="name@example.com"
+            value={account}
+            onChange={(event) => setAccount(event.target.value)}
+            placeholder="注册时填写的账号"
             required
           />
         </label>
@@ -88,8 +88,7 @@ export default function LoginPage() {
             autoComplete="current-password"
             value={password}
             onChange={(event) => setPassword(event.target.value)}
-            placeholder="至少 8 位…"
-            minLength={8}
+            placeholder="密码"
             required
           />
         </label>
