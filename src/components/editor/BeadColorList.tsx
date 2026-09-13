@@ -19,6 +19,8 @@ type BeadColorListProps = {
   /** 0–100：其他颜色淡化强度 */
   highlightFadePercent: number;
   onHighlightFadeChange: (percent: number) => void;
+  showCellKeys: boolean;
+  onShowCellKeysChange: (show: boolean) => void;
   onToggleHighlight: (hex: string) => void;
   onToggleComplete: (hex: string, next: boolean) => void;
   onDeleteColor: (hex: string) => void;
@@ -36,6 +38,8 @@ export function BeadColorList({
   onGridIntervalChange,
   highlightFadePercent,
   onHighlightFadeChange,
+  showCellKeys,
+  onShowCellKeysChange,
   onToggleHighlight,
   onToggleComplete,
   onDeleteColor,
@@ -87,6 +91,15 @@ export function BeadColorList({
             className="h-2 w-full cursor-pointer appearance-none rounded-lg bg-[#e8dcc8] accent-[#c47a2c]"
           />
         </div>
+        <label className="flex cursor-pointer items-center justify-between gap-2 text-[11px] text-[#8a6a4a]">
+          <span>显示色号编码</span>
+          <input
+            type="checkbox"
+            checked={showCellKeys}
+            onChange={(e) => onShowCellKeysChange(e.target.checked)}
+            className="h-4 w-4 rounded border-[#e0d0bc] accent-[#c47a2c]"
+          />
+        </label>
       </div>
       <div className="min-h-0 flex-1 space-y-1 overflow-y-auto overscroll-contain pr-0.5">
         {sortedColors.map((hex) => {

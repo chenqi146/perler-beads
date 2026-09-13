@@ -47,6 +47,8 @@ interface PixelatedPreviewCanvasProps {
   gridInterval?: number;
   /** 高亮时其他颜色淡化强度 0–1，默认 0.84 */
   highlightFade?: number;
+  /** 是否在色块上显示色号编码；默认自动（格子够大时显示） */
+  showCellKeys?: boolean;
 }
 
 export function cellKey(row: number, col: number): string {
@@ -70,6 +72,7 @@ function drawPixelatedCanvas(
     cropRect?: CropRect | null;
     completedCells?: Set<string>;
     highlightFade?: number;
+    showCellKeys?: boolean;
   }
 ) {
   const {
@@ -85,6 +88,7 @@ function drawPixelatedCanvas(
     cropRect,
     completedCells,
     highlightFade = 0.84,
+    showCellKeys,
   } = options;
 
   const { N, M } = dims;
@@ -141,7 +145,7 @@ function drawPixelatedCanvas(
   }
 
   const keyFontSize = Math.max(6, Math.min(11, Math.floor(cellSize * 0.38)));
-  const showKeys = cellSize >= 14;
+  const showKeys = showCellKeys !== undefined ? showCellKeys : cellSize >= 14;
   ctx.font = `bold ${keyFontSize}px sans-serif`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
@@ -317,6 +321,7 @@ const PixelatedPreviewCanvas: React.FC<PixelatedPreviewCanvasProps> = ({
   completedCells,
   gridInterval = 10,
   highlightFade = 0.84,
+  showCellKeys,
 }) => {
   const [darkModeState, setDarkModeState] = useState<boolean | null>(null);
   const touchStartPosRef = useRef<{ x: number; y: number; pageX: number; pageY: number } | null>(null);
@@ -387,6 +392,7 @@ const PixelatedPreviewCanvas: React.FC<PixelatedPreviewCanvasProps> = ({
         cropRect,
         completedCells,
         highlightFade,
+        showCellKeys,
       });
     }
   }, [
@@ -405,6 +411,7 @@ const PixelatedPreviewCanvas: React.FC<PixelatedPreviewCanvasProps> = ({
     cropRect,
     completedCells,
     highlightFade,
+    showCellKeys,
   ]);
 
   useEffect(() => {

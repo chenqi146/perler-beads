@@ -71,6 +71,7 @@ function countColorProgress(
 
 const BEAD_GRID_INTERVAL_KEY = 'perler-bead-grid-interval';
 const BEAD_HIGHLIGHT_FADE_KEY = 'perler-bead-highlight-fade';
+const BEAD_SHOW_CELL_KEYS_KEY = 'perler-bead-show-cell-keys';
 const DEFAULT_HIGHLIGHT_FADE = 84;
 
 function readStoredGridInterval(): number {
@@ -88,6 +89,13 @@ function readStoredHighlightFade(): number {
   return Math.max(0, Math.min(100, n));
 }
 
+function readStoredShowCellKeys(): boolean {
+  if (typeof window === 'undefined') return true;
+  const raw = localStorage.getItem(BEAD_SHOW_CELL_KEYS_KEY);
+  if (raw === null) return true;
+  return raw === '1' || raw === 'true';
+}
+
 function BeadPageContent() {
   const params = useParams<{ id: string }>();
   const patternId = params.id;
@@ -96,6 +104,7 @@ function BeadPageContent() {
   const [justCompleted, setJustCompleted] = useState<string | null>(null);
   const [gridInterval, setGridInterval] = useState(10);
   const [highlightFadePercent, setHighlightFadePercent] = useState(DEFAULT_HIGHLIGHT_FADE);
+  const [showCellKeys, setShowCellKeys] = useState(true);
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const viewportRef = useRef<HTMLDivElement | null>(null);
@@ -120,6 +129,7 @@ function BeadPageContent() {
   useEffect(() => {
     setGridInterval(readStoredGridInterval());
     setHighlightFadePercent(readStoredHighlightFade());
+    setShowCellKeys(readStoredShowCellKeys());
   }, []);
 
   const handleGridIntervalChange = useCallback((interval: number) => {
@@ -136,6 +146,15 @@ function BeadPageContent() {
     setHighlightFadePercent(next);
     try {
       localStorage.setItem(BEAD_HIGHLIGHT_FADE_KEY, String(next));
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  const handleShowCellKeysChange = useCallback((show: boolean) => {
+    setShowCellKeys(show);
+    try {
+      localStorage.setItem(BEAD_SHOW_CELL_KEYS_KEY, show ? '1' : '0');
     } catch {
       // ignore
     }
@@ -532,6 +551,7 @@ function BeadPageContent() {
                   completedCells={completedCellSet}
                   gridInterval={gridInterval}
                   highlightFade={highlightFadePercent / 100}
+                  showCellKeys={showCellKeys}
                 />
               </div>
             </div>
@@ -558,6 +578,8 @@ function BeadPageContent() {
           onGridIntervalChange={handleGridIntervalChange}
           highlightFadePercent={highlightFadePercent}
           onHighlightFadeChange={handleHighlightFadeChange}
+          showCellKeys={showCellKeys}
+          onShowCellKeysChange={handleShowCellKeysChange}
           onToggleHighlight={toggleHighlightColorKey}
           onToggleComplete={toggleComplete}
           onDeleteColor={handleDeleteColor}
