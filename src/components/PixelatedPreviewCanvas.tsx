@@ -43,8 +43,10 @@ interface PixelatedPreviewCanvasProps {
   onPanBy?: (dx: number, dy: number) => void;
   /** 拼豆模式：已完成格子 */
   completedCells?: Set<string>;
-  /** 拼豆模式：当前推荐区域格子 */
-  recommendedCells?: Set<string>;
+  /** 粗分割线间隔（每 N 格一条），默认 10 */
+  gridInterval?: number;
+  /** 高亮时其他颜色淡化强度 0–1，默认 0.84 */
+  highlightFade?: number;
 }
 
 export function cellKey(row: number, col: number): string {
@@ -67,7 +69,7 @@ function drawPixelatedCanvas(
     selectedCells?: Set<string>;
     cropRect?: CropRect | null;
     completedCells?: Set<string>;
-    recommendedCells?: Set<string>;
+    highlightFade?: number;
   }
 ) {
   const {
@@ -82,7 +84,7 @@ function drawPixelatedCanvas(
     selectedCells,
     cropRect,
     completedCells,
-    recommendedCells,
+    highlightFade = 0.84,
   } = options;
 
   const { N, M } = dims;
@@ -149,7 +151,7 @@ function drawPixelatedCanvas(
   );
   const highlightKeyUpper = highlightColorKey?.toUpperCase() ?? '';
   const highlightStyle = highlightActive
-    ? getHighlightRenderStyle(highlightColorKey!, isDarkMode)
+    ? getHighlightRenderStyle(highlightColorKey!, isDarkMode, highlightFade)
     : null;
 
   const isAccentCell = (row: number, col: number): boolean => {
@@ -166,7 +168,6 @@ function drawPixelatedCanvas(
 
       const drawX = axisSize + i * cellSize;
       const drawY = axisSize + j * cellSize;
-      const isAccent = isAccentCell(j, i);
 
       if (cellData.isExternal) {
         ctx.fillStyle = externalBackgroundColor;
@@ -174,17 +175,40 @@ function drawPixelatedCanvas(
         ctx.fillStyle = cellData.color || '#FFFFFF';
       }
       ctx.fillRect(drawX, drawY, cellSize, cellSize);
+    }
+  }
 
-      if (highlightStyle && isAccent) {
+  // 高亮：整幅浅色蒙版把其他颜色变淡，再只把目标色原样重画
+  if (highlightStyle) {
+    ctx.fillStyle = highlightStyle.dimOverlay;
+    ctx.fillRect(axisSize, axisSize, gridWidth, gridHeight);
+
+    for (let j = 0; j < M; j++) {
+      for (let i = 0; i < N; i++) {
+        if (!isAccentCell(j, i)) continue;
+        const cellData = dataToDraw[j]?.[i];
+        if (!cellData) continue;
+        const drawX = axisSize + i * cellSize;
+        const drawY = axisSize + j * cellSize;
+        ctx.fillStyle = cellData.color || '#FFFFFF';
+        ctx.fillRect(drawX, drawY, cellSize, cellSize);
         ctx.save();
         ctx.globalCompositeOperation = highlightStyle.accentLiftComposite;
         ctx.fillStyle = highlightStyle.accentLift;
         ctx.fillRect(drawX, drawY, cellSize, cellSize);
         ctx.restore();
-      } else if (highlightStyle && !isAccent) {
-        ctx.fillStyle = highlightStyle.dimOverlay;
-        ctx.fillRect(drawX, drawY, cellSize, cellSize);
       }
+    }
+  }
+
+  for (let j = 0; j < M; j++) {
+    for (let i = 0; i < N; i++) {
+      const cellData = dataToDraw[j]?.[i];
+      if (!cellData) continue;
+
+      const drawX = axisSize + i * cellSize;
+      const drawY = axisSize + j * cellSize;
+      const isAccent = isAccentCell(j, i);
 
       if (selectedCells?.has(cellKey(j, i))) {
         ctx.fillStyle = 'rgba(59, 130, 246, 0.38)';
@@ -194,7 +218,12 @@ function drawPixelatedCanvas(
         ctx.strokeRect(drawX + 0.75, drawY + 0.75, cellSize - 1.5, cellSize - 1.5);
       }
 
-      if (completedCells?.has(cellKey(j, i)) && !cellData.isExternal) {
+      // 已完成勾选：高亮时只在当前色上显示，避免白底勾选穿透淡色蒙版
+      if (
+        completedCells?.has(cellKey(j, i)) &&
+        !cellData.isExternal &&
+        (!highlightStyle || isAccent)
+      ) {
         ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
         ctx.fillRect(drawX, drawY, cellSize, cellSize);
         ctx.strokeStyle = 'rgba(196, 122, 44, 0.75)';
@@ -204,14 +233,6 @@ function drawPixelatedCanvas(
         ctx.lineTo(drawX + cellSize * 0.42, drawY + cellSize * 0.72);
         ctx.lineTo(drawX + cellSize * 0.78, drawY + cellSize * 0.28);
         ctx.stroke();
-      }
-
-      if (recommendedCells?.has(cellKey(j, i)) && !cellData.isExternal) {
-        ctx.strokeStyle = 'rgba(234, 88, 12, 0.95)';
-        ctx.lineWidth = Math.max(2, cellSize * 0.12);
-        ctx.strokeRect(drawX + 1, drawY + 1, cellSize - 2, cellSize - 2);
-        ctx.fillStyle = 'rgba(251, 146, 60, 0.22)';
-        ctx.fillRect(drawX, drawY, cellSize, cellSize);
       }
 
       if (showKeys && !cellData.isExternal && cellData.key !== 'ERASE') {
@@ -230,42 +251,6 @@ function drawPixelatedCanvas(
       ctx.lineWidth = 0.5;
       ctx.strokeRect(drawX + 0.5, drawY + 0.5, cellSize, cellSize);
     }
-  }
-
-  // 只描色块外轮廓，避免每格描边像铁丝网
-  if (highlightStyle) {
-    const lineW = Math.max(1.25, Math.min(2.25, cellSize * 0.11));
-    ctx.strokeStyle = highlightStyle.silhouetteStroke;
-    ctx.lineWidth = lineW;
-    ctx.lineCap = 'square';
-    ctx.lineJoin = 'miter';
-    ctx.beginPath();
-
-    for (let j = 0; j < M; j++) {
-      for (let i = 0; i < N; i++) {
-        if (!isAccentCell(j, i)) continue;
-        const x = axisSize + i * cellSize;
-        const y = axisSize + j * cellSize;
-        // 邻格不是目标色 → 画这条边
-        if (!isAccentCell(j - 1, i)) {
-          ctx.moveTo(x, y);
-          ctx.lineTo(x + cellSize, y);
-        }
-        if (!isAccentCell(j + 1, i)) {
-          ctx.moveTo(x, y + cellSize);
-          ctx.lineTo(x + cellSize, y + cellSize);
-        }
-        if (!isAccentCell(j, i - 1)) {
-          ctx.moveTo(x, y);
-          ctx.lineTo(x, y + cellSize);
-        }
-        if (!isAccentCell(j, i + 1)) {
-          ctx.moveTo(x + cellSize, y);
-          ctx.lineTo(x + cellSize, y + cellSize);
-        }
-      }
-    }
-    ctx.stroke();
   }
 
   ctx.strokeStyle = sectionLineColor;
@@ -330,7 +315,8 @@ const PixelatedPreviewCanvas: React.FC<PixelatedPreviewCanvasProps> = ({
   onCropRectChange,
   onPanBy,
   completedCells,
-  recommendedCells,
+  gridInterval = 10,
+  highlightFade = 0.84,
 }) => {
   const [darkModeState, setDarkModeState] = useState<boolean | null>(null);
   const touchStartPosRef = useRef<{ x: number; y: number; pageX: number; pageY: number } | null>(null);
@@ -396,11 +382,11 @@ const PixelatedPreviewCanvas: React.FC<PixelatedPreviewCanvasProps> = ({
         selectedColorSystem,
         cellSize,
         axisSize,
-        gridInterval: 10,
+        gridInterval,
         selectedCells,
         cropRect,
         completedCells,
-        recommendedCells,
+        highlightFade,
       });
     }
   }, [
@@ -414,10 +400,11 @@ const PixelatedPreviewCanvas: React.FC<PixelatedPreviewCanvasProps> = ({
     selectedColorSystem,
     cellSize,
     axisSize,
+    gridInterval,
     selectedCells,
     cropRect,
     completedCells,
-    recommendedCells,
+    highlightFade,
   ]);
 
   useEffect(() => {

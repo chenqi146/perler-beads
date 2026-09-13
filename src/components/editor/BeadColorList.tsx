@@ -2,7 +2,8 @@
 
 import { getColorKeyByHex, type ColorSystem } from '../../domain/palette';
 
-export type RegionSortMode = 'nearest' | 'largest' | 'edge';
+export const GRID_INTERVAL_OPTIONS = [5, 10, 15, 20] as const;
+export type GridIntervalOption = (typeof GRID_INTERVAL_OPTIONS)[number];
 
 type BeadColorListProps = {
   sortedColors: string[];
@@ -13,17 +14,15 @@ type BeadColorListProps = {
   /** hex → 已完成格数 */
   cellProgress: Record<string, { done: number; total: number }>;
   justCompleted: string | null;
-  regionSortMode: RegionSortMode;
-  onRegionSortModeChange: (mode: RegionSortMode) => void;
+  gridInterval: number;
+  onGridIntervalChange: (interval: number) => void;
+  /** 0–100：其他颜色淡化强度 */
+  highlightFadePercent: number;
+  onHighlightFadeChange: (percent: number) => void;
   onToggleHighlight: (hex: string) => void;
   onToggleComplete: (hex: string, next: boolean) => void;
+  onDeleteColor: (hex: string) => void;
 };
-
-const SORT_OPTIONS: { id: RegionSortMode; label: string }[] = [
-  { id: 'nearest', label: '最近' },
-  { id: 'largest', label: '大块' },
-  { id: 'edge', label: '边缘' },
-];
 
 export function BeadColorList({
   sortedColors,
@@ -33,32 +32,60 @@ export function BeadColorList({
   completedSet,
   cellProgress,
   justCompleted,
-  regionSortMode,
-  onRegionSortModeChange,
+  gridInterval,
+  onGridIntervalChange,
+  highlightFadePercent,
+  onHighlightFadeChange,
   onToggleHighlight,
   onToggleComplete,
+  onDeleteColor,
 }: BeadColorListProps) {
   return (
     <aside className="flex min-h-0 flex-col rounded-xl border border-[#eadfce] bg-[#fffaf3] p-3">
-      <div className="mb-2 shrink-0">
-        <h2 className="text-sm font-semibold text-[#3a2416]">颜色统计</h2>
-        <p className="mt-0.5 text-[11px] text-[#8a6a4a]">点色号高亮 · 点格子完成</p>
-        <div className="mt-2 flex gap-1" role="group" aria-label="区域推荐排序">
-          {SORT_OPTIONS.map((opt) => (
-            <button
-              key={opt.id}
-              type="button"
-              onClick={() => onRegionSortModeChange(opt.id)}
-              className={[
-                'h-7 flex-1 rounded-lg text-[11px] font-medium transition-colors',
-                regionSortMode === opt.id
-                  ? 'bg-[#c47a2c] text-white'
-                  : 'bg-white text-[#5c4030] ring-1 ring-[#e0d0bc] hover:bg-[#fff4e6]',
-              ].join(' ')}
-            >
-              {opt.label}
-            </button>
-          ))}
+      <div className="mb-2 shrink-0 space-y-2">
+        <div>
+          <h2 className="text-sm font-semibold text-[#3a2416]">颜色统计</h2>
+          <p className="mt-0.5 text-[11px] text-[#8a6a4a]">点色号高亮 · 点格子完成 · 删除可擦除</p>
+        </div>
+        <div>
+          <p className="mb-1 text-[11px] text-[#8a6a4a]">分割线（每 N 格）</p>
+          <div className="flex gap-1" role="group" aria-label="网格分割线间隔">
+            {GRID_INTERVAL_OPTIONS.map((n) => (
+              <button
+                key={n}
+                type="button"
+                onClick={() => onGridIntervalChange(n)}
+                className={[
+                  'h-7 flex-1 rounded-lg text-[11px] font-medium tabular-nums transition-colors',
+                  gridInterval === n
+                    ? 'bg-[#c47a2c] text-white'
+                    : 'bg-white text-[#5c4030] ring-1 ring-[#e0d0bc] hover:bg-[#fff4e6]',
+                ].join(' ')}
+              >
+                {n}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div>
+          <div className="mb-1 flex items-center justify-between gap-2">
+            <label htmlFor="bead-highlight-fade" className="text-[11px] text-[#8a6a4a]">
+              其他颜色淡化
+            </label>
+            <span className="text-[11px] font-medium tabular-nums text-[#5c4030]">
+              {highlightFadePercent}
+            </span>
+          </div>
+          <input
+            id="bead-highlight-fade"
+            type="range"
+            min={0}
+            max={100}
+            step={1}
+            value={highlightFadePercent}
+            onChange={(e) => onHighlightFadeChange(parseInt(e.target.value, 10))}
+            className="h-2 w-full cursor-pointer appearance-none rounded-lg bg-[#e8dcc8] accent-[#c47a2c]"
+          />
         </div>
       </div>
       <div className="min-h-0 flex-1 space-y-1 overflow-y-auto overscroll-contain pr-0.5">
@@ -77,7 +104,7 @@ export function BeadColorList({
             <div
               key={hex}
               className={[
-                'flex items-center gap-2 rounded-xl border px-2 py-1.5 transition-[background-color,border-color,transform] duration-150',
+                'flex items-center gap-1.5 rounded-xl border px-2 py-1.5 transition-[background-color,border-color,transform] duration-150',
                 active ? 'border-[#c47a2c] bg-[#fff4e6]' : 'border-transparent hover:bg-[#f3e6d4]/50',
                 done ? 'opacity-60' : '',
                 pop ? 'scale-[1.02]' : '',
@@ -113,6 +140,17 @@ export function BeadColorList({
                 />
                 完成
               </label>
+              <button
+                type="button"
+                onClick={() => onDeleteColor(hex)}
+                className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-[#a08060] transition-colors hover:bg-[#f3e0d0] hover:text-[#b33b2a] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e8b86a]"
+                title={`删除 ${displayKey}`}
+                aria-label={`删除色号 ${displayKey}`}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 7h12M9 7V5h6v2m-8 0l1 12h8l1-12" />
+                </svg>
+              </button>
             </div>
           );
         })}

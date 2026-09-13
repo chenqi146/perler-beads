@@ -21,56 +21,48 @@ export function getContrastColor(hex: string): string {
   return getRelativeLuminance(hex) > 0.5 ? '#000000' : '#FFFFFF';
 }
 
-/** 高亮色亮度阈值：低于此值视为深色，用浅底压暗非目标格 */
+/** 高亮色亮度阈值：低于此值视为深色目标，提亮方式略有不同 */
 const HIGHLIGHT_DARK_LUMA_THRESHOLD = 0.42;
 
 export type HighlightRenderStyle = {
   /** 目标色是否偏深 */
   isDarkTarget: boolean;
-  /** 盖在非目标格上的蒙版（暖色调，避免冷灰） */
+  /** 盖在非目标格上的浅色蒙版（变淡） */
   dimOverlay: string;
   /** 盖在目标格上的提亮层 */
   accentLift: string;
   /** 目标格提亮用的合成模式 */
   accentLiftComposite: GlobalCompositeOperation;
-  /** 色块外轮廓描边 */
-  silhouetteStroke: string;
   /** 高亮时非目标格的网格线 */
   mutedGridColor: string;
-  /** 高亮时目标格内部网格（更淡，不抢轮廓） */
+  /** 高亮时目标格网格（尽量不抢视觉） */
   accentGridColor: string;
 };
 
 /**
- * 按高亮色亮度选择压暗策略：
- * - 深色目标 → 暖浅蒙版（避免深色埋进灰底）+ screen 提亮
- * - 浅色目标 → 暖深蒙版 + 轻微提亮
- * 描边只用于色块外轮廓，不在每格画框。
+ * 高亮策略：非目标区域盖浅色蒙版变淡，目标色原样保留并轻微提亮。
+ * @param fadeStrength 0–1，其他颜色淡化强度（页面滑块可调）
  */
-export function getHighlightRenderStyle(highlightHex: string, isDarkMode = false): HighlightRenderStyle {
+export function getHighlightRenderStyle(
+  highlightHex: string,
+  isDarkMode = false,
+  fadeStrength = 0.84,
+): HighlightRenderStyle {
   const isDarkTarget = getRelativeLuminance(highlightHex) < HIGHLIGHT_DARK_LUMA_THRESHOLD;
-
-  if (isDarkTarget) {
-    return {
-      isDarkTarget: true,
-      // 略加强蒙版，拉开与选中区的对比
-      dimOverlay: isDarkMode ? 'rgba(250, 246, 240, 0.78)' : 'rgba(250, 246, 240, 0.76)',
-      // screen 提亮：提亮度同时保色相
-      accentLift: 'rgba(255, 248, 240, 0.28)',
-      accentLiftComposite: 'screen',
-      silhouetteStroke: isDarkMode ? 'rgba(255, 252, 248, 0.95)' : 'rgba(255, 255, 255, 0.98)',
-      mutedGridColor: isDarkMode ? 'rgba(255, 255, 255, 0.08)' : 'rgba(90, 60, 40, 0.05)',
-      accentGridColor: isDarkMode ? 'rgba(255, 255, 255, 0.18)' : 'rgba(255, 255, 255, 0.28)',
-    };
-  }
+  const t = Math.max(0, Math.min(1, fadeStrength));
 
   return {
-    isDarkTarget: false,
-    dimOverlay: isDarkMode ? 'rgba(28, 20, 14, 0.64)' : 'rgba(42, 28, 18, 0.56)',
-    accentLift: 'rgba(255, 255, 255, 0.14)',
-    accentLiftComposite: 'soft-light',
-    silhouetteStroke: isDarkMode ? 'rgba(42, 28, 18, 0.9)' : 'rgba(42, 28, 18, 0.82)',
-    mutedGridColor: isDarkMode ? 'rgba(255, 255, 255, 0.06)' : 'rgba(255, 255, 255, 0.1)',
-    accentGridColor: isDarkMode ? 'rgba(0, 0, 0, 0.2)' : 'rgba(0, 0, 0, 0.12)',
+    isDarkTarget,
+    dimOverlay: isDarkMode
+      ? `rgba(45, 52, 64, ${0.35 + t * 0.55})`
+      : `rgba(245, 240, 232, ${0.35 + t * 0.55})`,
+    accentLift: isDarkTarget ? 'rgba(255, 248, 240, 0.28)' : 'rgba(255, 255, 255, 0.12)',
+    accentLiftComposite: isDarkTarget ? 'screen' : 'soft-light',
+    mutedGridColor: isDarkMode ? 'rgba(255, 255, 255, 0.08)' : 'rgba(90, 60, 40, 0.08)',
+    accentGridColor: isDarkMode
+      ? 'rgba(255, 255, 255, 0.16)'
+      : isDarkTarget
+        ? 'rgba(255, 255, 255, 0.2)'
+        : 'rgba(0, 0, 0, 0.08)',
   };
 }

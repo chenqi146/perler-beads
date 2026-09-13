@@ -17,7 +17,9 @@ export function useBeadUi() {
   return useEditorUiStore(
     useShallow((s) => ({
       previewZoom: s.previewZoom,
+      setPreviewZoom: s.setPreviewZoom,
       canvasOffset: s.canvasOffset,
+      setCanvasOffset: s.setCanvasOffset,
       panBy: s.panBy,
       highlightHex: s.highlightColorKey,
       toggleHighlightColorKey: s.toggleHighlightColorKey,
@@ -72,6 +74,7 @@ export function usePatternLoadActions() {
     useShallow((s) => ({
       loadPattern: s.loadPattern,
       setCurrentPattern: s.setCurrentPattern,
+      savePattern: s.savePattern,
     })),
   );
 }
