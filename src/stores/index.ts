@@ -11,6 +11,7 @@ export {
   useEditorUiViewport,
   useEditorHistory,
   useEditorPatternActions,
+  usePatternAutosave,
   useCanvasViewport,
   measureCanvasPixels,
   usePixelationPipeline,
@@ -37,4 +38,5 @@ export type {
   CanvasTooltipData,
   UseCanvasInteractionOptions,
   UseImageUploadOptions,
+  AutosaveStatus,
 } from '../application';

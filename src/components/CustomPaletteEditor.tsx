@@ -5,6 +5,11 @@ import { PaletteColor } from '../utils/pixelation';
 import { PaletteSelections } from '../utils/localStorageUtils';
 import { getDisplayColorKey, ColorSystem } from '../utils/colorSystemUtils';
 import { CloseIcon, IconButton } from './ui/IconButton';
+import {
+  PALETTE_PRESETS,
+  countPresetResolved,
+  type PalettePresetId,
+} from '../domain/palette';
 
 // 对颜色进行分组的工具函数，按前缀分组
 function groupColorsByPrefix(colors: PaletteColor[], selectedColorSystem: ColorSystem): Record<string, PaletteColor[]> {
@@ -71,10 +76,13 @@ interface CustomPaletteEditorProps {
   currentSelections: PaletteSelections;
   onSelectionChange: (key: string, isSelected: boolean) => void;
   onSaveCustomPalette: () => void;
-  onClose: () => void;
+  onClose?: () => void;
   onExportCustomPalette: () => void;
   onImportCustomPalette: () => void;
+  onApplyPreset?: (presetId: PalettePresetId) => void;
   selectedColorSystem: ColorSystem;
+  /** 页面内嵌时去掉弹层高度限制与强制关闭按钮 */
+  embedded?: boolean;
 }
 
 const CustomPaletteEditor: React.FC<CustomPaletteEditorProps> = ({
@@ -85,7 +93,9 @@ const CustomPaletteEditor: React.FC<CustomPaletteEditorProps> = ({
   onClose,
   onExportCustomPalette,
   onImportCustomPalette,
+  onApplyPreset,
   selectedColorSystem,
+  embedded = false,
 }) => {
   // 用于跟踪当前展开的颜色组
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
@@ -134,19 +144,45 @@ const CustomPaletteEditor: React.FC<CustomPaletteEditorProps> = ({
   };
   
   return (
-    <div className="flex flex-col h-full max-h-[calc(90vh-80px)]">
+    <div className={embedded ? 'flex h-full min-h-0 flex-col' : 'flex h-full max-h-[calc(90vh-80px)] flex-col'}>
       {/* 头部 */}
-      <div className="flex justify-between items-center border-b dark:border-gray-700 pb-3 mb-3">
-        <h2 id="custom-palette-title" className="text-lg font-semibold text-gray-800 dark:text-gray-100 flex items-center">
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 text-blue-500" viewBox="0 0 20 20" fill="currentColor">
+      <div className="mb-3 flex items-center justify-between border-b pb-3 dark:border-gray-700">
+        <h2 id="custom-palette-title" className="flex items-center text-lg font-semibold text-gray-800 dark:text-gray-100">
+          <svg xmlns="http://www.w3.org/2000/svg" className="mr-2 h-5 w-5 text-blue-500" viewBox="0 0 20 20" fill="currentColor">
             <path fillRule="evenodd" d="M4 2a2 2 0 00-2 2v11a3 3 0 106 0V4a2 2 0 00-2-2H4zm1 14a1 1 0 100-2 1 1 0 000 2zm5-1.757l4.9-4.9a2 2 0 000-2.828L13.485 5.1a2 2 0 00-2.828 0L10 5.757v8.486zM16 18H9.071l6-6H16a2 2 0 012 2v2a2 2 0 01-2 2z" clipRule="evenodd" />
           </svg>
-          色板管理中心 <span className="ml-2 text-sm text-blue-500 dark:text-blue-400">({selectedCount} 色)</span>
+          色板管理 <span className="ml-2 text-sm text-blue-500 dark:text-blue-400">({selectedCount} 色)</span>
         </h2>
-        <IconButton aria-label="关闭" onClick={onClose}>
-          <CloseIcon />
-        </IconButton>
+        {onClose ? (
+          <IconButton aria-label="关闭" onClick={onClose}>
+            <CloseIcon />
+          </IconButton>
+        ) : null}
       </div>
+
+      {/* 预设色板 */}
+      {onApplyPreset ? (
+        <div className="mb-4">
+          <p className="mb-2 text-xs font-medium text-gray-600 dark:text-gray-300">默认配置</p>
+          <div className="flex flex-wrap gap-2" role="group" aria-label="预设色板">
+            {PALETTE_PRESETS.map((preset) => {
+              const resolved = countPresetResolved(preset.id);
+              return (
+                <button
+                  key={preset.id}
+                  type="button"
+                  onClick={() => onApplyPreset(preset.id)}
+                  className="rounded-lg border border-[#e0d0bc] bg-[#fffaf3] px-3 py-1.5 text-xs font-medium text-[#5c4030] transition-colors hover:border-[#c47a2c] hover:bg-[#fff4e6] dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+                  title={`应用后约 ${resolved} 色可选`}
+                >
+                  {preset.label}
+                  <span className="ml-1 tabular-nums text-[#a08060]">({resolved})</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      ) : null}
       
       {/* 搜索框 */}
       <div className="mb-4">
@@ -172,7 +208,7 @@ const CustomPaletteEditor: React.FC<CustomPaletteEditorProps> = ({
           <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1 text-blue-500 flex-shrink-0 mt-0.5" viewBox="0 0 20 20" fill="currentColor">
             <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
           </svg>
-          在此选择要使用的拼豆色系。您可以选择预设色板，然后根据需要手动添加或删除特定色号。完成后点击底部的&quot;保存并应用&quot;按钮。
+          先选默认配置，再按需微调色号。完成后点击底部的&quot;保存并应用&quot;。
         </p>
       </div>
       

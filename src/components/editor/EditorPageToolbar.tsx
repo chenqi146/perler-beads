@@ -1,14 +1,49 @@
 'use client';
 
+import type { AutosaveStatus } from '../../stores';
+
 type EditorPageToolbarProps = {
   onStartBeading: () => void;
   onSave: () => void;
+  autosaveStatus?: AutosaveStatus;
+  /** 有 patternId 时才显示自动保存状态 */
+  showAutosave?: boolean;
 };
 
+function autosaveLabel(status: AutosaveStatus): string | null {
+  switch (status) {
+    case 'saving':
+      return '自动保存中…';
+    case 'saved':
+      return '已自动保存';
+    case 'error':
+      return '自动保存失败';
+    default:
+      return null;
+  }
+}
+
 /** 编辑页内操作栏：保存 / 开始拼豆（不放进 Nav） */
-export function EditorPageToolbar({ onStartBeading, onSave }: EditorPageToolbarProps) {
+export function EditorPageToolbar({
+  onStartBeading,
+  onSave,
+  autosaveStatus = 'idle',
+  showAutosave = false,
+}: EditorPageToolbarProps) {
+  const hint = showAutosave ? autosaveLabel(autosaveStatus) : null;
+
   return (
     <div className="flex shrink-0 items-center gap-2">
+      {hint && (
+        <span
+          className={`hidden text-[11px] sm:inline ${
+            autosaveStatus === 'error' ? 'text-red-600' : 'text-[#a08060]'
+          }`}
+          aria-live="polite"
+        >
+          {hint}
+        </span>
+      )}
       <button
         type="button"
         onClick={onStartBeading}

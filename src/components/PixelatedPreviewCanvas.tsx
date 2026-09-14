@@ -5,7 +5,7 @@ import { MappedPixel } from '../utils/pixelation';
 import { ColorSystem, getDisplayColorKey } from '../utils/colorSystemUtils';
 import { getContrastColor, getHighlightRenderStyle } from '../utils/color';
 
-export type CanvasToolMode = 'select' | 'crop';
+export type CanvasToolMode = 'select' | 'crop' | 'bead';
 
 export type CropRect = {
   startRow: number;
@@ -41,8 +41,6 @@ interface PixelatedPreviewCanvasProps {
   onCropRectChange?: (rect: CropRect | null) => void;
   /** 空格 / 中键 / 空白处拖动时平移画布 */
   onPanBy?: (dx: number, dy: number) => void;
-  /** 拼豆模式：已完成格子 */
-  completedCells?: Set<string>;
   /** 粗分割线间隔（每 N 格一条），默认 10 */
   gridInterval?: number;
   /** 高亮时其他颜色淡化强度 0–1，默认 0.84 */
@@ -70,7 +68,6 @@ function drawPixelatedCanvas(
     gridInterval: number;
     selectedCells?: Set<string>;
     cropRect?: CropRect | null;
-    completedCells?: Set<string>;
     highlightFade?: number;
     showCellKeys?: boolean;
   }
@@ -86,7 +83,6 @@ function drawPixelatedCanvas(
     gridInterval,
     selectedCells,
     cropRect,
-    completedCells,
     highlightFade = 0.84,
     showCellKeys,
   } = options;
@@ -222,23 +218,6 @@ function drawPixelatedCanvas(
         ctx.strokeRect(drawX + 0.75, drawY + 0.75, cellSize - 1.5, cellSize - 1.5);
       }
 
-      // 已完成勾选：高亮时只在当前色上显示，避免白底勾选穿透淡色蒙版
-      if (
-        completedCells?.has(cellKey(j, i)) &&
-        !cellData.isExternal &&
-        (!highlightStyle || isAccent)
-      ) {
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
-        ctx.fillRect(drawX, drawY, cellSize, cellSize);
-        ctx.strokeStyle = 'rgba(196, 122, 44, 0.75)';
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.moveTo(drawX + cellSize * 0.22, drawY + cellSize * 0.52);
-        ctx.lineTo(drawX + cellSize * 0.42, drawY + cellSize * 0.72);
-        ctx.lineTo(drawX + cellSize * 0.78, drawY + cellSize * 0.28);
-        ctx.stroke();
-      }
-
       if (showKeys && !cellData.isExternal && cellData.key !== 'ERASE') {
         if (!highlightStyle || isAccent) {
           const displayKey = getDisplayColorKey(cellData.color || '#FFFFFF', selectedColorSystem);
@@ -318,7 +297,6 @@ const PixelatedPreviewCanvas: React.FC<PixelatedPreviewCanvasProps> = ({
   cropRect,
   onCropRectChange,
   onPanBy,
-  completedCells,
   gridInterval = 10,
   highlightFade = 0.84,
   showCellKeys,
@@ -390,7 +368,6 @@ const PixelatedPreviewCanvas: React.FC<PixelatedPreviewCanvasProps> = ({
         gridInterval,
         selectedCells,
         cropRect,
-        completedCells,
         highlightFade,
         showCellKeys,
       });
@@ -409,7 +386,6 @@ const PixelatedPreviewCanvas: React.FC<PixelatedPreviewCanvasProps> = ({
     gridInterval,
     selectedCells,
     cropRect,
-    completedCells,
     highlightFade,
     showCellKeys,
   ]);
@@ -607,7 +583,7 @@ const PixelatedPreviewCanvas: React.FC<PixelatedPreviewCanvasProps> = ({
       return;
     }
     if (toolMode === 'crop') return;
-    if (toolMode === 'select') {
+    if (toolMode === 'select' || toolMode === 'bead') {
       onInteraction(event.clientX, event.clientY, event.pageX, event.pageY, true);
     }
   };
@@ -705,10 +681,12 @@ const PixelatedPreviewCanvas: React.FC<PixelatedPreviewCanvasProps> = ({
       !touchMovedRef.current &&
       !ignoreClickRef.current &&
       touchStartPosRef.current &&
-      toolMode === 'select'
+      (toolMode === 'select' || toolMode === 'bead')
     ) {
       const { x, y, pageX, pageY } = touchStartPosRef.current;
       onInteraction(x, y, pageX, pageY, true);
+      // 抑制随后的合成 click，避免点格被触发两次
+      ignoreClickRef.current = true;
     }
     isDraggingRef.current = false;
     lastCellRef.current = null;

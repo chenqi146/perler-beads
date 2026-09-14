@@ -20,6 +20,8 @@ export {
 } from './bead/beadSelectors';
 export { useEditorHistory } from './editor/useEditorHistory';
 export { useEditorPatternActions } from './editor/useEditorPatternActions';
+export { usePatternAutosave } from './editor/usePatternAutosave';
+export type { AutosaveStatus } from './editor/usePatternAutosave';
 export { useCanvasViewport, measureCanvasPixels } from './editor/useCanvasViewport';
 export { usePixelationPipeline } from './editor/usePixelationPipeline';
 export type {

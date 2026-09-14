@@ -18,6 +18,11 @@ const NAV_LINKS = [
       path.startsWith('/bead'),
   },
   {
+    href: '/palette',
+    label: '色板',
+    match: (path: string) => path.startsWith('/palette'),
+  },
+  {
     href: '/explore',
     label: '公开浏览',
     match: (path: string) => path.startsWith('/explore') || path.startsWith('/pattern/'),

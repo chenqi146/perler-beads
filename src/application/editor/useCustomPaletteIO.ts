@@ -2,7 +2,11 @@
 
 import { useCallback, useRef, type ChangeEvent } from 'react';
 import { fullBeadPalette } from '../../domain/palette/fullBeadPalette';
-import { presetToSelections } from '../../domain/palette/paletteSelections';
+import {
+  presetToSelections,
+  selectionsFromPreset,
+  type PalettePresetId,
+} from '../../domain/palette';
 import { savePaletteSelections } from '../../infrastructure/storage/paletteSelectionsRepository';
 import { useEditorStore } from './editorStore';
 
@@ -25,6 +29,13 @@ export function useCustomPaletteIO({ onAfterSave }: UseCustomPaletteIOOptions = 
         ...prev,
         [hexValue.toUpperCase()]: isSelected,
       }));
+    },
+    [setCustomPaletteSelections],
+  );
+
+  const handleApplyPreset = useCallback(
+    (presetId: PalettePresetId) => {
+      setCustomPaletteSelections(selectionsFromPreset(presetId));
     },
     [setCustomPaletteSelections],
   );
@@ -130,6 +141,7 @@ export function useCustomPaletteIO({ onAfterSave }: UseCustomPaletteIOOptions = 
   return {
     importPaletteInputRef,
     handleSelectionChange,
+    handleApplyPreset,
     handleSaveCustomPalette,
     handleExportCustomPalette,
     handleImportPaletteFile,

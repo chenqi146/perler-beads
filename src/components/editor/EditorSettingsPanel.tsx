@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import type { ChangeEvent } from 'react';
 import { PixelationMode, type MappedPixel } from '../../utils/pixelation';
 import {
@@ -32,7 +33,6 @@ export type EditorSettingsPanelProps = {
   pixelationMode: PixelationMode;
   onPixelationModeChange: (event: ChangeEvent<HTMLSelectElement>) => void;
   customPaletteSelections: PaletteSelections;
-  onOpenCustomPaletteEditor: () => void;
   onAutoRemoveBackground: () => void;
   onUndoBgRemoval: () => void;
   bgRemovalSnapshot: EditSnapshot | null;
@@ -62,11 +62,12 @@ export function EditorSettingsPanel({
   pixelationMode,
   onPixelationModeChange,
   customPaletteSelections,
-  onOpenCustomPaletteEditor,
   onAutoRemoveBackground,
   onUndoBgRemoval,
   bgRemovalSnapshot,
 }: EditorSettingsPanelProps) {
+  const selectedCount = Object.values(customPaletteSelections).filter(Boolean).length;
+
   return (
     <section className="bg-white dark:bg-gray-900 rounded-xl border border-[#eadfce] dark:border-gray-800 p-4 space-y-4">
       <div className="flex items-center justify-between">
@@ -89,6 +90,13 @@ export function EditorSettingsPanel({
           ))}
         </select>
       </div>
+
+      <Link
+        href="/palette"
+        className="flex h-10 w-full items-center justify-center rounded-lg border border-[#e0d0bc] bg-[#fffaf3] text-sm font-medium text-[#5c4030] transition-colors hover:bg-[#fff4e6]"
+      >
+        管理色板（{selectedCount} 色）
+      </Link>
 
       {/* 图纸尺寸 宽 x 高 */}
       <div>
@@ -230,13 +238,6 @@ export function EditorSettingsPanel({
               <option value={PixelationMode.Average}>真实 (平均)</option>
             </select>
           </div>
-          <button
-            type="button"
-            onClick={onOpenCustomPaletteEditor}
-            className="w-full h-9 rounded-md border border-gray-300 dark:border-gray-600 text-xs text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700"
-          >
-            管理色板 ({Object.values(customPaletteSelections).filter(Boolean).length} 色)
-          </button>
           <div className="flex gap-2">
             <button
               type="button"

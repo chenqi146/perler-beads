@@ -14,6 +14,8 @@ type BeadProgressState = {
   /** 派生或缓存的完成色（大写 hex） */
   getCompletedColors: (patternId: string) => string[];
   toggleCell: (patternId: string, cellKey: string) => { cells: string[]; added: boolean };
+  /** 仅标记完成，不取消（拼豆点格用） */
+  markCell: (patternId: string, cellKey: string) => { cells: string[]; added: boolean };
   setCells: (patternId: string, cells: string[]) => void;
   /** 整色完成：将该色所有非外部格写入 / 移除 completedCells */
   setColorCompleted: (
@@ -171,6 +173,24 @@ export const useBeadProgressStore = create<BeadProgressState>()(
           },
         }));
         return { cells, added };
+      },
+
+      markCell: (patternId, key) => {
+        const entry = get().byPattern[patternId] ?? { completedCells: [] };
+        if (entry.completedCells.includes(key)) {
+          return { cells: entry.completedCells, added: false };
+        }
+        const cells = [...entry.completedCells, key];
+        set((state) => ({
+          byPattern: {
+            ...state.byPattern,
+            [patternId]: {
+              completedCells: cells,
+              completedColors: entry.completedColors,
+            },
+          },
+        }));
+        return { cells, added: true };
       },
 
       setCells: (patternId, cells) =>

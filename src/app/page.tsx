@@ -12,7 +12,6 @@ import {
 
 // 导入新的类型和组件
 import { IconButton } from '../components/ui/IconButton';
-import { Overlay } from '../components/ui/Overlay';
 import DownloadSettingsModal from '../components/DownloadSettingsModal';
 
 import { 
@@ -37,12 +36,11 @@ const floatAnimation = `
 // 1. 导入新组件
 import ImagePrepModal from '../components/ImagePrepModal';
 import GridTooltip from '../components/GridTooltip';
-import CustomPaletteEditor from '../components/CustomPaletteEditor';
 import { 
   loadPaletteSelections,
-  presetToSelections,
-  PaletteSelections,
+  type PaletteSelections,
 } from '../utils/localStorageUtils';
+import { selectionsFromPreset, DEFAULT_PALETTE_PRESET_ID } from '../domain/palette';
 import SelectionRecolorModal from '../components/SelectionRecolorModal';
 
 import IngredientBillModal from '../components/IngredientBillModal';
@@ -67,11 +65,11 @@ import {
   useEditorSettings,
   useEditorHistory,
   useEditorPatternActions,
+  usePatternAutosave,
   useCanvasViewport,
   measureCanvasPixels,
   usePixelationPipeline,
   usePatternExport,
-  useCustomPaletteIO,
   useEditorCanvasTools,
   useProjectDraft,
   useCanvasInteraction,
@@ -175,7 +173,6 @@ function Editor() {
   }, [setActiveBeadPalette]);
 
   const [tooltipData, setTooltipData] = useState<{ x: number, y: number, key: string, color: string } | null>(null);
-  const [isCustomPaletteEditorOpen, setIsCustomPaletteEditorOpen] = useState<boolean>(false);
 
   const canvasViewportRef = useRef<HTMLDivElement | null>(null);
 
@@ -235,17 +232,6 @@ function Editor() {
   } = usePatternExport();
 
   const {
-    importPaletteInputRef,
-    handleSelectionChange,
-    handleSaveCustomPalette,
-    handleExportCustomPalette,
-    handleImportPaletteFile,
-    triggerImportPalette,
-  } = useCustomPaletteIO({
-    onAfterSave: () => setIsCustomPaletteEditorOpen(false),
-  });
-
-  const {
     openImagePrep,
     handlePrepConfirm,
     handlePrepCancel,
@@ -280,6 +266,13 @@ function Editor() {
     currentPatternId,
     onToast: showToast,
     onSavedMetaClose: () => setIsPatternInfoOpen(false),
+  });
+
+  const { autosaveStatus } = usePatternAutosave({
+    currentPatternId,
+    patternName,
+    patternDescription,
+    patternVisibility,
   });
 
   const { fitCanvasToViewport } = useCanvasViewport(canvasViewportRef);
@@ -384,20 +377,14 @@ function Editor() {
       
       if (hasValidData) {
         setCustomPaletteSelections(validSelections);
-    } else {
+      } else {
         console.log('所有数据都无效，清除localStorage并重新初始化');
-        // 如果本地数据无效，清除localStorage并默认选择所有颜色
         localStorage.removeItem('customPerlerPaletteSelections');
-        const allHexValues = fullBeadPalette.map(color => color.hex.toUpperCase());
-        const initialSelections = presetToSelections(allHexValues, allHexValues);
-      setCustomPaletteSelections(initialSelections);
-    }
+        setCustomPaletteSelections(selectionsFromPreset(DEFAULT_PALETTE_PRESET_ID));
+      }
     } else {
-      console.log('没有localStorage数据，默认选择所有颜色');
-      // 如果没有保存的选择，默认选择所有颜色
-      const allHexValues = fullBeadPalette.map(color => color.hex.toUpperCase());
-      const initialSelections = presetToSelections(allHexValues, allHexValues);
-      setCustomPaletteSelections(initialSelections);
+      console.log('没有localStorage数据，默认使用 221 全实色');
+      setCustomPaletteSelections(selectionsFromPreset(DEFAULT_PALETTE_PRESET_ID));
     }
   }, []); // 只在组件首次加载时执行
 
@@ -565,7 +552,6 @@ function Editor() {
               pixelationMode={pixelationMode}
               onPixelationModeChange={handlePixelationModeChange}
               customPaletteSelections={customPaletteSelections}
-              onOpenCustomPaletteEditor={() => setIsCustomPaletteEditorOpen(true)}
               onAutoRemoveBackground={handleAutoRemoveBackground}
               onUndoBgRemoval={handleUndoBgRemoval}
               bgRemovalSnapshot={bgRemovalSnapshot}
@@ -573,7 +559,7 @@ function Editor() {
 
         {originalImageSrc && activeBeadPalette.length === 0 && (
              <div className="w-full bg-yellow-100 dark:bg-yellow-900/50 p-4 rounded-lg shadow border border-yellow-200 dark:border-yellow-800/60 text-center text-sm text-yellow-800 dark:text-yellow-300">
-                 当前可用颜色过少或为空。请在色板管理中勾选颜色。
+                 当前可用颜色过少或为空。请到「色板」页勾选颜色。
              </div>
          )}
 
@@ -613,6 +599,8 @@ function Editor() {
                     {gridDimensions && <span className="rounded-md bg-[#f3e6d4] px-1.5 py-0.5 font-mono text-[10px] tabular-nums text-[#8a6a4a] dark:bg-gray-800 dark:text-gray-400">{gridDimensions.N} × {gridDimensions.M}</span>}
                   </div>
                   <EditorPageToolbar
+                    showAutosave={Boolean(currentPatternId)}
+                    autosaveStatus={autosaveStatus}
                     onStartBeading={handleStartBeading}
                     onSave={() => {
                       if (currentPatternId) handleSavePattern();
@@ -788,36 +776,6 @@ function Editor() {
           onCancel={handlePrepCancel}
           onConfirm={handlePrepConfirm}
         />
-      )}
-
-      {/* 自定义色板管理弹窗（提到页面根层，避免被侧栏/画布挡住） */}
-      {isCustomPaletteEditorOpen && (
-        <Overlay
-          labelledBy="custom-palette-title"
-          layer="import"
-          onClose={() => setIsCustomPaletteEditorOpen(false)}
-          panelClassName="max-w-4xl"
-        >
-          <input
-            type="file"
-            accept=".json"
-            ref={importPaletteInputRef}
-            onChange={handleImportPaletteFile}
-            className="hidden"
-          />
-          <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6">
-            <CustomPaletteEditor
-              allColors={fullBeadPalette}
-              currentSelections={customPaletteSelections}
-              onSelectionChange={handleSelectionChange}
-              onSaveCustomPalette={handleSaveCustomPalette}
-              onClose={() => setIsCustomPaletteEditorOpen(false)}
-              onExportCustomPalette={handleExportCustomPalette}
-              onImportCustomPalette={triggerImportPalette}
-              selectedColorSystem={selectedColorSystem}
-            />
-          </div>
-        </Overlay>
       )}
 
       <DownloadSettingsModal

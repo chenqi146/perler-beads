@@ -20,3 +20,10 @@ export {
 } from './paletteSelections';
 export type { PaletteSelections } from './paletteSelections';
 export { fullBeadPalette } from './fullBeadPalette';
+export {
+  PALETTE_PRESETS,
+  selectionsFromPreset,
+  countPresetResolved,
+  DEFAULT_PALETTE_PRESET_ID,
+} from './palettePresets';
+export type { PalettePresetId, PalettePreset } from './palettePresets';

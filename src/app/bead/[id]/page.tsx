@@ -108,11 +108,14 @@ function BeadPageContent() {
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const viewportRef = useRef<HTMLDivElement | null>(null);
+  const canvasPanRef = useRef<{ x: number; y: number; pointerId: number } | null>(null);
+  const spaceHeldRef = useRef(false);
 
   const completedCellsArr = useBeadCompletedCells(patternId);
-  const { toggleCell, setColorCompleted, setCells } = useBeadProgressActions();
+  const { markCell, setColorCompleted, setCells } = useBeadProgressActions();
   const startedAtRef = useRef<number>(Date.now());
   const syncTimerRef = useRef<number | null>(null);
+  const lastMarkRef = useRef<{ key: string; at: number } | null>(null);
   const {
     previewZoom,
     setPreviewZoom,
@@ -120,7 +123,6 @@ function BeadPageContent() {
     setCanvasOffset,
     panBy,
     highlightHex,
-    toggleHighlightColorKey,
     setHighlightColorKey,
     resetViewport,
   } = useBeadUi();
@@ -180,8 +182,10 @@ function BeadPageContent() {
         }
         return;
       }
-      if (remote.completedCells.length >= localCells.length && remote.completedCells.length > 0) {
-        setCells(patternId, remote.completedCells);
+      // 合并本地与远端，避免异步回写覆盖刚点上的格子
+      const merged = Array.from(new Set([...localCells, ...remote.completedCells]));
+      if (merged.length > localCells.length) {
+        setCells(patternId, merged);
       }
     })();
 
@@ -267,42 +271,28 @@ function BeadPageContent() {
     return () => window.clearTimeout(t);
   }, [justCompleted]);
 
-  // 滚轮缩放画布
+  // 与编辑模式一致：空格按住可拖动画布
   useEffect(() => {
-    const el = viewportRef.current;
-    if (!el) return;
-    const onWheel = (event: WheelEvent) => {
-      if (!gridDimensions) return;
-      event.preventDefault();
-      const delta = event.deltaY > 0 ? -0.1 : 0.1;
-      const next = Math.max(0.25, Math.min(3, Math.round((previewZoom + delta) * 100) / 100));
-      if (next === previewZoom) return;
-
-      const rect = el.getBoundingClientRect();
-      const mx = event.clientX - rect.left;
-      const my = event.clientY - rect.top;
-      const { width: oldW, height: oldH } = measureCanvasPixels(
-        gridDimensions.N,
-        gridDimensions.M,
-        previewZoom,
-      );
-      const { width: newW, height: newH } = measureCanvasPixels(
-        gridDimensions.N,
-        gridDimensions.M,
-        next,
-      );
-      const contentX = mx - canvasOffset.x;
-      const contentY = my - canvasOffset.y;
-      const scale = newW / Math.max(1, oldW);
-      setPreviewZoom(next);
-      setCanvasOffset({
-        x: Math.round(mx - contentX * scale),
-        y: Math.round(my - contentY * (newH / Math.max(1, oldH))),
-      });
+    const isTypingTarget = (target: EventTarget | null) => {
+      const el = target as HTMLElement | null;
+      const tag = el?.tagName?.toLowerCase();
+      return tag === 'input' || tag === 'textarea' || tag === 'select' || !!el?.isContentEditable;
     };
-    el.addEventListener('wheel', onWheel, { passive: false });
-    return () => el.removeEventListener('wheel', onWheel);
-  }, [previewZoom, canvasOffset, gridDimensions, setPreviewZoom, setCanvasOffset]);
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.code !== 'Space' || isTypingTarget(event.target)) return;
+      spaceHeldRef.current = true;
+      event.preventDefault();
+    };
+    const onKeyUp = (event: KeyboardEvent) => {
+      if (event.code === 'Space') spaceHeldRef.current = false;
+    };
+    window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('keyup', onKeyUp);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('keyup', onKeyUp);
+    };
+  }, []);
 
   const advanceHighlightIfNeeded = useCallback(
     (hexJustDone: string, doneColors: Iterable<string>) => {
@@ -430,12 +420,20 @@ function BeadPageContent() {
       const hex = (cell.color || '').toUpperCase();
       if (!hex) return;
 
-      if (highlightHex?.toUpperCase() !== hex) {
-        setHighlightColorKey(cell.color);
+      // 拼豆：点格只选中当前色（不高亮切换成取消），并只标记完成、不取消
+      setHighlightColorKey(cell.color);
+
+      const key = cellKey(row, col);
+      const now = Date.now();
+      if (lastMarkRef.current?.key === key && now - lastMarkRef.current.at < 450) {
+        return;
       }
+      lastMarkRef.current = { key, at: now };
 
       const beforeDone = completedSet.has(hex);
-      const { cells } = toggleCell(pattern.id, cellKey(row, col));
+      const { cells, added } = markCell(pattern.id, key);
+      if (!added) return;
+
       const cellSet = new Set(cells);
       const { done, total } = countColorProgress(mappedPixelData, hex, cellSet);
       const nowDone = total > 0 && done === total;
@@ -452,9 +450,8 @@ function BeadPageContent() {
       pattern,
       mappedPixelData,
       previewZoom,
-      highlightHex,
       setHighlightColorKey,
-      toggleCell,
+      markCell,
       completedSet,
       completedColors,
       colorSystem,
@@ -511,7 +508,7 @@ function BeadPageContent() {
             {allDone ? <span className="ml-2 font-semibold text-[#c47a2c]">全部完成！</span> : null}
           </p>
           <p className="mt-0.5 text-[11px] text-[#a08060]">
-            点格子标记完成 · 滚轮缩放 · 空格拖拽平移
+            点格子标记完成（不会取消）· 滚轮平移 · 空格拖拽 · 按钮缩放
           </p>
         </div>
         <BeadPageToolbar
@@ -530,7 +527,42 @@ function BeadPageContent() {
           ref={viewportRef}
           className="relative min-h-0 min-w-0 overflow-hidden rounded-xl border border-[#eadfce] bg-[#eef0f3]"
         >
-          <div className="absolute inset-0 overflow-hidden">
+          <div
+            className="absolute inset-0 cursor-grab overflow-hidden active:cursor-grabbing"
+            onWheel={(event) => {
+              event.preventDefault();
+              panBy(-event.deltaX, -event.deltaY);
+            }}
+            onPointerDown={(event) => {
+              if (event.button !== 0) return;
+              const onDrawing = !!(event.target as HTMLElement).closest('canvas');
+              // 图纸上默认点格完成；按住空格时改为拖动画布
+              if (onDrawing && !spaceHeldRef.current) return;
+              event.preventDefault();
+              canvasPanRef.current = {
+                x: event.clientX,
+                y: event.clientY,
+                pointerId: event.pointerId,
+              };
+              event.currentTarget.setPointerCapture(event.pointerId);
+            }}
+            onPointerMove={(event) => {
+              const pan = canvasPanRef.current;
+              if (!pan || pan.pointerId !== event.pointerId) return;
+              const dx = event.clientX - pan.x;
+              const dy = event.clientY - pan.y;
+              canvasPanRef.current = { ...pan, x: event.clientX, y: event.clientY };
+              panBy(dx, dy);
+            }}
+            onPointerUp={(event) => {
+              if (canvasPanRef.current?.pointerId === event.pointerId) {
+                canvasPanRef.current = null;
+              }
+            }}
+            onPointerCancel={() => {
+              canvasPanRef.current = null;
+            }}
+          >
             <div
               className="absolute left-0 top-0"
               style={{ transform: `translate(${canvasOffset.x}px, ${canvasOffset.y}px)` }}
@@ -545,10 +577,9 @@ function BeadPageContent() {
                   persistentHighlight
                   selectedColorSystem={colorSystem}
                   previewZoom={previewZoom}
-                  toolMode="select"
+                  toolMode="bead"
                   selectedCells={new Set()}
                   onPanBy={panBy}
-                  completedCells={completedCellSet}
                   gridInterval={gridInterval}
                   highlightFade={highlightFadePercent / 100}
                   showCellKeys={showCellKeys}
@@ -580,7 +611,7 @@ function BeadPageContent() {
           onHighlightFadeChange={handleHighlightFadeChange}
           showCellKeys={showCellKeys}
           onShowCellKeysChange={handleShowCellKeysChange}
-          onToggleHighlight={toggleHighlightColorKey}
+          onToggleHighlight={setHighlightColorKey}
           onToggleComplete={toggleComplete}
           onDeleteColor={handleDeleteColor}
         />
