@@ -4,12 +4,16 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import RequireAuth from '../../../components/RequireAuth';
-import { useAppNavSubtitle } from '../../../components/shell';
+import { useAppNavSubtitle, useImmersiveChrome } from '../../../components/shell';
 import {
   BeadPageToolbar,
   BeadColorList,
+  BeadColorStrip,
+  BeadCraftSettings,
+  BeadWorkPhotoSheet,
   GRID_INTERVAL_OPTIONS,
 } from '../../../components/editor';
+import { Overlay } from '../../../components/ui/Overlay';
 import PixelatedPreviewCanvas, { cellKey } from '../../../components/PixelatedPreviewCanvas';
 
 import { getColorKeyByHex, type ColorSystem } from '../../../domain/palette';
@@ -25,12 +29,14 @@ import {
 } from '../../../utils/craftSessionSync';
 import {
   useCanvasViewport,
+  applyZoomAtPoint,
   useBeadUi,
   useBeadCompletedCells,
   useBeadCompletedColors,
   useBeadProgressActions,
   usePatternLoadActions,
   measureCanvasPixels,
+  useEditorUiStore,
 } from '../../../stores';
 
 function sortByColorKey(aKey: string, bKey: string, system: ColorSystem): number {
@@ -105,6 +111,9 @@ function BeadPageContent() {
   const [gridInterval, setGridInterval] = useState(10);
   const [highlightFadePercent, setHighlightFadePercent] = useState(DEFAULT_HIGHLIGHT_FADE);
   const [showCellKeys, setShowCellKeys] = useState(true);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [photoOpen, setPhotoOpen] = useState(false);
+  const [immersive, setImmersive] = useState(false);
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const viewportRef = useRef<HTMLDivElement | null>(null);
@@ -258,6 +267,16 @@ function BeadPageContent() {
   const allDone = sortedColors.length > 0 && doneCount === sortedColors.length;
 
   useAppNavSubtitle(pattern ? `拼豆 · ${pattern.name}` : '拼豆制作');
+  useImmersiveChrome(immersive);
+
+  useEffect(() => {
+    if (!immersive) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setImmersive(false);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [immersive]);
 
   useEffect(() => {
     if (!toast) return;
@@ -476,6 +495,35 @@ function BeadPageContent() {
     });
   };
 
+  const handlePinchZoom = useCallback((scale: number, centerClient: { x: number; y: number }) => {
+    const el = viewportRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const ui = useEditorUiStore.getState();
+    applyZoomAtPoint({
+      currentZoom: ui.previewZoom,
+      nextZoom: ui.previewZoom * scale,
+      offset: ui.canvasOffset,
+      point: { x: centerClient.x - rect.left, y: centerClient.y - rect.top },
+      setPreviewZoom: ui.setPreviewZoom,
+      setCanvasOffset: ui.setCanvasOffset,
+    });
+  }, []);
+
+  const handleToggleImmersive = useCallback(() => {
+    setImmersive((prev) => !prev);
+  }, []);
+
+  useEffect(() => {
+    if (!immersive) return;
+    const id = window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => {
+        fitCanvasToViewport();
+      });
+    });
+    return () => window.cancelAnimationFrame(id);
+  }, [immersive, fitCanvasToViewport]);
+
   if (pattern === undefined) {
     return (
       <main className="platform-page">
@@ -497,131 +545,390 @@ function BeadPageContent() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-      <div className="mb-2 flex shrink-0 flex-wrap items-center justify-between gap-2 px-0.5">
-        <div className="min-w-0">
-          <p className="text-sm text-[#8a6a4a]">
-            进度{' '}
-            <span className="font-semibold tabular-nums text-[#3a2416]">
-              {doneCount}/{sortedColors.length}
-            </span>{' '}
-            色
-            {allDone ? <span className="ml-2 font-semibold text-[#c47a2c]">全部完成！</span> : null}
-          </p>
-          <p className="mt-0.5 text-[11px] text-[#a08060]">
-            点格子标记完成（不会取消）· 滚轮平移 · 空格拖拽 · 按钮缩放
-          </p>
+      {!immersive ? (
+        <div className="mb-2 flex shrink-0 flex-wrap items-center justify-between gap-2 px-0.5">
+          <div className="min-w-0">
+            <p className="text-sm text-[#8a6a4a]">
+              进度{' '}
+              <span className="font-semibold tabular-nums text-[#3a2416]">
+                {doneCount}/{sortedColors.length}
+              </span>{' '}
+              色
+              {allDone ? <span className="ml-2 font-semibold text-[#c47a2c]">拼完了</span> : null}
+            </p>
+            {sortedColors.length > 0 ? (
+              <div
+                className="mt-1.5 h-1.5 max-w-[12rem] overflow-hidden rounded-full bg-[#eadfce]"
+                role="progressbar"
+                aria-valuenow={doneCount}
+                aria-valuemin={0}
+                aria-valuemax={sortedColors.length}
+                aria-label="颜色完成进度"
+              >
+                <div
+                  className="h-full rounded-full bg-[#c47a2c] motion-safe:transition-[width] motion-safe:duration-300 motion-safe:ease-out"
+                  style={{
+                    width: `${Math.round((doneCount / sortedColors.length) * 100)}%`,
+                  }}
+                />
+              </div>
+            ) : null}
+            <p className="mt-1.5 hidden text-[11px] text-[#a08060] lg:block">
+              点格子标记完成 · 滚轮平移 · 空格拖拽 · 按钮缩放
+            </p>
+            <p className="mt-1.5 text-[11px] text-[#a08060] lg:hidden">
+              拖动画布 · 点格完成 · 双指缩放
+            </p>
+          </div>
+          <BeadPageToolbar
+            patternId={patternId}
+            previewZoom={previewZoom}
+            canFit
+            onFitCanvas={fitCanvasToViewport}
+            onZoomOut={handleZoomOut}
+            onResetZoom={handleResetZoom}
+            onZoomIn={handleZoomIn}
+            onOpenPhoto={() => setPhotoOpen(true)}
+            immersive={immersive}
+            onToggleImmersive={handleToggleImmersive}
+          />
         </div>
-        <BeadPageToolbar
-          patternId={patternId}
-          previewZoom={previewZoom}
-          canFit
-          onFitCanvas={fitCanvasToViewport}
-          onZoomOut={handleZoomOut}
-          onResetZoom={handleResetZoom}
-          onZoomIn={handleZoomIn}
-        />
-      </div>
+      ) : null}
 
-      <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 overflow-hidden lg:grid-cols-[minmax(0,1fr)_240px] xl:grid-cols-[minmax(0,1fr)_260px]">
+      <div
+        className={[
+          'grid min-h-0 flex-1 overflow-hidden',
+          immersive
+            ? 'grid-cols-1 gap-0'
+            : 'grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_240px] xl:grid-cols-[minmax(0,1fr)_260px]',
+        ].join(' ')}
+      >
         <div
-          ref={viewportRef}
-          className="relative min-h-0 min-w-0 overflow-hidden rounded-xl border border-[#eadfce] bg-[#eef0f3]"
+          className={[
+            'relative flex min-h-0 min-w-0 flex-col overflow-hidden',
+            immersive ? 'gap-0' : 'gap-2',
+          ].join(' ')}
         >
           <div
-            className="absolute inset-0 cursor-grab overflow-hidden active:cursor-grabbing"
-            onWheel={(event) => {
-              event.preventDefault();
-              panBy(-event.deltaX, -event.deltaY);
-            }}
-            onPointerDown={(event) => {
-              if (event.button !== 0) return;
-              const onDrawing = !!(event.target as HTMLElement).closest('canvas');
-              // 图纸上默认点格完成；按住空格时改为拖动画布
-              if (onDrawing && !spaceHeldRef.current) return;
-              event.preventDefault();
-              canvasPanRef.current = {
-                x: event.clientX,
-                y: event.clientY,
-                pointerId: event.pointerId,
-              };
-              event.currentTarget.setPointerCapture(event.pointerId);
-            }}
-            onPointerMove={(event) => {
-              const pan = canvasPanRef.current;
-              if (!pan || pan.pointerId !== event.pointerId) return;
-              const dx = event.clientX - pan.x;
-              const dy = event.clientY - pan.y;
-              canvasPanRef.current = { ...pan, x: event.clientX, y: event.clientY };
-              panBy(dx, dy);
-            }}
-            onPointerUp={(event) => {
-              if (canvasPanRef.current?.pointerId === event.pointerId) {
-                canvasPanRef.current = null;
-              }
-            }}
-            onPointerCancel={() => {
-              canvasPanRef.current = null;
-            }}
+            ref={viewportRef}
+            className={[
+              'relative min-h-0 min-w-0 flex-1 overflow-hidden bg-[#f3ebe0]',
+              immersive ? 'rounded-none border-0' : 'rounded-xl border border-[#eadfce]',
+            ].join(' ')}
           >
+            {immersive ? (
+              <div className="pointer-events-none absolute inset-x-0 top-0 z-30 flex items-start justify-between gap-2 p-2 sm:p-3">
+                <div
+                  className="pointer-events-auto flex max-w-[min(100%,14rem)] items-center gap-2 rounded-2xl border border-[#eadfce]/90 bg-[#fffaf3]/92 px-3 py-2 shadow-[0_8px_24px_rgba(90,52,24,0.1)] backdrop-blur-md"
+                  style={{ marginTop: 'env(safe-area-inset-top)' }}
+                >
+                  <div className="min-w-0">
+                    <p className="text-[11px] leading-none text-[#8a6a4a]">进度</p>
+                    <p className="mt-1 text-sm font-semibold tabular-nums text-[#3a2416]">
+                      {doneCount}/{sortedColors.length}
+                      <span className="ml-1 font-normal text-[#8a6a4a]">色</span>
+                      {allDone ? <span className="ml-1.5 text-[#c47a2c]">拼完了</span> : null}
+                    </p>
+                    {sortedColors.length > 0 ? (
+                      <div
+                        className="mt-1.5 h-1 w-full overflow-hidden rounded-full bg-[#eadfce]"
+                        role="progressbar"
+                        aria-valuenow={doneCount}
+                        aria-valuemin={0}
+                        aria-valuemax={sortedColors.length}
+                        aria-label="颜色完成进度"
+                      >
+                        <div
+                          className="h-full rounded-full bg-[#c47a2c] motion-safe:transition-[width] motion-safe:duration-300 motion-safe:ease-out"
+                          style={{
+                            width: `${Math.round((doneCount / sortedColors.length) * 100)}%`,
+                          }}
+                        />
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+                <div
+                  className="pointer-events-auto"
+                  style={{ marginTop: 'env(safe-area-inset-top)' }}
+                >
+                  <BeadPageToolbar
+                    patternId={patternId}
+                    previewZoom={previewZoom}
+                    canFit
+                    onFitCanvas={fitCanvasToViewport}
+                    onZoomOut={handleZoomOut}
+                    onResetZoom={handleResetZoom}
+                    onZoomIn={handleZoomIn}
+                    immersive={immersive}
+                    onToggleImmersive={handleToggleImmersive}
+                    compact
+                  />
+                </div>
+              </div>
+            ) : null}
+
             <div
-              className="absolute left-0 top-0"
-              style={{ transform: `translate(${canvasOffset.x}px, ${canvasOffset.y}px)` }}
+              className="absolute inset-0 cursor-grab overflow-hidden active:cursor-grabbing"
+              onWheel={(event) => {
+                event.preventDefault();
+                panBy(-event.deltaX, -event.deltaY);
+              }}
+              onPointerDown={(event) => {
+                if (event.pointerType === 'touch') return;
+                if (event.button !== 0) return;
+                const onDrawing = !!(event.target as HTMLElement).closest('canvas');
+                // 图纸上默认点格完成；按住空格时改为拖动画布（桌面）
+                if (onDrawing && !spaceHeldRef.current) return;
+                event.preventDefault();
+                canvasPanRef.current = {
+                  x: event.clientX,
+                  y: event.clientY,
+                  pointerId: event.pointerId,
+                };
+                event.currentTarget.setPointerCapture(event.pointerId);
+              }}
+              onPointerMove={(event) => {
+                const pan = canvasPanRef.current;
+                if (!pan || pan.pointerId !== event.pointerId) return;
+                const dx = event.clientX - pan.x;
+                const dy = event.clientY - pan.y;
+                canvasPanRef.current = { ...pan, x: event.clientX, y: event.clientY };
+                panBy(dx, dy);
+              }}
+              onPointerUp={(event) => {
+                if (canvasPanRef.current?.pointerId === event.pointerId) {
+                  canvasPanRef.current = null;
+                }
+              }}
+              onPointerCancel={() => {
+                canvasPanRef.current = null;
+              }}
             >
-              <div className="overflow-hidden rounded-md bg-white shadow-sm ring-1 ring-black/5">
-                <PixelatedPreviewCanvas
-                  canvasRef={canvasRef}
-                  mappedPixelData={mappedPixelData}
-                  gridDimensions={gridDimensions}
-                  onInteraction={handleInteraction}
-                  highlightColorKey={highlightHex}
-                  persistentHighlight
-                  selectedColorSystem={colorSystem}
-                  previewZoom={previewZoom}
-                  toolMode="bead"
-                  selectedCells={new Set()}
-                  onPanBy={panBy}
-                  gridInterval={gridInterval}
-                  highlightFade={highlightFadePercent / 100}
-                  showCellKeys={showCellKeys}
+              <div
+                className="absolute left-0 top-0"
+                style={{ transform: `translate(${canvasOffset.x}px, ${canvasOffset.y}px)` }}
+              >
+                <div className="overflow-hidden rounded-md bg-white shadow-sm ring-1 ring-black/5">
+                  <PixelatedPreviewCanvas
+                    canvasRef={canvasRef}
+                    mappedPixelData={mappedPixelData}
+                    gridDimensions={gridDimensions}
+                    onInteraction={handleInteraction}
+                    highlightColorKey={highlightHex}
+                    persistentHighlight
+                    selectedColorSystem={colorSystem}
+                    previewZoom={previewZoom}
+                    toolMode="bead"
+                    selectedCells={new Set()}
+                    onPanBy={panBy}
+                    onPinchZoom={handlePinchZoom}
+                    gridInterval={gridInterval}
+                    highlightFade={highlightFadePercent / 100}
+                    showCellKeys={showCellKeys}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {allDone && (
+              <div className="pointer-events-none absolute inset-x-0 top-4 z-20 flex justify-center px-3">
+                <div
+                  className={[
+                    'rounded-2xl border border-[#eadfce] bg-[#fffaf3]/95 px-4 py-2 text-sm font-semibold text-[#3a2416] shadow-[0_8px_24px_rgba(90,52,24,0.12)]',
+                    immersive ? 'mt-16 sm:mt-14' : '',
+                  ].join(' ')}
+                >
+                  整幅图纸的颜色都拼完了
+                </div>
+              </div>
+            )}
+            {allDone && (
+              <div className="absolute inset-x-0 bottom-3 z-20 flex justify-center px-3 lg:hidden">
+                <button
+                  type="button"
+                  onClick={() => setPhotoOpen(true)}
+                  className="pointer-events-auto inline-flex h-11 touch-manipulation items-center rounded-2xl bg-[#c47a2c] px-5 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(196,122,44,0.28)]"
+                >
+                  拍照留档
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* 底栏色带：普通模式仅移动端；全屏时桌面也显示，方便专心拼 */}
+          <div
+            className={[
+              'flex shrink-0 items-stretch gap-2 border-[#eadfce] bg-[#fffaf3] p-2 shadow-[0_-4px_18px_rgba(90,52,24,0.04)]',
+              immersive
+                ? 'rounded-none border-t'
+                : 'rounded-2xl border lg:hidden',
+            ].join(' ')}
+            style={{ paddingBottom: 'max(0.5rem, env(safe-area-inset-bottom))' }}
+          >
+            {highlightHex ? (
+              <div
+                className="flex h-14 w-14 shrink-0 flex-col items-center justify-center gap-0.5 rounded-xl border border-[#c47a2c] bg-[#fff4e6] px-1"
+                aria-label={`当前色 ${getColorKeyByHex(highlightHex, colorSystem)}`}
+              >
+                <span
+                  className="h-6 w-6 rounded-md border border-black/10"
+                  style={{
+                    backgroundColor:
+                      colorCounts?.[highlightHex]?.color ??
+                      colorCounts?.[highlightHex.toUpperCase()]?.color ??
+                      highlightHex,
+                  }}
+                  aria-hidden="true"
                 />
+                <span className="max-w-[3.25rem] truncate font-mono text-[10px] text-[#3a2416]">
+                  {getColorKeyByHex(highlightHex, colorSystem)}
+                </span>
+              </div>
+            ) : null}
+            <div className="min-w-0 flex-1">
+              <BeadColorStrip
+                sortedColors={sortedColors}
+                colorCounts={colorCounts}
+                colorSystem={colorSystem}
+                highlightHex={highlightHex}
+                completedSet={completedSet}
+                cellProgress={cellProgress}
+                justCompleted={justCompleted}
+                onToggleHighlight={setHighlightColorKey}
+                onToggleComplete={toggleComplete}
+              />
+            </div>
+            <div className="flex shrink-0 flex-col gap-1">
+              <button
+                type="button"
+                onClick={() => setSettingsOpen(true)}
+                className="inline-flex h-11 w-11 touch-manipulation items-center justify-center rounded-xl border border-[#e0d0bc] bg-white text-[#5c4030]"
+                aria-label="拼豆设置"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5" aria-hidden="true">
+                  <path fillRule="evenodd" d="M7.84 1.804A1 1 0 018.82 1h2.36a1 1 0 01.98.804l.331 1.652a6.993 6.993 0 011.929.943l1.598-.54a1 1 0 011.186.447l1.18 2.044a1 1 0 01-.205 1.251l-1.267 1.114a7.047 7.047 0 010 1.881l1.267 1.114a1 1 0 01.206 1.25l-1.18 2.045a1 1 0 01-1.187.447l-1.598.54a6.993 6.993 0 01-1.929.943l-.33 1.652a1 1 0 01-.98.804H8.82a1 1 0 01-.98-.804l-.331-1.652a6.993 6.993 0 01-1.929-.943l-1.598.54a1 1 0 01-1.186-.447l-1.18-2.044a1 1 0 01.205-1.251l1.267-1.114a7.047 7.047 0 010-1.881L1.821 7.773a1 1 0 01-.206-1.25l1.18-2.045a1 1 0 011.187-.447l1.598.54a6.993 6.993 0 011.929-.943l.33-1.652zM10 13a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" />
+                </svg>
+              </button>
+              <button
+                type="button"
+                onClick={() => setPhotoOpen(true)}
+                className="inline-flex h-11 w-11 touch-manipulation items-center justify-center rounded-xl border border-[#e0d0bc] bg-white text-[#5c4030]"
+                aria-label="拍照上传作品"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5" aria-hidden="true">
+                  <path d="M4 5a2 2 0 00-2 2v7a2 2 0 002 2h12a2 2 0 002-2V7a2 2 0 00-2-2h-1.172a2 2 0 01-1.414-.586l-.828-.828A2 2 0 0010.172 3H9.828a2 2 0 00-1.414.586l-.828.828A2 2 0 016.172 5H4zm6 9a3 3 0 100-6 3 3 0 000 6z" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {!immersive ? (
+          <div className="hidden min-h-0 lg:block">
+            <BeadColorList
+              sortedColors={sortedColors}
+              colorCounts={colorCounts}
+              colorSystem={colorSystem}
+              highlightHex={highlightHex}
+              completedSet={completedSet}
+              cellProgress={cellProgress}
+              justCompleted={justCompleted}
+              gridInterval={gridInterval}
+              onGridIntervalChange={handleGridIntervalChange}
+              highlightFadePercent={highlightFadePercent}
+              onHighlightFadeChange={handleHighlightFadeChange}
+              showCellKeys={showCellKeys}
+              onShowCellKeysChange={handleShowCellKeysChange}
+              onToggleHighlight={setHighlightColorKey}
+              onToggleComplete={toggleComplete}
+              onDeleteColor={handleDeleteColor}
+            />
+          </div>
+        ) : null}
+      </div>
+
+      {settingsOpen ? (
+        <Overlay
+          labelledBy="bead-mobile-settings-title"
+          placement="sheet"
+          onClose={() => setSettingsOpen(false)}
+        >
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+            <div className="flex shrink-0 items-center justify-between border-b border-[#eadfce] px-4 py-3">
+              <h2 id="bead-mobile-settings-title" className="text-base font-semibold text-[#3a2416]">
+                拼豆设置
+              </h2>
+              <button
+                type="button"
+                onClick={() => setSettingsOpen(false)}
+                className="inline-flex h-11 min-w-11 touch-manipulation items-center justify-center rounded-xl text-sm text-[#8a6a4a]"
+              >
+                关闭
+              </button>
+            </div>
+            <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain px-4 py-4">
+              <BeadCraftSettings
+                gridInterval={gridInterval}
+                onGridIntervalChange={handleGridIntervalChange}
+                highlightFadePercent={highlightFadePercent}
+                onHighlightFadeChange={handleHighlightFadeChange}
+                showCellKeys={showCellKeys}
+                onShowCellKeysChange={handleShowCellKeysChange}
+                idPrefix="bead-mobile"
+              />
+              <div className="border-t border-[#eadfce] pt-3">
+                <p className="mb-2 text-[11px] text-[#8a6a4a]">删除色号（擦除该色全部格子）</p>
+                <div className="max-h-48 space-y-1 overflow-y-auto overscroll-contain">
+                  {sortedColors.map((hex) => {
+                    const displayKey = getColorKeyByHex(hex, colorSystem);
+                    const color = colorCounts?.[hex]?.color ?? hex;
+                    return (
+                      <button
+                        key={hex}
+                        type="button"
+                        onClick={() => {
+                          handleDeleteColor(hex);
+                          setSettingsOpen(false);
+                        }}
+                        className="flex min-h-11 w-full touch-manipulation items-center gap-2 rounded-xl px-2 text-left text-sm text-[#5c4030] hover:bg-[#f3e0d0]"
+                      >
+                        <span
+                          className="h-5 w-5 shrink-0 rounded-md border border-black/10"
+                          style={{ backgroundColor: color }}
+                          aria-hidden="true"
+                        />
+                        <span className="font-mono">{displayKey}</span>
+                        <span className="ml-auto text-[11px] text-[#b33b2a]">删除</span>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             </div>
           </div>
+        </Overlay>
+      ) : null}
 
-          {allDone && (
-            <div className="pointer-events-none absolute inset-x-0 top-4 z-20 flex justify-center">
-              <div className="rounded-full bg-[#c47a2c] px-4 py-2 text-sm font-semibold text-white shadow-lg">
-                太棒了，整幅图纸的颜色都拼完了
-              </div>
-            </div>
-          )}
-        </div>
-
-        <BeadColorList
-          sortedColors={sortedColors}
-          colorCounts={colorCounts}
-          colorSystem={colorSystem}
-          highlightHex={highlightHex}
-          completedSet={completedSet}
-          cellProgress={cellProgress}
-          justCompleted={justCompleted}
-          gridInterval={gridInterval}
-          onGridIntervalChange={handleGridIntervalChange}
-          highlightFadePercent={highlightFadePercent}
-          onHighlightFadeChange={handleHighlightFadeChange}
-          showCellKeys={showCellKeys}
-          onShowCellKeysChange={handleShowCellKeysChange}
-          onToggleHighlight={setHighlightColorKey}
-          onToggleComplete={toggleComplete}
-          onDeleteColor={handleDeleteColor}
-        />
-      </div>
+      <BeadWorkPhotoSheet
+        open={photoOpen}
+        onClose={() => setPhotoOpen(false)}
+        pattern={pattern}
+        completedCells={completedCellsArr}
+        allDone={allDone}
+        onToast={setToast}
+        onSaved={() => setToast('作品已保存，可在「我的作品」查看')}
+      />
 
       {toast && (
         <div
-          className="fixed bottom-20 left-1/2 z-[200] -translate-x-1/2 rounded-lg bg-[#3a2416] px-4 py-2 text-sm text-white shadow-lg"
+          className={[
+            'fixed left-1/2 z-[200] -translate-x-1/2 rounded-lg bg-[#3a2416] px-4 py-2 text-sm text-white shadow-lg',
+            immersive ? 'bottom-28' : 'bottom-24 lg:bottom-20',
+          ].join(' ')}
           role="status"
           aria-live="polite"
+          style={{ marginBottom: 'env(safe-area-inset-bottom)' }}
         >
           {toast}
         </div>

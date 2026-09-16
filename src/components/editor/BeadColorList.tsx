@@ -1,9 +1,10 @@
 'use client';
 
 import { getColorKeyByHex, type ColorSystem } from '../../domain/palette';
+import { BeadCraftSettings } from './BeadCraftSettings';
 
-export const GRID_INTERVAL_OPTIONS = [5, 10, 15, 20] as const;
-export type GridIntervalOption = (typeof GRID_INTERVAL_OPTIONS)[number];
+export { GRID_INTERVAL_OPTIONS } from './BeadCraftSettings';
+export type { GridIntervalOption } from './BeadCraftSettings';
 
 type BeadColorListProps = {
   sortedColors: string[];
@@ -51,55 +52,15 @@ export function BeadColorList({
           <h2 className="text-sm font-semibold text-[#3a2416]">颜色统计</h2>
           <p className="mt-0.5 text-[11px] text-[#8a6a4a]">点色号高亮 · 点格子完成 · 删除可擦除</p>
         </div>
-        <div>
-          <p className="mb-1 text-[11px] text-[#8a6a4a]">分割线（每 N 格）</p>
-          <div className="flex gap-1" role="group" aria-label="网格分割线间隔">
-            {GRID_INTERVAL_OPTIONS.map((n) => (
-              <button
-                key={n}
-                type="button"
-                onClick={() => onGridIntervalChange(n)}
-                className={[
-                  'h-7 flex-1 rounded-lg text-[11px] font-medium tabular-nums transition-colors',
-                  gridInterval === n
-                    ? 'bg-[#c47a2c] text-white'
-                    : 'bg-white text-[#5c4030] ring-1 ring-[#e0d0bc] hover:bg-[#fff4e6]',
-                ].join(' ')}
-              >
-                {n}
-              </button>
-            ))}
-          </div>
-        </div>
-        <div>
-          <div className="mb-1 flex items-center justify-between gap-2">
-            <label htmlFor="bead-highlight-fade" className="text-[11px] text-[#8a6a4a]">
-              其他颜色淡化
-            </label>
-            <span className="text-[11px] font-medium tabular-nums text-[#5c4030]">
-              {highlightFadePercent}
-            </span>
-          </div>
-          <input
-            id="bead-highlight-fade"
-            type="range"
-            min={0}
-            max={100}
-            step={1}
-            value={highlightFadePercent}
-            onChange={(e) => onHighlightFadeChange(parseInt(e.target.value, 10))}
-            className="h-2 w-full cursor-pointer appearance-none rounded-lg bg-[#e8dcc8] accent-[#c47a2c]"
-          />
-        </div>
-        <label className="flex cursor-pointer items-center justify-between gap-2 text-[11px] text-[#8a6a4a]">
-          <span>显示色号编码</span>
-          <input
-            type="checkbox"
-            checked={showCellKeys}
-            onChange={(e) => onShowCellKeysChange(e.target.checked)}
-            className="h-4 w-4 rounded border-[#e0d0bc] accent-[#c47a2c]"
-          />
-        </label>
+        <BeadCraftSettings
+          gridInterval={gridInterval}
+          onGridIntervalChange={onGridIntervalChange}
+          highlightFadePercent={highlightFadePercent}
+          onHighlightFadeChange={onHighlightFadeChange}
+          showCellKeys={showCellKeys}
+          onShowCellKeysChange={onShowCellKeysChange}
+          idPrefix="bead-desktop"
+        />
       </div>
       <div className="min-h-0 flex-1 space-y-1 overflow-y-auto overscroll-contain pr-0.5">
         {sortedColors.map((hex) => {

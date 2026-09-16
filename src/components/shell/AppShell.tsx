@@ -1,9 +1,13 @@
 'use client';
 
 import { usePathname } from 'next/navigation';
-import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { AppNavBar } from './AppNavBar';
 import { ToastProvider } from '../ui/ToastProvider';
+import {
+  ImmersiveChromeContext,
+  type ImmersiveChromeApi,
+} from './immersiveChromeContext';
 import {
   NavSubtitleSetterContext,
   NavSubtitleStateContext,
@@ -16,39 +20,68 @@ export function AppShell({ children }: { children: ReactNode }) {
   const isFullscreenWorkbench =
     pathname === '/' || pathname.startsWith('/editor') || pathname.startsWith('/bead');
   const [slot, setSlotState] = useState<NavSubtitleSlot>({});
+  const [immersive, setImmersiveState] = useState(false);
 
   const setSlot = useCallback((next: NavSubtitleSlot) => {
     setSlotState((prev) => (prev.subtitle === next.subtitle ? prev : next));
   }, []);
 
+  const setImmersive = useCallback((next: boolean) => {
+    setImmersiveState(next);
+  }, []);
+
+  const immersiveApi = useMemo<ImmersiveChromeApi>(
+    () => ({ immersive, setImmersive }),
+    [immersive, setImmersive],
+  );
+
   useEffect(() => {
     if (!isFullscreenWorkbench) setSlotState({});
   }, [isFullscreenWorkbench]);
 
+  useEffect(() => {
+    setImmersiveState(false);
+  }, [pathname]);
+
   return (
     <ToastProvider>
-      <NavSubtitleSetterContext.Provider value={setSlot}>
-        <NavSubtitleStateContext.Provider value={slot}>
-          <div
-            className={[
-              'bg-[#f7f4ef] text-[#3a2416] font-[family-name:var(--font-geist-sans)]',
-              isFullscreenWorkbench ? 'flex h-dvh max-h-dvh flex-col overflow-hidden' : 'min-h-dvh',
-            ].join(' ')}
-          >
+      <ImmersiveChromeContext.Provider value={immersiveApi}>
+        <NavSubtitleSetterContext.Provider value={setSlot}>
+          <NavSubtitleStateContext.Provider value={slot}>
             <div
               className={[
-                'mx-auto flex w-full max-w-[1920px] flex-col px-3 py-2 sm:px-4 lg:px-5',
-                isFullscreenWorkbench ? 'h-full min-h-0 flex-1' : 'py-3 sm:py-4',
+                'bg-[#f7f4ef] text-[#3a2416] font-[family-name:var(--font-geist-sans)]',
+                isFullscreenWorkbench || immersive
+                  ? 'flex h-dvh max-h-dvh flex-col overflow-hidden'
+                  : 'min-h-dvh',
               ].join(' ')}
             >
-              <AppNavBar />
-              <div className={isFullscreenWorkbench ? 'flex min-h-0 flex-1 flex-col overflow-hidden' : undefined}>
-                {children}
+              <div
+                className={[
+                  'mx-auto flex w-full max-w-[1920px] flex-col',
+                  immersive
+                    ? 'h-full min-h-0 flex-1 px-0 py-0'
+                    : [
+                        'px-3 py-2 sm:px-4 lg:px-5',
+                        isFullscreenWorkbench ? 'h-full min-h-0 flex-1' : 'py-3 sm:py-4',
+                      ].join(' '),
+                ].join(' ')}
+              >
+                {immersive ? null : <AppNavBar />}
+                <div
+                  className={
+                    isFullscreenWorkbench || immersive
+                      ? 'flex min-h-0 flex-1 flex-col overflow-hidden'
+                      : undefined
+                  }
+                >
+                  {children}
+                </div>
               </div>
             </div>
-          </div>
-        </NavSubtitleStateContext.Provider>
-      </NavSubtitleSetterContext.Provider>
+          </NavSubtitleStateContext.Provider>
+        </NavSubtitleSetterContext.Provider>
+      </ImmersiveChromeContext.Provider>
     </ToastProvider>
   );
 }
