@@ -133,6 +133,7 @@ function BeadPageContent() {
     panBy,
     highlightHex,
     setHighlightColorKey,
+    toggleHighlightColorKey,
     resetViewport,
   } = useBeadUi();
   const { loadPattern, setCurrentPattern, savePattern } = usePatternLoadActions();
@@ -767,9 +768,11 @@ function BeadPageContent() {
             style={{ paddingBottom: 'max(0.5rem, env(safe-area-inset-bottom))' }}
           >
             {highlightHex ? (
-              <div
-                className="flex h-14 w-14 shrink-0 flex-col items-center justify-center gap-0.5 rounded-xl border border-[#c47a2c] bg-[#fff4e6] px-1"
-                aria-label={`当前色 ${getColorKeyByHex(highlightHex, colorSystem)}`}
+              <button
+                type="button"
+                onClick={() => setHighlightColorKey(null)}
+                className="flex h-14 w-14 shrink-0 touch-manipulation flex-col items-center justify-center gap-0.5 rounded-xl border border-[#c47a2c] bg-[#fff4e6] px-1"
+                aria-label={`取消选中 ${getColorKeyByHex(highlightHex, colorSystem)}`}
               >
                 <span
                   className="h-6 w-6 rounded-md border border-black/10"
@@ -784,7 +787,7 @@ function BeadPageContent() {
                 <span className="max-w-[3.25rem] truncate font-mono text-[10px] text-[#3a2416]">
                   {getColorKeyByHex(highlightHex, colorSystem)}
                 </span>
-              </div>
+              </button>
             ) : null}
             <div className="min-w-0 flex-1">
               <BeadColorStrip
@@ -795,7 +798,7 @@ function BeadPageContent() {
                 completedSet={completedSet}
                 cellProgress={cellProgress}
                 justCompleted={justCompleted}
-                onToggleHighlight={setHighlightColorKey}
+                onToggleHighlight={toggleHighlightColorKey}
                 onToggleComplete={toggleComplete}
               />
             </div>
@@ -840,7 +843,7 @@ function BeadPageContent() {
               onHighlightFadeChange={handleHighlightFadeChange}
               showCellKeys={showCellKeys}
               onShowCellKeysChange={handleShowCellKeysChange}
-              onToggleHighlight={setHighlightColorKey}
+              onToggleHighlight={toggleHighlightColorKey}
               onToggleComplete={toggleComplete}
               onDeleteColor={handleDeleteColor}
             />

@@ -36,4 +36,32 @@ describe('BeadColorStrip', () => {
     await user.click(options[0]!);
     expect(onToggleHighlight).toHaveBeenCalledWith('#FF0000');
   });
+
+  it('clicking the active color again still requests toggle (parent clears highlight)', async () => {
+    const user = userEvent.setup();
+    const onToggleHighlight = vi.fn();
+
+    render(
+      <BeadColorStrip
+        sortedColors={colors}
+        colorCounts={{
+          '#FF0000': { count: 10, color: '#FF0000' },
+          '#00FF00': { count: 5, color: '#00FF00' },
+        }}
+        colorSystem="MARD"
+        highlightHex="#FF0000"
+        completedSet={new Set()}
+        cellProgress={{
+          '#FF0000': { done: 2, total: 10 },
+          '#00FF00': { done: 0, total: 5 },
+        }}
+        justCompleted={null}
+        onToggleHighlight={onToggleHighlight}
+        onToggleComplete={vi.fn()}
+      />,
+    );
+
+    await user.click(screen.getByRole('option', { selected: true }));
+    expect(onToggleHighlight).toHaveBeenCalledWith('#FF0000');
+  });
 });
