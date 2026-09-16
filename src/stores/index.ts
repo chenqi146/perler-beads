@@ -14,6 +14,7 @@ export {
   usePatternAutosave,
   useCanvasViewport,
   measureCanvasPixels,
+  applyZoomAtPoint,
   usePixelationPipeline,
   usePatternExport,
   useCustomPaletteIO,

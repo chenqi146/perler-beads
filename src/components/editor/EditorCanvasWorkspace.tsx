@@ -34,6 +34,8 @@ export type EditorCanvasWorkspaceProps = {
     isClick: boolean,
     isTouchEnd?: boolean,
   ) => void;
+  /** 双指捏合缩放 */
+  onPinchZoom?: (scale: number, centerClient: { x: number; y: number }) => void;
   /** 底部工具条等叠加层 */
   children?: ReactNode;
 };
@@ -61,6 +63,7 @@ export function EditorCanvasWorkspace({
   cropRect,
   onCropRectChange,
   onInteraction,
+  onPinchZoom,
   children,
 }: EditorCanvasWorkspaceProps) {
   const canvasPanRef = useRef<{ x: number; y: number; pointerId: number } | null>(null);
@@ -91,7 +94,7 @@ export function EditorCanvasWorkspace({
   return (
     <div
       ref={viewportRef}
-      className="relative min-h-0 min-w-0 flex-1 overflow-hidden rounded-lg border border-gray-200 bg-[#eef0f3] dark:border-gray-800 dark:bg-gray-950"
+      className="relative min-h-0 min-w-0 flex-1 overflow-hidden rounded-lg border border-[#eadfce] bg-[#f3ebe0] dark:border-gray-800 dark:bg-gray-950"
     >
       {!originalImageSrc ? (
         <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-400 dark:text-gray-500">
@@ -109,7 +112,7 @@ export function EditorCanvasWorkspace({
               d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"
             />
           </svg>
-          <p className="text-sm">请先在左侧上传图片</p>
+          <p className="text-sm">请先上传图片</p>
         </div>
       ) : (
         <div
@@ -119,9 +122,10 @@ export function EditorCanvasWorkspace({
             panBy(-event.deltaX, -event.deltaY);
           }}
           onPointerDown={(event) => {
+            if (event.pointerType === 'touch') return;
             if (event.button !== 0) return;
             const onDrawing = !!(event.target as HTMLElement).closest('canvas');
-            // 图纸上默认框选；按住空格时改为拖动画布
+            // 图纸上默认框选；按住空格时改为拖动画布（桌面）
             if (onDrawing && !spaceHeldRef.current) return;
             event.preventDefault();
             canvasPanRef.current = {
@@ -169,6 +173,7 @@ export function EditorCanvasWorkspace({
                 cropRect={cropRect}
                 onCropRectChange={onCropRectChange}
                 onPanBy={panBy}
+                onPinchZoom={onPinchZoom}
               />
             </div>
           </div>

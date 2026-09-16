@@ -19,8 +19,9 @@ function PatternsContent() {
         <div>
           <p className="eyebrow">MY PATTERNS</p>
           <h1>我的图纸</h1>
+          <p className="mt-1 text-sm text-[#8a6a4a] lg:hidden">选图纸编辑或开始拼豆</p>
         </div>
-        <Link href="/dashboard" className="primary-button">
+        <Link href="/dashboard" className="primary-button touch-manipulation">
           新建图纸
         </Link>
       </header>
@@ -29,7 +30,14 @@ function PatternsContent() {
           patterns.map((pattern) => (
             <article className="pattern-card" key={pattern.id}>
               <div className="pattern-card-media">
-                <Link href={`/editor/${pattern.id}`} className="pattern-preview">
+                <Link
+                  href={
+                    pattern.data.gridDimensions.N > 0
+                      ? `/bead/${pattern.id}`
+                      : `/editor/${pattern.id}`
+                  }
+                  className="pattern-preview"
+                >
                   {pattern.data.originalImageSrc ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={pattern.data.originalImageSrc} alt="" />
@@ -51,11 +59,14 @@ function PatternsContent() {
                 </small>
               </div>
               <div className="pattern-card-actions pattern-card-actions--footer">
-                <Link className="secondary-button" href={`/editor/${pattern.id}`}>
+                <Link
+                  className="secondary-button touch-manipulation"
+                  href={`/editor/${pattern.id}`}
+                >
                   编辑
                 </Link>
                 <Link
-                  className={`primary-button ${pattern.data.gridDimensions.N <= 0 ? 'pointer-events-none opacity-40' : ''}`}
+                  className={`primary-button touch-manipulation ${pattern.data.gridDimensions.N <= 0 ? 'pointer-events-none opacity-40' : ''}`}
                   href={`/bead/${pattern.id}`}
                   aria-disabled={pattern.data.gridDimensions.N <= 0}
                 >

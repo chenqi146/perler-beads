@@ -91,3 +91,27 @@ export function useCanvasViewport(
 
   return { fitCanvasToViewport, measureCanvasPixels };
 }
+
+/** 以视口内某点为锚缩放，保持该点下内容不跳 */
+export function applyZoomAtPoint(options: {
+  currentZoom: number;
+  nextZoom: number;
+  offset: { x: number; y: number };
+  /** 相对视口左上角的锚点 */
+  point: { x: number; y: number };
+  setPreviewZoom: (z: number) => void;
+  setCanvasOffset: (o: { x: number; y: number }) => void;
+}) {
+  const { currentZoom, nextZoom, offset, point, setPreviewZoom, setCanvasOffset } = options;
+  const clamped = Math.max(0.25, Math.min(3, Math.round(nextZoom * 100) / 100));
+  if (currentZoom <= 0 || clamped === currentZoom) {
+    setPreviewZoom(clamped);
+    return;
+  }
+  const scale = clamped / currentZoom;
+  setPreviewZoom(clamped);
+  setCanvasOffset({
+    x: Math.round(point.x - (point.x - offset.x) * scale),
+    y: Math.round(point.y - (point.y - offset.y) * scale),
+  });
+}

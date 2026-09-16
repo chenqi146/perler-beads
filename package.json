@@ -10,7 +10,9 @@
     "db:migrate:dev": "wrangler d1 migrations apply perler-beads-dev --remote --env development",
     "db:migrate:prod": "wrangler d1 migrations apply perler-beads --remote",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@imgly/background-removal": "^1.7.0",
@@ -26,14 +28,21 @@
     "@eslint/eslintrc": "^3",
     "@opennextjs/cloudflare": "^1.20.6",
     "@tailwindcss/postcss": "^4",
+    "@testing-library/dom": "^10.4.2",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.0",
+    "@testing-library/user-event": "^14.6.1",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@vitejs/plugin-react": "^4.7.0",
     "eslint": "^9",
     "eslint-config-next": "15.3.6",
+    "jsdom": "^26.1.0",
     "sharp": "^0.34.2",
     "tailwindcss": "^4",
     "typescript": "^5",
+    "vitest": "^3.2.4",
     "wrangler": "^4.131.0"
   }
 }

@@ -23,7 +23,7 @@ export function IconButton({
     <button
       type={type}
       className={cn(
-        'inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg touch-manipulation',
+        'inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg touch-manipulation max-lg:h-11 max-lg:w-11',
         'hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2',
         'disabled:pointer-events-none disabled:opacity-40',
         'dark:hover:bg-gray-800 dark:focus-visible:ring-offset-gray-900',

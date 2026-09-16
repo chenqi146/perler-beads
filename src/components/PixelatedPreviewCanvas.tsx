@@ -41,6 +41,8 @@ interface PixelatedPreviewCanvasProps {
   onCropRectChange?: (rect: CropRect | null) => void;
   /** 空格 / 中键 / 空白处拖动时平移画布 */
   onPanBy?: (dx: number, dy: number) => void;
+  /** 双指捏合：scale 为相对上一帧的倍率，center 为 client 坐标 */
+  onPinchZoom?: (scale: number, centerClient: { x: number; y: number }) => void;
   /** 粗分割线间隔（每 N 格一条），默认 10 */
   gridInterval?: number;
   /** 高亮时其他颜色淡化强度 0–1，默认 0.84 */
@@ -297,6 +299,7 @@ const PixelatedPreviewCanvas: React.FC<PixelatedPreviewCanvasProps> = ({
   cropRect,
   onCropRectChange,
   onPanBy,
+  onPinchZoom,
   gridInterval = 10,
   highlightFade = 0.84,
   showCellKeys,
@@ -304,6 +307,8 @@ const PixelatedPreviewCanvas: React.FC<PixelatedPreviewCanvasProps> = ({
   const [darkModeState, setDarkModeState] = useState<boolean | null>(null);
   const touchStartPosRef = useRef<{ x: number; y: number; pageX: number; pageY: number } | null>(null);
   const touchMovedRef = useRef(false);
+  const lastTouchPanRef = useRef<{ x: number; y: number } | null>(null);
+  const pinchRef = useRef<{ distance: number } | null>(null);
   const [isHighlighting, setIsHighlighting] = useState(false);
   const isDraggingRef = useRef(false);
   const lastCellRef = useRef<{ row: number; col: number } | null>(null);
@@ -595,6 +600,20 @@ const PixelatedPreviewCanvas: React.FC<PixelatedPreviewCanvasProps> = ({
   };
 
   const handleTouchStart = (event: TouchEvent<HTMLCanvasElement>) => {
+    if (event.touches.length >= 2) {
+      touchMovedRef.current = true;
+      const a = event.touches[0];
+      const b = event.touches[1];
+      if (a && b) {
+        const dx = a.clientX - b.clientX;
+        const dy = a.clientY - b.clientY;
+        pinchRef.current = { distance: Math.hypot(dx, dy) || 1 };
+      }
+      lastTouchPanRef.current = null;
+      touchStartPosRef.current = null;
+      return;
+    }
+
     const touch = event.touches[0];
     if (!touch) return;
 
@@ -604,7 +623,9 @@ const PixelatedPreviewCanvas: React.FC<PixelatedPreviewCanvasProps> = ({
       pageX: touch.pageX,
       pageY: touch.pageY,
     };
+    lastTouchPanRef.current = { x: touch.clientX, y: touch.clientY };
     touchMovedRef.current = false;
+    pinchRef.current = null;
 
     if (!selectGesture && !cropGesture) return;
 
@@ -635,15 +656,54 @@ const PixelatedPreviewCanvas: React.FC<PixelatedPreviewCanvasProps> = ({
   };
 
   const handleTouchMove = (event: TouchEvent<HTMLCanvasElement>) => {
+    if (event.touches.length >= 2) {
+      touchMovedRef.current = true;
+      const a = event.touches[0];
+      const b = event.touches[1];
+      if (a && b && (onPinchZoom || onPanBy)) {
+        const dx = a.clientX - b.clientX;
+        const dy = a.clientY - b.clientY;
+        const distance = Math.hypot(dx, dy) || 1;
+        const center = { x: (a.clientX + b.clientX) / 2, y: (a.clientY + b.clientY) / 2 };
+        if (pinchRef.current && onPinchZoom) {
+          const scale = distance / pinchRef.current.distance;
+          if (Number.isFinite(scale) && scale > 0) {
+            onPinchZoom(scale, center);
+          }
+        }
+        pinchRef.current = { distance };
+        event.preventDefault();
+      }
+      return;
+    }
+
     const touch = event.touches[0];
     if (!touch || !touchStartPosRef.current) return;
 
-    const dx = Math.abs(touch.clientX - touchStartPosRef.current.x);
-    const dy = Math.abs(touch.clientY - touchStartPosRef.current.y);
-    if (!touchMovedRef.current && (dx > 8 || dy > 8)) {
+    const dxAbs = Math.abs(touch.clientX - touchStartPosRef.current.x);
+    const dyAbs = Math.abs(touch.clientY - touchStartPosRef.current.y);
+    if (!touchMovedRef.current && (dxAbs > 8 || dyAbs > 8)) {
       touchMovedRef.current = true;
       selectMovedRef.current = true;
       onInteraction(0, 0, 0, 0, false, true);
+    }
+
+    // 拼豆 / 轻量编辑选格：触控单指拖动平移画布（不做框选）
+    if (
+      (toolMode === 'bead' || toolMode === 'select') &&
+      onPanBy &&
+      touchMovedRef.current &&
+      lastTouchPanRef.current
+    ) {
+      const dx = touch.clientX - lastTouchPanRef.current.x;
+      const dy = touch.clientY - lastTouchPanRef.current.y;
+      lastTouchPanRef.current = { x: touch.clientX, y: touch.clientY };
+      // 取消框选手势，避免松手后误改选区
+      selectClickRef.current = null;
+      isDraggingRef.current = false;
+      onPanBy(dx, dy);
+      event.preventDefault();
+      return;
     }
 
     if (!isDraggingRef.current) return;
@@ -670,7 +730,33 @@ const PixelatedPreviewCanvas: React.FC<PixelatedPreviewCanvasProps> = ({
     }
   };
 
-  const handleTouchEnd = () => {
+  const handleTouchEnd = (event: TouchEvent<HTMLCanvasElement>) => {
+    if (event.touches.length >= 2) {
+      const a = event.touches[0];
+      const b = event.touches[1];
+      if (a && b) {
+        const dx = a.clientX - b.clientX;
+        const dy = a.clientY - b.clientY;
+        pinchRef.current = { distance: Math.hypot(dx, dy) || 1 };
+      }
+      return;
+    }
+    if (event.touches.length === 1) {
+      const touch = event.touches[0];
+      pinchRef.current = null;
+      if (touch) {
+        lastTouchPanRef.current = { x: touch.clientX, y: touch.clientY };
+        touchStartPosRef.current = {
+          x: touch.clientX,
+          y: touch.clientY,
+          pageX: touch.pageX,
+          pageY: touch.pageY,
+        };
+        touchMovedRef.current = true;
+      }
+      return;
+    }
+
     if (!touchMovedRef.current) {
       finishSelectClick();
     } else {
@@ -693,6 +779,8 @@ const PixelatedPreviewCanvas: React.FC<PixelatedPreviewCanvasProps> = ({
     dragStartRef.current = null;
     touchStartPosRef.current = null;
     touchMovedRef.current = false;
+    lastTouchPanRef.current = null;
+    pinchRef.current = null;
   };
 
   // silence unused

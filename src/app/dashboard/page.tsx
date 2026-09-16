@@ -64,8 +64,13 @@ function DashboardContent() {
         <div>
           <p className="eyebrow">MY PATTERNS</p>
           <h1>我的图纸</h1>
+          <p className="mt-1 text-sm text-[#8a6a4a] lg:hidden">选图纸编辑或开始拼豆</p>
         </div>
-        <button type="button" className="primary-button" onClick={() => setOpen(true)}>
+        <button
+          type="button"
+          className="primary-button touch-manipulation"
+          onClick={() => setOpen(true)}
+        >
           新建图纸
         </button>
       </header>
@@ -110,7 +115,14 @@ function DashboardContent() {
           patterns.map((pattern) => (
             <article className="pattern-card" key={pattern.id}>
               <div className="pattern-card-media">
-                <Link href={`/editor/${pattern.id}`} className="pattern-preview">
+                <Link
+                  href={
+                    pattern.data.gridDimensions.N > 0
+                      ? `/bead/${pattern.id}`
+                      : `/editor/${pattern.id}`
+                  }
+                  className="pattern-preview"
+                >
                   {pattern.data.originalImageSrc ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={pattern.data.originalImageSrc} alt="" />
@@ -132,12 +144,15 @@ function DashboardContent() {
                 </small>
               </div>
               <div className="pattern-card-actions">
-                <Link href={`/editor/${pattern.id}`} className="secondary-button">
+                <Link
+                  href={`/editor/${pattern.id}`}
+                  className="secondary-button touch-manipulation"
+                >
                   编辑
                 </Link>
                 <Link
                   href={`/bead/${pattern.id}`}
-                  className={`primary-button ${pattern.data.gridDimensions.N <= 0 ? 'pointer-events-none opacity-40' : ''}`}
+                  className={`primary-button touch-manipulation ${pattern.data.gridDimensions.N <= 0 ? 'pointer-events-none opacity-40' : ''}`}
                   aria-disabled={pattern.data.gridDimensions.N <= 0}
                 >
                   开始拼豆

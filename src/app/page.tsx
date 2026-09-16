@@ -12,6 +12,7 @@ import {
 
 // 导入新的类型和组件
 import { IconButton } from '../components/ui/IconButton';
+import { Overlay } from '../components/ui/Overlay';
 import DownloadSettingsModal from '../components/DownloadSettingsModal';
 
 import { 
@@ -52,6 +53,7 @@ import {
   EditorUploadPanel,
   EditorSettingsPanel,
   EditorColorStatsPanel,
+  EditorColorStrip,
   EditorZoomControls,
   EditorCanvasWorkspace,
 } from '../components/editor';
@@ -68,6 +70,8 @@ import {
   usePatternAutosave,
   useCanvasViewport,
   measureCanvasPixels,
+  applyZoomAtPoint,
+  useEditorUiStore,
   usePixelationPipeline,
   usePatternExport,
   useEditorCanvasTools,
@@ -83,6 +87,8 @@ function Editor() {
   const [patternDescription, setPatternDescription] = useState('');
   const [patternVisibility, setPatternVisibility] = useState<'private' | 'public'>('private');
   const [isPatternInfoOpen, setIsPatternInfoOpen] = useState(false);
+  const [mobileSettingsOpen, setMobileSettingsOpen] = useState(false);
+  const [isNarrowScreen, setIsNarrowScreen] = useState(false);
   const {
     mappedPixelData,
     gridDimensions,
@@ -175,6 +181,14 @@ function Editor() {
   const [tooltipData, setTooltipData] = useState<{ x: number, y: number, key: string, color: string } | null>(null);
 
   const canvasViewportRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 1023px)');
+    const sync = () => setIsNarrowScreen(mq.matches);
+    sync();
+    mq.addEventListener('change', sync);
+    return () => mq.removeEventListener('change', sync);
+  }, []);
 
   // 新增：轻量提示
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -276,6 +290,32 @@ function Editor() {
   });
 
   const { fitCanvasToViewport } = useCanvasViewport(canvasViewportRef);
+
+  const handlePinchZoom = useCallback((scale: number, centerClient: { x: number; y: number }) => {
+    const el = canvasViewportRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const ui = useEditorUiStore.getState();
+    applyZoomAtPoint({
+      currentZoom: ui.previewZoom,
+      nextZoom: ui.previewZoom * scale,
+      offset: ui.canvasOffset,
+      point: { x: centerClient.x - rect.left, y: centerClient.y - rect.top },
+      setPreviewZoom: ui.setPreviewZoom,
+      setCanvasOffset: ui.setCanvasOffset,
+    });
+  }, []);
+
+  const sortedEditorColors = useMemo(() => {
+    if (!colorCounts) return [];
+    return Object.keys(colorCounts)
+      .filter((hex) => (colorCounts[hex]?.count ?? 0) > 0)
+      .sort((a, b) => {
+        const ka = getColorKeyByHex(a, selectedColorSystem);
+        const kb = getColorKeyByHex(b, selectedColorSystem);
+        return ka.localeCompare(kb, 'zh');
+      });
+  }, [colorCounts, selectedColorSystem]);
 
   const {
     handleSelectCells,
@@ -512,8 +552,8 @@ function Editor() {
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
       <main ref={mainRef} className="relative flex h-full min-h-0 w-full flex-1 flex-col">
         <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 overflow-hidden lg:grid-cols-[280px_minmax(0,1fr)] xl:grid-cols-[300px_minmax(0,1fr)] lg:gap-3">
-          {/* 左侧：参数区内部滚动 */}
-          <aside className="flex min-h-0 flex-col space-y-3 overflow-y-auto overscroll-contain pb-1 pr-0.5">
+          {/* 左侧：桌面参数区（手机收入设置 sheet） */}
+          <aside className="hidden min-h-0 flex-col space-y-3 overflow-y-auto overscroll-contain pb-1 pr-0.5 lg:flex">
             <EditorUploadPanel
               originalImageSrc={originalImageSrc}
               preAiImageSrc={preAiImageSrc}
@@ -591,7 +631,7 @@ function Editor() {
 
           {/* 右侧：图纸预览，占满剩余高度 */}
           <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-            <div className="flex min-h-0 flex-1 flex-col rounded-xl border border-[#eadfce] bg-white p-3 dark:border-gray-800 dark:bg-gray-900 sm:p-4">
+            <div className="flex min-h-0 flex-1 flex-col rounded-xl border border-[#eadfce] bg-white p-2 dark:border-gray-800 dark:bg-gray-900 sm:p-4">
               <div className="mb-2 flex shrink-0 flex-col gap-2">
                 <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
                   <div className="flex min-w-0 items-center gap-2">
@@ -601,6 +641,10 @@ function Editor() {
                   <EditorPageToolbar
                     showAutosave={Boolean(currentPatternId)}
                     autosaveStatus={autosaveStatus}
+                    canUndo={editHistory.length > 0}
+                    canRedo={editRedo.length > 0}
+                    onUndo={handleUndoEdit}
+                    onRedo={handleRedoEdit}
                     onStartBeading={handleStartBeading}
                     onSave={() => {
                       if (currentPatternId) handleSavePattern();
@@ -608,13 +652,15 @@ function Editor() {
                     }}
                   />
                 </div>
-                <p className="text-[11px] text-[#a08060]">拖拽框选改色，点已选格子可取消；空白处或空格拖动可移动画布</p>
+                <p className="hidden text-[11px] text-[#a08060] lg:block">拖拽框选改色，点已选格子可取消；空白处或空格拖动可移动画布</p>
+                <p className="text-[11px] text-[#a08060] lg:hidden">点格选中 · 拖动画布 · 双指缩放 · 底栏按色全选</p>
               </div>
 
               <canvas ref={originalCanvasRef} className="hidden"></canvas>
 
               {/* 画布 + 右侧色块统计 */}
-              <div className="flex min-h-0 flex-1 flex-col gap-3 lg:flex-row">
+              <div className="flex min-h-0 flex-1 flex-col gap-2 lg:flex-row lg:gap-3">
+                <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-2">
                 <EditorCanvasWorkspace
                   viewportRef={canvasViewportRef}
                   canvasRef={pixelatedCanvasRef}
@@ -634,10 +680,11 @@ function Editor() {
                   cropRect={cropRect}
                   onCropRectChange={setCropRect}
                   onInteraction={handleCanvasInteraction}
+                  onPinchZoom={handlePinchZoom}
                 >
                   {originalImageSrc && (
                     <div
-                      className="pointer-events-auto absolute inset-x-0 bottom-3 z-30 flex justify-center px-3"
+                      className="pointer-events-auto absolute inset-x-0 bottom-3 z-30 hidden justify-center px-3 lg:flex"
                       onPointerDown={(event) => event.stopPropagation()}
                     >
                       <div className="flex max-w-full items-center gap-0.5 overflow-x-auto rounded-xl border border-gray-200 bg-white/95 p-1 shadow-lg backdrop-blur dark:border-gray-700 dark:bg-gray-900/95">
@@ -746,8 +793,50 @@ function Editor() {
                   )}
                 </EditorCanvasWorkspace>
 
+                <div
+                  className="flex shrink-0 items-stretch gap-2 rounded-2xl border border-[#eadfce] bg-[#fffaf3] p-2 shadow-[0_-4px_18px_rgba(90,52,24,0.04)] lg:hidden"
+                  style={{ paddingBottom: 'max(0.5rem, env(safe-area-inset-bottom))' }}
+                >
+                  <div className="min-w-0 flex-1">
+                    {sortedEditorColors.length > 0 ? (
+                      <EditorColorStrip
+                        sortedColors={sortedEditorColors}
+                        colorCounts={colorCounts}
+                        colorSystem={selectedColorSystem}
+                        highlightHex={highlightColorKey}
+                        onSelectColor={handleSelectAllByColor}
+                      />
+                    ) : (
+                      <p className="flex h-14 items-center px-2 text-[11px] text-[#8a6a4a]">点格选中后可换色</p>
+                    )}
+                  </div>
+                  <div className="flex shrink-0 flex-col gap-1">
+                    <button
+                      type="button"
+                      disabled={selectedCells.size === 0}
+                      onClick={handleOpenSelectionRecolor}
+                      className="inline-flex h-11 min-w-[2.75rem] touch-manipulation items-center justify-center rounded-xl bg-[#c47a2c] px-2 text-xs font-semibold text-white disabled:bg-[#e0d0bc] disabled:text-[#8a6a4a]"
+                      aria-label="换色"
+                    >
+                      换色{selectedCells.size > 0 ? ` ${selectedCells.size}` : ''}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setMobileSettingsOpen(true)}
+                      className="inline-flex h-11 w-11 touch-manipulation items-center justify-center rounded-xl border border-[#e0d0bc] bg-white text-[#5c4030]"
+                      aria-label="编辑设置"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5" aria-hidden="true">
+                        <path fillRule="evenodd" d="M7.84 1.804A1 1 0 018.82 1h2.36a1 1 0 01.98.804l.331 1.652a6.993 6.993 0 011.929.943l1.598-.54a1 1 0 011.186.447l1.18 2.044a1 1 0 01-.205 1.251l-1.267 1.114a7.047 7.047 0 010 1.881l1.267 1.114a1 1 0 01.206 1.25l-1.18 2.045a1 1 0 01-1.187.447l-1.598-.54a6.993 6.993 0 01-1.929.943l-.33 1.652a1 1 0 01-.98.804H8.82a1 1 0 01-.98-.804l-.331-1.652a6.993 6.993 0 01-1.929-.943l-1.598.54a1 1 0 01-1.186-.447l-1.18-2.044a1 1 0 01.205-1.251l1.267-1.114a7.047 7.047 0 010-1.881L1.821 7.773a1 1 0 01-.206-1.25l1.18-2.045a1 1 0 011.187-.447l1.598.54a6.993 6.993 0 011.929-.943l.33-1.652zM10 13a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+                </div>
+
                 {/* 颜色统计：点击选中该色号全部格子 */}
                 {originalImageSrc && colorCounts && Object.keys(colorCounts).length > 0 && (
+                  <div className="hidden min-h-0 lg:block">
                   <EditorColorStatsPanel
                     colorCounts={colorCounts}
                     totalBeadCount={totalBeadCount}
@@ -755,6 +844,7 @@ function Editor() {
                     highlightColorKey={highlightColorKey}
                     onSelectAllByColor={handleSelectAllByColor}
                   />
+                  </div>
                 )}
               </div>
 
@@ -768,6 +858,71 @@ function Editor() {
           )}
 
       </main>
+
+      {mobileSettingsOpen ? (
+        <Overlay
+          labelledBy="editor-mobile-settings-title"
+          placement="sheet"
+          onClose={() => setMobileSettingsOpen(false)}
+          panelClassName="max-h-[85vh]"
+        >
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+            <div className="flex shrink-0 items-center justify-between border-b border-[#eadfce] px-4 py-3">
+              <h2 id="editor-mobile-settings-title" className="text-base font-semibold text-[#3a2416]">
+                编辑设置
+              </h2>
+              <button
+                type="button"
+                onClick={() => setMobileSettingsOpen(false)}
+                className="inline-flex h-11 min-w-11 touch-manipulation items-center justify-center rounded-xl text-sm text-[#8a6a4a]"
+              >
+                关闭
+              </button>
+            </div>
+            <div className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain px-3 py-3">
+              <p className="px-1 text-[11px] text-[#8a6a4a]">换图、导出与手动裁切请用电脑端完整编辑。</p>
+              <EditorSettingsPanel
+                mappedPixelData={mappedPixelData}
+                gridDimensions={gridDimensions}
+                selectedColorSystem={selectedColorSystem}
+                onSelectedColorSystemChange={setSelectedColorSystem}
+                keepAspectRatio={keepAspectRatio}
+                onKeepAspectRatioChange={setKeepAspectRatio}
+                granularityInput={granularityInput}
+                gridHeightInput={gridHeightInput}
+                onGranularityInputChange={handleGranularityInputChange}
+                onGridHeightInputChange={handleGridHeightInputChange}
+                onApplyGridWidth={applyGridWidth}
+                onApplyGridHeight={applyGridHeight}
+                onConfirmParameters={handleConfirmParameters}
+                maxColorCount={maxColorCount}
+                onMaxColorCountChange={setMaxColorCount}
+                autoRemoveWhiteBg={autoRemoveWhiteBg}
+                onAutoRemoveWhiteBgChange={setAutoRemoveWhiteBg}
+                similarityThresholdInput={similarityThresholdInput}
+                onSimilarityThresholdInputChange={handleSimilarityThresholdInputChange}
+                pixelationMode={pixelationMode}
+                onPixelationModeChange={handlePixelationModeChange}
+                customPaletteSelections={customPaletteSelections}
+                onAutoRemoveBackground={handleAutoRemoveBackground}
+                onUndoBgRemoval={handleUndoBgRemoval}
+                bgRemovalSnapshot={bgRemovalSnapshot}
+              />
+              <button
+                type="button"
+                disabled={!mappedPixelData}
+                onClick={() => {
+                  handleAutoCrop();
+                  setMobileSettingsOpen(false);
+                }}
+                className="flex h-11 w-full touch-manipulation items-center justify-center rounded-xl border border-[#e0d0bc] bg-white text-sm font-medium text-[#5c4030] disabled:opacity-40"
+              >
+                自动裁边
+              </button>
+            </div>
+          </div>
+        </Overlay>
+      ) : null}
 
       {/* 上传后预处理弹窗：默认全选裁剪 + 可选 AI 抠图 */}
       {isImagePrepOpen && pendingPrepImageSrc && (
@@ -793,7 +948,7 @@ function Editor() {
         <IngredientBillModal bill={ingredientBill} onClose={() => setIsIngredientBillOpen(false)} />
       )}
 
-      {/* 统一改色板：固定在页面左上角，不随画布平移 */}
+      {/* 统一改色板 */}
       {showSelectionRecolor && selectedCells.size > 0 && (
         <SelectionRecolorModal
           selectedCount={selectedCells.size}
@@ -802,13 +957,14 @@ function Editor() {
           selectedColorSystem={selectedColorSystem}
           onPick={handleApplyColorToSelection}
           onClose={() => setShowSelectionRecolor(false)}
+          variant={isNarrowScreen ? 'sheet' : 'floating'}
         />
       )}
 
       {/* 轻量提示 Toast */}
       {(toastMessage || draftSaveHint) && (
-        <div className="fixed bottom-20 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white px-4 py-2 rounded-lg shadow-lg z-[200] text-sm whitespace-nowrap"
-             style={{ animation: 'toastFadeInOut 2s ease-in-out' }}>
+        <div className="fixed bottom-24 left-1/2 z-[200] -translate-x-1/2 transform whitespace-nowrap rounded-lg bg-gray-800 px-4 py-2 text-sm text-white shadow-lg lg:bottom-20"
+             style={{ animation: 'toastFadeInOut 2s ease-in-out', marginBottom: 'env(safe-area-inset-bottom)' }}>
           {toastMessage || draftSaveHint}
         </div>
       )}

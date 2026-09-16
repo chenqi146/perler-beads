@@ -170,7 +170,8 @@ function WorksContent() {
             <div className="mt-5 space-y-3">
               <input
                 type="file"
-                accept="image/jpeg,image/png,image/webp"
+                accept="image/*"
+                capture="environment"
                 onChange={(event) => {
                   const file = event.target.files?.[0];
                   if (file) void upload(file);

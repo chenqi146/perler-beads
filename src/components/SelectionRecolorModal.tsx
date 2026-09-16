@@ -5,6 +5,7 @@ import { PaletteColor } from '../utils/pixelation';
 import { ColorSystem, getDisplayColorKey } from '../utils/colorSystemUtils';
 import { TRANSPARENT_KEY } from '../utils/pixelEditingUtils';
 import { CloseIcon, IconButton } from './ui/IconButton';
+import { Overlay } from './ui/Overlay';
 
 type ColorPick = { key: string; color: string };
 
@@ -73,6 +74,8 @@ interface SelectionRecolorModalProps {
   selectedColorSystem: ColorSystem;
   onPick: (color: ColorPick) => void;
   onClose: () => void;
+  /** floating=桌面浮层；sheet=移动端底部面板 */
+  variant?: 'floating' | 'sheet';
 }
 
 const SelectionRecolorModal: React.FC<SelectionRecolorModalProps> = ({
@@ -82,6 +85,7 @@ const SelectionRecolorModal: React.FC<SelectionRecolorModalProps> = ({
   selectedColorSystem,
   onPick,
   onClose,
+  variant = 'floating',
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [activeCategory, setActiveCategory] = useState<string>('全部');
@@ -150,26 +154,20 @@ const SelectionRecolorModal: React.FC<SelectionRecolorModalProps> = ({
     );
   };
 
-  return (
-    <div
-      className="fixed top-3 left-3 z-[280] flex justify-start"
-      onClick={onClose}
-    >
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="selection-recolor-title"
-        className="flex w-[min(92vw,360px)] max-h-[min(62vh,460px)] flex-col overflow-hidden overscroll-contain rounded-xl border border-gray-200 bg-white shadow-2xl dark:border-gray-700 dark:bg-gray-800"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between gap-2 px-4 py-2.5 bg-gradient-to-r from-blue-500 to-purple-500 text-white shrink-0">
+  const panel = (
+    <>
+        <div className="flex shrink-0 items-center justify-between gap-2 border-b border-[#eadfce] bg-[#fff4e6] px-4 py-3">
           <div>
-            <h3 id="selection-recolor-title" className="text-sm font-semibold">统一改色</h3>
-            <p className="text-[11px] text-white/75 mt-0.5">
-              已选 {selectedCount} 格 · 选择颜色后立即应用
+            <h3 id="selection-recolor-title" className="text-sm font-semibold text-[#3a2416]">统一改色</h3>
+            <p className="mt-0.5 text-[11px] text-[#8a6a4a]">
+              已选 {selectedCount} 格 · 点色号立即应用
             </p>
           </div>
-          <IconButton aria-label="关闭" onClick={onClose} className="text-white hover:bg-white/20 hover:text-white">
+          <IconButton
+            aria-label="关闭"
+            onClick={onClose}
+            className="text-[#5c4030] hover:bg-[#f3e6d4] hover:text-[#3a2416]"
+          >
             <CloseIcon />
           </IconButton>
         </div>
@@ -186,7 +184,7 @@ const SelectionRecolorModal: React.FC<SelectionRecolorModalProps> = ({
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder={`搜索色号（当前 ${selectedColorSystem}）或 HEX…`}
-              className="h-9 w-full rounded-lg border border-gray-300 bg-white pl-9 pr-3 text-sm text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100"
+              className="h-11 w-full rounded-lg border border-gray-300 bg-white pl-9 pr-3 text-sm text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100 lg:h-9"
             />
             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm pointer-events-none">
               ⌕
@@ -197,10 +195,10 @@ const SelectionRecolorModal: React.FC<SelectionRecolorModalProps> = ({
             <button
               type="button"
               onClick={() => setActiveCategory('全部')}
-              className={`shrink-0 h-7 px-2.5 rounded-full text-xs border ${
+              className={`shrink-0 h-9 px-2.5 rounded-full text-xs border touch-manipulation lg:h-7 ${
                 activeCategory === '全部'
-                  ? 'bg-amber-500 border-amber-500 text-white'
-                  : 'bg-gray-50 dark:bg-gray-900 border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300'
+                  ? 'bg-[#c47a2c] border-[#c47a2c] text-white'
+                  : 'bg-[#fffaf3] border-[#e0d0bc] text-[#5c4030]'
               }`}
             >
               全部 ({filteredColors.length})
@@ -210,10 +208,10 @@ const SelectionRecolorModal: React.FC<SelectionRecolorModalProps> = ({
                 key={prefix}
                 type="button"
                 onClick={() => setActiveCategory(prefix)}
-                className={`shrink-0 h-7 px-2.5 rounded-full text-xs border ${
+                className={`shrink-0 h-9 px-2.5 rounded-full text-xs border touch-manipulation lg:h-7 ${
                   activeCategory === prefix
-                    ? 'bg-amber-500 border-amber-500 text-white'
-                    : 'bg-gray-50 dark:bg-gray-900 border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300'
+                    ? 'bg-[#c47a2c] border-[#c47a2c] text-white'
+                    : 'bg-[#fffaf3] border-[#e0d0bc] text-[#5c4030]'
                 }`}
               >
                 {prefix} ({colorGroups[prefix]?.length || 0})
@@ -235,7 +233,7 @@ const SelectionRecolorModal: React.FC<SelectionRecolorModalProps> = ({
                       type="button"
                       title={`统一改为 ${c.key}`}
                       onClick={() => onPick({ key: hex, color: hex })}
-                      className="aspect-square min-w-0 rounded-md border border-blue-300 dark:border-blue-500 hover:ring-2 hover:ring-blue-400 text-[10px] font-mono shadow-sm"
+                      className="aspect-square min-h-11 min-w-0 touch-manipulation rounded-md border border-blue-300 dark:border-blue-500 hover:ring-2 hover:ring-blue-400 text-[10px] font-mono shadow-sm lg:min-h-0"
                       style={{
                         backgroundColor: hex,
                         color: isLight(hex) ? '#111' : '#fff',
@@ -262,23 +260,50 @@ const SelectionRecolorModal: React.FC<SelectionRecolorModalProps> = ({
           </div>
         </div>
 
-        <div className="px-4 py-3 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between gap-2 shrink-0">
+        <div
+          className="px-4 py-3 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between gap-2 shrink-0"
+          style={variant === 'sheet' ? { paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' } : undefined}
+        >
           <button
             type="button"
             title="擦除为透明"
             onClick={() => onPick({ key: TRANSPARENT_KEY, color: '#FFFFFF' })}
-            className="h-9 px-3 rounded-lg border border-dashed border-red-300 text-xs text-red-600 bg-white dark:bg-gray-900 hover:bg-red-50"
+            className="h-11 px-3 rounded-lg border border-dashed border-red-300 text-xs text-red-600 bg-white dark:bg-gray-900 hover:bg-red-50 touch-manipulation lg:h-9"
           >
             擦除选中格
           </button>
           <button
             type="button"
             onClick={onClose}
-            className="h-9 px-4 rounded-lg border border-gray-300 dark:border-gray-600 text-sm text-gray-600 dark:text-gray-300"
+            className="h-11 px-4 rounded-lg border border-gray-300 dark:border-gray-600 text-sm text-gray-600 dark:text-gray-300 touch-manipulation lg:h-9"
           >
             取消
           </button>
         </div>
+    </>
+  );
+
+  if (variant === 'sheet') {
+    return (
+      <Overlay labelledBy="selection-recolor-title" placement="sheet" onClose={onClose} panelClassName="max-h-[85vh]">
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">{panel}</div>
+      </Overlay>
+    );
+  }
+
+  return (
+    <div
+      className="fixed top-3 left-3 z-[280] flex justify-start"
+      onClick={onClose}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="selection-recolor-title"
+        className="flex w-[min(92vw,360px)] max-h-[min(62vh,460px)] flex-col overflow-hidden overscroll-contain rounded-xl border border-gray-200 bg-white shadow-2xl dark:border-gray-700 dark:bg-gray-800"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {panel}
       </div>
     </div>
   );
