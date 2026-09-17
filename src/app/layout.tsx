@@ -16,7 +16,10 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "喵喵的拼豆小屋",
+  title: {
+    default: "喵喵的拼豆小屋",
+    template: "%s · 喵喵的拼豆小屋",
+  },
   description: "上传图片，调整精细度，一键生成像素画图纸，简单实用的像素画生成工具",
   manifest: "/manifest.json",
   appleWebApp: {
