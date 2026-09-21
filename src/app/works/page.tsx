@@ -5,6 +5,8 @@ import { PlatformListSkeleton } from '@/components/ui/PlatformListSkeleton';
 import { requireSession } from '@/lib/auth';
 import { listWorksByOwner } from '@/lib/workQueries';
 
+export const dynamic = 'force-dynamic';
+
 export const metadata: Metadata = {
   title: '我的作品',
 };

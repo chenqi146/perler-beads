@@ -5,6 +5,8 @@ import { listPublicPatterns } from '@/lib/patternQueries';
 import { listPublicWorks } from '@/lib/workQueries';
 import { PlatformListSkeleton } from '@/components/ui/PlatformListSkeleton';
 
+export const dynamic = 'force-dynamic';
+
 export const metadata: Metadata = {
   title: '公开图纸',
   description: '浏览社区公开的拼豆图纸与作品',

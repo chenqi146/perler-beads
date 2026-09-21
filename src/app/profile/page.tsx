@@ -7,6 +7,8 @@ import { getCurrentUser, requireSession } from '@/lib/auth';
 import { listPatternsByOwner } from '@/lib/patternQueries';
 import { listWorksByOwner } from '@/lib/workQueries';
 
+export const dynamic = 'force-dynamic';
+
 export const metadata: Metadata = {
   title: '个人信息',
 };

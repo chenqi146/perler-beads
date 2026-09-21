@@ -49,21 +49,29 @@ const WORK_COLS =
 export async function listPublicWorks(limit = 100): Promise<QueryResult<Work>> {
   const db = await getDB();
   if (!db) return { items: [], available: false };
-  const result = await db
-    .prepare(
-      `SELECT ${WORK_COLS} FROM works WHERE visibility = 'public' ORDER BY created_at DESC LIMIT ?`,
-    )
-    .bind(limit)
-    .all<WorkRow>();
-  return { items: (result.results || []).map(rowToWork), available: true };
+  try {
+    const result = await db
+      .prepare(
+        `SELECT ${WORK_COLS} FROM works WHERE visibility = 'public' ORDER BY created_at DESC LIMIT ?`,
+      )
+      .bind(limit)
+      .all<WorkRow>();
+    return { items: (result.results || []).map(rowToWork), available: true };
+  } catch {
+    return { items: [], available: false };
+  }
 }
 
 export async function listWorksByOwner(ownerId: string): Promise<QueryResult<Work>> {
   const db = await getDB();
   if (!db) return { items: [], available: false };
-  const result = await db
-    .prepare(`SELECT ${WORK_COLS} FROM works WHERE owner_id = ? ORDER BY created_at DESC`)
-    .bind(ownerId)
-    .all<WorkRow>();
-  return { items: (result.results || []).map(rowToWork), available: true };
+  try {
+    const result = await db
+      .prepare(`SELECT ${WORK_COLS} FROM works WHERE owner_id = ? ORDER BY created_at DESC`)
+      .bind(ownerId)
+      .all<WorkRow>();
+    return { items: (result.results || []).map(rowToWork), available: true };
+  } catch {
+    return { items: [], available: false };
+  }
 }

@@ -5,6 +5,8 @@ import { PlatformListSkeleton } from '@/components/ui/PlatformListSkeleton';
 import { requireSession } from '@/lib/auth';
 import { listPatternsByOwner } from '@/lib/patternQueries';
 
+export const dynamic = 'force-dynamic';
+
 export const metadata: Metadata = {
   title: '我的图纸',
 };

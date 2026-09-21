@@ -60,31 +60,43 @@ const PATTERN_COLS =
 export async function listPublicPatterns(limit = 100): Promise<QueryResult<Pattern>> {
   const db = await getDB();
   if (!db) return { items: [], available: false };
-  const result = await db
-    .prepare(
-      `SELECT ${PATTERN_COLS} FROM patterns WHERE visibility = 'public' ORDER BY updated_at DESC LIMIT ?`,
-    )
-    .bind(limit)
-    .all<PatternRow>();
-  return { items: (result.results || []).map(rowToPattern), available: true };
+  try {
+    const result = await db
+      .prepare(
+        `SELECT ${PATTERN_COLS} FROM patterns WHERE visibility = 'public' ORDER BY updated_at DESC LIMIT ?`,
+      )
+      .bind(limit)
+      .all<PatternRow>();
+    return { items: (result.results || []).map(rowToPattern), available: true };
+  } catch {
+    return { items: [], available: false };
+  }
 }
 
 export async function listPatternsByOwner(ownerId: string): Promise<QueryResult<Pattern>> {
   const db = await getDB();
   if (!db) return { items: [], available: false };
-  const result = await db
-    .prepare(`SELECT ${PATTERN_COLS} FROM patterns WHERE owner_id = ? ORDER BY updated_at DESC`)
-    .bind(ownerId)
-    .all<PatternRow>();
-  return { items: (result.results || []).map(rowToPattern), available: true };
+  try {
+    const result = await db
+      .prepare(`SELECT ${PATTERN_COLS} FROM patterns WHERE owner_id = ? ORDER BY updated_at DESC`)
+      .bind(ownerId)
+      .all<PatternRow>();
+    return { items: (result.results || []).map(rowToPattern), available: true };
+  } catch {
+    return { items: [], available: false };
+  }
 }
 
 export async function getPatternById(id: string): Promise<{ pattern: Pattern | null; available: boolean }> {
   const db = await getDB();
   if (!db) return { pattern: null, available: false };
-  const row = await db
-    .prepare(`SELECT ${PATTERN_COLS} FROM patterns WHERE id = ?`)
-    .bind(id)
-    .first<PatternRow>();
-  return { pattern: row ? rowToPattern(row) : null, available: true };
+  try {
+    const row = await db
+      .prepare(`SELECT ${PATTERN_COLS} FROM patterns WHERE id = ?`)
+      .bind(id)
+      .first<PatternRow>();
+    return { pattern: row ? rowToPattern(row) : null, available: true };
+  } catch {
+    return { pattern: null, available: false };
+  }
 }
