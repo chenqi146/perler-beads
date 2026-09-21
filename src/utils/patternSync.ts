@@ -1,5 +1,5 @@
 import type { Pattern } from '../domain/pattern';
-import { getPattern } from './platformStore';
+import { getPattern, writePlatformStore } from './platformStore';
 import { apiFetch } from './apiClient';
 import { toast } from '@/components/ui/ToastProvider';
 
@@ -15,7 +15,7 @@ function readStore(): { patterns: Pattern[]; sessions: unknown[]; works: unknown
     const raw = localStorage.getItem(KEY);
     const parsed = raw ? JSON.parse(raw) : {};
     return {
-      patterns: Array.isArray(parsed.patterns) ? parsed.patterns : [],
+      patterns: Array.isArray(parsed.patterns) ? (parsed.patterns as Pattern[]) : [],
       sessions: Array.isArray(parsed.sessions) ? parsed.sessions : [],
       works: Array.isArray(parsed.works) ? parsed.works : [],
     };
@@ -25,20 +25,25 @@ function readStore(): { patterns: Pattern[]; sessions: unknown[]; works: unknown
 }
 
 function writeStore(store: { patterns: Pattern[]; sessions: unknown[]; works: unknown[] }) {
-  localStorage.setItem(KEY, JSON.stringify(store));
+  writePlatformStore(store as Parameters<typeof writePlatformStore>[0]);
 }
 
 function mergeRemotePattern(remote: Pattern) {
   const store = readStore();
+  // 云端原图也别塞进本地，防止再次撑爆配额
+  const slimRemote: Pattern = {
+    ...remote,
+    data: { ...remote.data, originalImageSrc: null },
+  };
   const idx = store.patterns.findIndex((p) => p.id === remote.id);
   if (idx < 0) {
-    store.patterns.unshift(remote);
+    store.patterns.unshift(slimRemote);
     writeStore(store);
     return;
   }
   const local = store.patterns[idx];
   if ((remote.updatedAt || 0) >= (local.updatedAt || 0)) {
-    store.patterns[idx] = remote;
+    store.patterns[idx] = slimRemote;
     writeStore(store);
   }
 }
@@ -71,11 +76,36 @@ export async function pullPatternsFromCloud(): Promise<SyncResult> {
 
 export async function pushPatternToCloud(pattern: Pattern): Promise<SyncResult> {
   try {
-    const latest = getPattern(pattern.id) ?? pattern;
+    // 优先用调用方传入的完整对象（可含原图）；本地 get 可能已剥掉原图
+    const local = getPattern(pattern.id);
+    const latest: Pattern =
+      local && (local.updatedAt || 0) > (pattern.updatedAt || 0)
+        ? {
+            ...local,
+            data: {
+              ...local.data,
+              originalImageSrc: local.data.originalImageSrc || pattern.data.originalImageSrc,
+            },
+          }
+        : pattern;
+
+    // 云端也不存超大 dataURL，避免 D1 行过大；格子数据足够
+    const forCloud: Pattern = {
+      ...latest,
+      data: {
+        ...latest.data,
+        originalImageSrc:
+          typeof latest.data.originalImageSrc === 'string' &&
+          latest.data.originalImageSrc.length > 400_000
+            ? null
+            : latest.data.originalImageSrc,
+      },
+    };
+
     const res = await apiFetch('/api/patterns', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(latest),
+      body: JSON.stringify(forCloud),
     });
     if (res.status === 503) {
       toast('云端未就绪，已仅本地保存');

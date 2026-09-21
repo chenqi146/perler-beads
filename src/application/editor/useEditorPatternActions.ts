@@ -65,12 +65,17 @@ export function useEditorPatternActions({
       onToast('请先上传图片生成图纸');
       return;
     }
-    const saved = usePatternStore.getState().savePattern(buildInput(), currentPatternId);
-    if (!currentPatternId) {
-      router.replace(`/?patternId=${encodeURIComponent(saved.id)}`);
+    try {
+      const saved = usePatternStore.getState().savePattern(buildInput(), currentPatternId);
+      if (!currentPatternId) {
+        router.replace(`/?patternId=${encodeURIComponent(saved.id)}`);
+      }
+      onSavedMetaClose?.();
+      onToast('图纸已保存');
+    } catch (err) {
+      const message = err instanceof Error ? err.message : '保存失败';
+      onToast(message);
     }
-    onSavedMetaClose?.();
-    onToast('图纸已保存');
   }, [
     mappedPixelData,
     gridDimensions,
@@ -86,11 +91,16 @@ export function useEditorPatternActions({
       onToast('请先生成有效图纸');
       return;
     }
-    const saved = usePatternStore.getState().savePattern(buildInput(), currentPatternId);
-    if (!currentPatternId) {
-      router.replace(`/?patternId=${encodeURIComponent(saved.id)}`);
+    try {
+      const saved = usePatternStore.getState().savePattern(buildInput(), currentPatternId);
+      if (!currentPatternId) {
+        router.replace(`/?patternId=${encodeURIComponent(saved.id)}`);
+      }
+      router.push(`/bead/${saved.id}`);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : '保存失败';
+      onToast(message);
     }
-    router.push(`/bead/${saved.id}`);
   }, [mappedPixelData, gridDimensions, buildInput, currentPatternId, router, onToast]);
 
   return {
