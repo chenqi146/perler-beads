@@ -2,7 +2,6 @@ import { transparentColorData } from './pixelEditingUtils';
 import {
   extractStrokeMask,
   sampleStrokeCellColor,
-  thickenDarkStrokes,
 } from './strokeExtract';
 
 // 定义像素化模式
@@ -598,14 +597,12 @@ export function calculatePixelGrid(
     return mappedData;
   }
 
-  // 小画布：对比度+锐化，再加粗暗线，尽量保住插画描边
+  // 小画布：轻度对比度+锐化。不再预加粗暗线（会把 1px 线扩成 2~3 格黑边）
   fullImageData = enhanceImageDataForSmallGrid(fullImageData, N, M);
   const cellArea = (imgWidth / N) * (imgHeight / M);
   const preserveLines = mode !== PixelationMode.Average;
-  if (preserveLines && cellArea >= 16) {
-    fullImageData = thickenDarkStrokes(fullImageData, 120);
-  }
 
+  // 描边掩码：提高覆盖率门槛、禁止膨胀，避免「沾一点黑就整格变黑边」
   const strokeMask =
     preserveLines
       ? extractStrokeMask(
@@ -614,9 +611,9 @@ export function calculatePixelGrid(
           imgHeight,
           N,
           M,
-          120,
-          cellArea >= 64 ? 0.045 : 0.07,
-          cellArea >= 100 ? 1 : 0,
+          100, // 只认更明确的暗线，略过浅灰抗锯齿边
+          cellArea >= 64 ? 0.12 : 0.15,
+          0, // 不膨胀掩码
         )
       : null;
 
@@ -642,6 +639,14 @@ export function calculatePixelGrid(
           endYOriginal,
           120,
         );
+      }
+      // 描边格若取色仍偏亮（白描边/抗锯齿），改回正常代表色，避免白边被强行染黑
+      if (
+        isStroke &&
+        representativeRgb &&
+        luminanceRgb(representativeRgb.r, representativeRgb.g, representativeRgb.b) > 160
+      ) {
+        representativeRgb = null;
       }
       if (!representativeRgb) {
         representativeRgb = calculateCellRepresentativeColor(

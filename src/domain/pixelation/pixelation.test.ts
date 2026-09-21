@@ -206,4 +206,16 @@ describe('patternCleanup', () => {
     // 高对比应保留黑点（描边）
     expect(out[1][1].key).toBe('K');
   });
+
+  it('strong cleanup removes low-contrast speckles', () => {
+    const a = cell('A', '#C8C8C8');
+    const b = cell('B', '#C0C0C0');
+    const grid: MappedPixel[][] = [
+      [a, a, a],
+      [a, b, a],
+      [a, a, a],
+    ];
+    const out = cleanupPixelGrid(grid, 'strong');
+    expect(out[1][1].key).toBe('A');
+  });
 });

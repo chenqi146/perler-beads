@@ -10,6 +10,9 @@ import {
   removeEdgeBackground,
   recountColors,
   cleanupPixelGrid,
+  mergeRareColors,
+  isSmallPixelGrid,
+  removeIsolatedNoise,
   type RgbColor,
   type PaletteColor,
   type MappedPixel,
@@ -197,7 +200,10 @@ export function usePixelationPipeline({
           row.map((cell) => ({ ...cell, isExternal: cell.isExternal ?? false })),
         );
 
-        const similarityThresholdValue = threshold;
+        const smallGrid = isSmallPixelGrid(N, M);
+        const similarityThresholdValue = smallGrid
+          ? Math.max(threshold, 7) // 小图自动轻度并色（CIEDE2000），减轻碎色
+          : threshold;
         const replacedColors = new Set<string>();
 
         for (let i = 0; i < colorsByFrequency.length; i++) {
@@ -258,8 +264,15 @@ export function usePixelationPipeline({
         }
 
         let finalData = limitColorCount(mergedData, currentPalette, colorLimit);
-        // 多数滤波 + 去孤点：小画布杂色更少、色块更整
-        finalData = cleanupPixelGrid(finalData);
+
+        // 小图：先清空间杂点，再合并极少出现的色号
+        finalData = cleanupPixelGrid(finalData, smallGrid ? 'strong' : 'normal');
+        if (smallGrid) {
+          const rareMin = Math.max(3, Math.floor((N * M) * 0.0015));
+          finalData = mergeRareColors(finalData, currentPalette, rareMin);
+          // 稀有色合并后再轻扫一轮，去掉新产生的孤点
+          finalData = removeIsolatedNoise(finalData, 2, 48);
+        }
 
         if (doAutoRemoveBg) {
           finalData = removeEdgeBackground(finalData, true);
@@ -355,6 +368,11 @@ export function usePixelationPipeline({
       }, 50);
       return () => clearTimeout(timeoutId);
     } else if (originalImageSrc && activeBeadPalette.length === 0) {
+      const { paletteHydrated, mappedPixelData: existingGrid } = useEditorStore.getState();
+      // 色板尚未水合，或已有恢复的图纸：不要清空（刷新竞态）
+      if (!paletteHydrated || (existingGrid && existingGrid.length > 0)) {
+        return;
+      }
       console.warn(
         'Image selected, but the active palette is empty. Cannot process. Clearing preview.',
       );

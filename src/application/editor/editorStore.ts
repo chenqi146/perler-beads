@@ -5,9 +5,12 @@ import {
   PixelationMode,
 } from '../../domain/pixelation';
 import type { ColorSystem } from '../../domain/palette';
+import { fullBeadPalette } from '../../domain/palette/fullBeadPalette';
+import { convertPaletteToColorSystem } from '../../domain/palette/colorSystemUtils';
 import type { CanvasToolMode, CropRect } from '../../components/PixelatedPreviewCanvas';
 import type { PaletteSelections } from '../../domain/palette';
 import type { PatternData } from '../../domain/pattern';
+import { resolvePaletteSelections } from '../../infrastructure/storage/paletteSelectionsRepository';
 
 export type EditSnapshot = {
   mappedPixelData: MappedPixel[][];
@@ -44,6 +47,8 @@ type EditorState = {
   selectedColorSystem: ColorSystem;
   activeBeadPalette: PaletteColor[];
   customPaletteSelections: PaletteSelections;
+  /** 色板选择是否已从 localStorage 水合（避免刷新时空选清空图纸） */
+  paletteHydrated: boolean;
 
   selectedColor: MappedPixel | null;
   canvasToolMode: CanvasToolMode;
@@ -81,6 +86,8 @@ type EditorState = {
   setCustomPaletteSelections: (
     sel: PaletteSelections | ((prev: PaletteSelections) => PaletteSelections),
   ) => void;
+  /** 从 localStorage 同步水合色板选择（幂等） */
+  hydratePaletteSelections: () => void;
 
   setSelectedColor: (c: MappedPixel | null) => void;
   setCanvasToolMode: (m: CanvasToolMode) => void;
@@ -121,6 +128,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   selectedColorSystem: 'MARD',
   activeBeadPalette: [],
   customPaletteSelections: {},
+  paletteHydrated: false,
 
   selectedColor: null,
   canvasToolMode: 'select',
@@ -161,7 +169,26 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   setCustomPaletteSelections: (sel) =>
     set((s) => ({
       customPaletteSelections: typeof sel === 'function' ? sel(s.customPaletteSelections) : sel,
+      paletteHydrated: true,
     })),
+  hydratePaletteSelections: () => {
+    if (typeof window === 'undefined') return;
+    if (get().paletteHydrated) return;
+    const selections = resolvePaletteSelections();
+    const system = get().selectedColorSystem;
+    const filtered = fullBeadPalette.filter(
+      (color) => selections[color.hex.toUpperCase()],
+    );
+    const active =
+      filtered.length > 0
+        ? convertPaletteToColorSystem(filtered, system)
+        : convertPaletteToColorSystem(fullBeadPalette, system);
+    set({
+      customPaletteSelections: selections,
+      paletteHydrated: true,
+      activeBeadPalette: active,
+    });
+  },
 
   setSelectedColor: (c) => set({ selectedColor: c }),
   setCanvasToolMode: (m) => set({ canvasToolMode: m }),

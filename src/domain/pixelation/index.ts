@@ -37,6 +37,8 @@ export {
   recountColors,
   cropPixelGrid,
   autoCropPixelGrid,
+  mergeRareColors,
+  isSmallPixelGrid,
 } from './colorLimitUtils';
 
 export {
@@ -44,7 +46,6 @@ export {
   removeIsolatedNoise,
   cleanupPixelGrid,
 } from './patternCleanup';
-
 export {
   extractStrokeMask,
   sampleStrokeCellColor,

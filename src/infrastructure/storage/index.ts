@@ -2,6 +2,7 @@ export { localPatternRepository } from './localPatternRepository';
 export {
   savePaletteSelections,
   loadPaletteSelections,
+  resolvePaletteSelections,
 } from './paletteSelectionsRepository';
 export {
   saveProjectDraft,

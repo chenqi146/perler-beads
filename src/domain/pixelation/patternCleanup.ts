@@ -162,7 +162,17 @@ export function removeIsolatedNoise(
   return output;
 }
 
-/** 小画布友好的默认清理：先多数滤波再去孤点 */
-export function cleanupPixelGrid(data: MappedPixel[][]): MappedPixel[][] {
+/** 默认清理：多数滤波 + 去孤点；strong 适合小图碎色 */
+export function cleanupPixelGrid(
+  data: MappedPixel[][],
+  intensity: 'normal' | 'strong' = 'normal',
+): MappedPixel[][] {
+  if (intensity === 'strong') {
+    // 两轮多数滤波 + 去掉面积 < 3 的杂色块（高对比描边仍保留）
+    let out = majorityFilter(data, 4, 38);
+    out = majorityFilter(out, 5, 38);
+    out = removeIsolatedNoise(out, 3, 48);
+    return out;
+  }
   return removeIsolatedNoise(majorityFilter(data, 5), 2);
 }

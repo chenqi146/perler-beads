@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef, useEffect, useMemo, useCallback, Suspense } from 'react';
+import React, { useState, useRef, useEffect, useLayoutEffect, useMemo, useCallback, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Script from 'next/script';
 
@@ -37,11 +37,6 @@ const floatAnimation = `
 // 1. 导入新组件
 import ImagePrepModal from '../components/ImagePrepModal';
 import GridTooltip from '../components/GridTooltip';
-import { 
-  loadPaletteSelections,
-  type PaletteSelections,
-} from '../utils/localStorageUtils';
-import { selectionsFromPreset, DEFAULT_PALETTE_PRESET_ID } from '../domain/palette';
 import SelectionRecolorModal from '../components/SelectionRecolorModal';
 
 import IngredientBillModal from '../components/IngredientBillModal';
@@ -104,7 +99,6 @@ function Editor() {
     activeBeadPalette,
     setActiveBeadPalette,
     customPaletteSelections,
-    setCustomPaletteSelections,
   } = useEditorPaletteState();
 
   const {
@@ -135,6 +129,11 @@ function Editor() {
     currentPatternId,
     suppressPixelateUntilRef,
   });
+
+  // 必须在草稿恢复 / 像素化 effect 之前水合色板，否则空选会清空图纸
+  useLayoutEffect(() => {
+    useEditorStore.getState().hydratePaletteSelections();
+  }, []);
 
   useEffect(() => {
     if (!currentPatternId) return;
@@ -350,7 +349,10 @@ function Editor() {
 
   // Update active palette based on custom selections
   useEffect(() => {
-    const newActiveBeadPalette = fullBeadPalette.filter(color => {
+    if (!useEditorStore.getState().paletteHydrated) return;
+    if (Object.keys(customPaletteSelections).length === 0) return;
+
+    const newActiveBeadPalette = fullBeadPalette.filter((color) => {
       const normalizedHex = color.hex.toUpperCase();
       return customPaletteSelections[normalizedHex];
     });
@@ -389,44 +391,7 @@ function Editor() {
     return sortColorsByHue(colorData);
   }, [mappedPixelData, selectedColorSystem]);
 
-  // 初始化时从本地存储加载自定义色板选择
-  useEffect(() => {
-    // 尝试从localStorage加载
-    const savedSelections = loadPaletteSelections();
-    if (savedSelections && Object.keys(savedSelections).length > 0) {
-      console.log('从localStorage加载的数据键数量:', Object.keys(savedSelections).length);
-      // 验证加载的数据是否都是有效的hex值
-      const allHexValues = fullBeadPalette.map(color => color.hex.toUpperCase());
-      const validSelections: PaletteSelections = {};
-      let hasValidData = false;
-      let validCount = 0;
-      let invalidCount = 0;
-      
-      Object.entries(savedSelections).forEach(([key, value]) => {
-        // 严格验证：键必须是有效的hex格式，并且存在于调色板中
-        if (/^#[0-9A-F]{6}$/i.test(key) && allHexValues.includes(key.toUpperCase())) {
-          validSelections[key.toUpperCase()] = value;
-          hasValidData = true;
-          validCount++;
-        } else {
-          invalidCount++;
-        }
-      });
-      
-      console.log(`验证结果: 有效键 ${validCount} 个, 无效键 ${invalidCount} 个`);
-      
-      if (hasValidData) {
-        setCustomPaletteSelections(validSelections);
-      } else {
-        console.log('所有数据都无效，清除localStorage并重新初始化');
-        localStorage.removeItem('customPerlerPaletteSelections');
-        setCustomPaletteSelections(selectionsFromPreset(DEFAULT_PALETTE_PRESET_ID));
-      }
-    } else {
-      console.log('没有localStorage数据，默认使用 221 全实色');
-      setCustomPaletteSelections(selectionsFromPreset(DEFAULT_PALETTE_PRESET_ID));
-    }
-  }, []); // 只在组件首次加载时执行
+  // 色板选择由 useLayoutEffect → hydratePaletteSelections 完成
 
   // Ctrl/Cmd+Z 撤回；Ctrl/Cmd+Shift+Z 或 Ctrl/Cmd+Y 重做
   useEffect(() => {
@@ -597,7 +562,7 @@ function Editor() {
               bgRemovalSnapshot={bgRemovalSnapshot}
             />
 
-        {originalImageSrc && activeBeadPalette.length === 0 && (
+        {originalImageSrc && activeBeadPalette.length === 0 && useEditorStore.getState().paletteHydrated && (
              <div className="w-full bg-yellow-100 dark:bg-yellow-900/50 p-4 rounded-lg shadow border border-yellow-200 dark:border-yellow-800/60 text-center text-sm text-yellow-800 dark:text-yellow-300">
                  当前可用颜色过少或为空。请到「色板」页勾选颜色。
              </div>

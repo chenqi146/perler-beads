@@ -249,3 +249,85 @@ export function autoCropPixelGrid(data: MappedPixel[][]): {
   }
   return { data: cropPixelGrid(data, bounds), bounds };
 }
+
+/**
+ * 将出现次数过少的颜色并入最近似色，去掉小图碎点杂色。
+ * 极暗色优先并到其他暗色，避免描边被并进浅色填充。
+ */
+export function mergeRareColors(
+  data: MappedPixel[][],
+  palette: PaletteColor[],
+  minCount: number,
+): MappedPixel[][] {
+  if (minCount <= 1) return data;
+
+  const keyToRgb = new Map<string, RgbColor>();
+  const keyToColor = new Map<string, PaletteColor>();
+  palette.forEach((p) => {
+    keyToRgb.set(p.key, p.rgb);
+    keyToColor.set(p.key, p);
+  });
+
+  const result = data.map((row) => row.map((cell) => ({ ...cell })));
+  const M = result.length;
+  const N = result[0]?.length || 0;
+
+  const counts: Record<string, number> = {};
+  for (let r = 0; r < M; r++) {
+    for (let c = 0; c < N; c++) {
+      const cell = result[r][c];
+      if (!cell || cell.isExternal || cell.key === TRANSPARENT_KEY) continue;
+      counts[cell.key] = (counts[cell.key] || 0) + 1;
+    }
+  }
+
+  const rareKeys = Object.entries(counts)
+    .filter(([, n]) => n < minCount)
+    .map(([k]) => k);
+  if (rareKeys.length === 0) return result;
+
+  const abundantKeys = Object.keys(counts).filter((k) => (counts[k] || 0) >= minCount);
+  if (abundantKeys.length === 0) return result;
+
+  for (const victim of rareKeys) {
+    const victimRgb = keyToRgb.get(victim) || hexToRgb(victim);
+    if (!victimRgb) continue;
+
+    const victimLuma =
+      0.2126 * victimRgb.r + 0.7152 * victimRgb.g + 0.0722 * victimRgb.b;
+    const preferDark = victimLuma < 55;
+
+    let bestKey = abundantKeys[0];
+    let bestDist = Infinity;
+    for (const candidate of abundantKeys) {
+      const rgb = keyToRgb.get(candidate) || hexToRgb(candidate);
+      if (!rgb) continue;
+      const candLuma = 0.2126 * rgb.r + 0.7152 * rgb.g + 0.0722 * rgb.b;
+      if (preferDark && candLuma > victimLuma + 50) continue;
+      const dist = colorDistance(victimRgb, rgb);
+      if (dist < bestDist) {
+        bestDist = dist;
+        bestKey = candidate;
+      }
+    }
+
+    if (preferDark && bestDist === Infinity) continue;
+
+    const target = keyToColor.get(bestKey);
+    const targetHex = target?.hex || bestKey;
+    for (let r = 0; r < M; r++) {
+      for (let c = 0; c < N; c++) {
+        if (result[r][c].key === victim) {
+          result[r][c] = { key: bestKey, color: targetHex, isExternal: false };
+        }
+      }
+    }
+  }
+
+  return result;
+}
+
+/** 小网格：碎色更明显，适合加强清理与轻度并色 */
+export function isSmallPixelGrid(N: number, M: number): boolean {
+  return Math.max(N, M) <= 56 || N * M <= 2800;
+}

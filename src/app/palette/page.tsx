@@ -12,7 +12,6 @@ import {
   colorSystemOptions,
   type ColorSystem,
 } from '../../domain/palette';
-import { loadPaletteSelections } from '../../infrastructure/storage/paletteSelectionsRepository';
 import { useCustomPaletteIO } from '../../stores';
 import { useEditorStore } from '../../application/editor/editorStore';
 
@@ -40,15 +39,18 @@ function PalettePageContent() {
 
   useEffect(() => {
     const allHex = fullBeadPalette.map((c) => c.hex.toUpperCase());
-    const saved = loadPaletteSelections();
-    if (saved && Object.keys(saved).length > 0) {
+    useEditorStore.getState().hydratePaletteSelections();
+    // 若水合后仍无选中项，补默认预设（避免色板页空白）
+    const sels = useEditorStore.getState().customPaletteSelections;
+    const selected = Object.values(sels).filter(Boolean).length;
+    if (selected === 0) {
+      setCustomPaletteSelections(selectionsFromPreset(DEFAULT_PALETTE_PRESET_ID));
+    } else if (Object.keys(sels).length < allHex.length) {
       const valid: Record<string, boolean> = {};
       for (const hex of allHex) {
-        valid[hex] = saved[hex] === true;
+        valid[hex] = sels[hex] === true;
       }
       setCustomPaletteSelections(valid);
-    } else {
-      setCustomPaletteSelections(selectionsFromPreset(DEFAULT_PALETTE_PRESET_ID));
     }
     setReady(true);
   }, [setCustomPaletteSelections]);
