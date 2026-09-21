@@ -115,7 +115,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   similarityThresholdInput: '0',
   maxColorCount: 0,
   autoRemoveWhiteBg: false,
-  pixelationMode: PixelationMode.Dominant,
+  pixelationMode: PixelationMode.EdgeAware,
   remapTrigger: 0,
 
   selectedColorSystem: 'MARD',

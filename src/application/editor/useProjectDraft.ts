@@ -100,7 +100,10 @@ export function useProjectDraft({
     const mode =
       draft.pixelationMode === PixelationMode.Average || draft.pixelationMode === 'average'
         ? PixelationMode.Average
-        : PixelationMode.Dominant;
+        : draft.pixelationMode === PixelationMode.EdgeAware ||
+            draft.pixelationMode === 'edge-aware'
+          ? PixelationMode.EdgeAware
+          : PixelationMode.Dominant;
 
     draftPixelateLockRef.current = {
       locked: true,

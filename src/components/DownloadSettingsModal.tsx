@@ -5,14 +5,14 @@ import { CloseIcon, IconButton } from './ui/IconButton';
 import { Overlay } from './ui/Overlay';
 import { Switch } from './ui/Switch';
 
-// 定义可选的网格线颜色
+// 分割线颜色选项（小格子边界固定为灰色）
 const gridLineColorOptions = [
+  { name: '橙色', value: '#F97316' },
   { name: '深灰色', value: '#555555' },
   { name: '红色', value: '#FF0000' },
   { name: '蓝色', value: '#0000FF' },
   { name: '绿色', value: '#008000' },
   { name: '紫色', value: '#800080' },
-  { name: '橙色', value: '#FFA500' },
 ];
 
 interface DownloadSettingsModalProps {
@@ -119,7 +119,7 @@ const DownloadSettingsModal: React.FC<DownloadSettingsModalProps> = ({
                 {/* 网格线颜色选择 */}
                 <div className="flex flex-col space-y-2">
                   <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                    网格线颜色
+                    分割线颜色
                   </label>
                   <div className="flex flex-wrap gap-2">
                     {gridLineColorOptions.map(colorOpt => (

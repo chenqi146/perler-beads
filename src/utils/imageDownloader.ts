@@ -446,17 +446,17 @@ export async function downloadImage({
           ctx.fillRect(drawX, drawY, downloadCellSize, downloadCellSize);
         }
 
-        // 绘制所有单元格的边框
-        ctx.strokeStyle = '#DDDDDD'; // 浅色线条作为基础网格
+        // 小格子边界：灰色
+        ctx.strokeStyle = '#9CA3AF';
         ctx.lineWidth = 0.5;
         ctx.strokeRect(drawX + 0.5, drawY + 0.5, downloadCellSize, downloadCellSize);
       }
     }
 
-    // 如果需要，绘制分隔网格线
+    // 分割线（每 N 格）：橙色更醒目；仍可用导出设置覆盖颜色
     if (showGrid) {
-      ctx.strokeStyle = gridLineColor; // 使用用户选择的颜色
-      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = gridLineColor;
+      ctx.lineWidth = 2.5;
       
       // 绘制垂直分隔线 - 在单元格之间而不是边框上
       for (let i = gridInterval; i < N; i += gridInterval) {

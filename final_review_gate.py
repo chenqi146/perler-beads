@@ -29,7 +29,7 @@ if __name__ == "__main__":
             
             line = sys.stdin.readline()
             
-            if not line:  # EOF
+            if not line: # EOF
                 print("--- REVIEW GATE: STDIN CLOSED (EOF), EXITING SCRIPT ---", flush=True)
                 active_session = False
                 break
@@ -44,8 +44,8 @@ if __name__ == "__main__":
             elif user_input: # If there's any other non-empty input (and not a completion command)
                 # This is the critical line the AI will "listen" for.
                 print(f"USER_REVIEW_SUB_PROMPT: {user_input}", flush=True)
-            # If user_input was empty (and not a completion command),
-            # the loop simply continues, and "REVIEW_GATE_AWAITING_INPUT:" will be printed again.
+                # If user_input was empty (and not a completion command),
+                # the loop simply continues, and "REVIEW_GATE_AWAITING_INPUT:" will be printed again.
             
         except KeyboardInterrupt:
             print("--- REVIEW GATE: SESSION INTERRUPTED BY USER (KeyboardInterrupt) ---", flush=True)
@@ -55,5 +55,5 @@ if __name__ == "__main__":
             print(f"--- REVIEW GATE SCRIPT ERROR: {e} ---", flush=True)
             active_session = False
             break
-            
-    print("--- FINAL REVIEW GATE SCRIPT EXITED ---", flush=True) 
+    
+    print("--- FINAL REVIEW GATE SCRIPT EXITED ---", flush=True)

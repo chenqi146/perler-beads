@@ -106,8 +106,9 @@ function drawPixelatedCanvas(
   const externalBackgroundColor = isDarkMode ? '#374151' : '#F3F4F6';
   const axisBg = isDarkMode ? '#1f2937' : '#F5F5F5';
   const axisText = isDarkMode ? '#e5e7eb' : '#333333';
-  const gridLineColor = isDarkMode ? '#4B5563' : '#DDDDDD';
-  const sectionLineColor = isDarkMode ? '#9ca3af' : '#666666';
+  // 小格子边界：灰色；分割线（每 N 格）：橙色更醒目
+  const gridLineColor = isDarkMode ? '#6B7280' : '#9CA3AF';
+  const sectionLineColor = '#F97316';
 
   ctx.clearRect(0, 0, canvasWidth, canvasHeight);
 
@@ -239,7 +240,7 @@ function drawPixelatedCanvas(
   }
 
   ctx.strokeStyle = sectionLineColor;
-  ctx.lineWidth = 1.25;
+  ctx.lineWidth = 2;
   for (let i = gridInterval; i < N; i += gridInterval) {
     const x = axisSize + i * cellSize;
     ctx.beginPath();

@@ -1,9 +1,8 @@
-/**
- * 像素化领域：纯算法（网格计算、编辑、洪水填充）。
- */
 export {
   PixelationMode,
   calculatePixelGrid,
+  calculateCellRepresentativeColor,
+  enhanceImageDataForSmallGrid,
   hexToRgb,
   colorDistance,
   colorDistanceOklab,
@@ -39,5 +38,17 @@ export {
   cropPixelGrid,
   autoCropPixelGrid,
 } from './colorLimitUtils';
+
+export {
+  majorityFilter,
+  removeIsolatedNoise,
+  cleanupPixelGrid,
+} from './patternCleanup';
+
+export {
+  extractStrokeMask,
+  sampleStrokeCellColor,
+  thickenDarkStrokes,
+} from './strokeExtract';
 
 export { generateSyntheticImageFromPixelData } from './syntheticImage';

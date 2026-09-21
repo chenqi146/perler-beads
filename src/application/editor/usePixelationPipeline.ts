@@ -9,6 +9,7 @@ import {
   limitColorCount,
   removeEdgeBackground,
   recountColors,
+  cleanupPixelGrid,
   type RgbColor,
   type PaletteColor,
   type MappedPixel,
@@ -257,6 +258,8 @@ export function usePixelationPipeline({
         }
 
         let finalData = limitColorCount(mergedData, currentPalette, colorLimit);
+        // 多数滤波 + 去孤点：小画布杂色更少、色块更整
+        finalData = cleanupPixelGrid(finalData);
 
         if (doAutoRemoveBg) {
           finalData = removeEdgeBackground(finalData, true);

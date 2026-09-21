@@ -1,9 +1,15 @@
 import { transparentColorData } from './pixelEditingUtils';
+import {
+  extractStrokeMask,
+  sampleStrokeCellColor,
+  thickenDarkStrokes,
+} from './strokeExtract';
 
 // 定义像素化模式
 export enum PixelationMode {
   Dominant = 'dominant', // 卡通模式（主色）
-  Average = 'average',   // 真实模式（平均色）
+  Average = 'average', // 真实模式（线性平均）
+  EdgeAware = 'edge-aware', // 清晰模式（保轮廓，小画布更友好）
 }
 
 // 定义色号系统类型
@@ -57,6 +63,19 @@ function srgbChannelToLinear(channel: number): number {
   return normalized <= 0.04045
     ? normalized / 12.92
     : Math.pow((normalized + 0.055) / 1.055, 2.4);
+}
+
+function linearChannelToSrgb(value: number): number {
+  const s =
+    value <= 0.0031308
+      ? value * 12.92
+      : 1.055 * Math.pow(value, 1 / 2.4) - 0.055;
+  return Math.round(Math.max(0, Math.min(255, s * 255)));
+}
+
+/** 6-bit/通道量化键：相近 RGB 归入同一桶，抗噪且比精确计次更稳 */
+function quantizedColorKey(r: number, g: number, b: number): number {
+  return ((r >> 2) << 12) | ((g >> 2) << 6) | (b >> 2);
 }
 
 function rgbToOklab(rgb: RgbColor): OklabColor {
@@ -243,145 +262,426 @@ export function findClosestPaletteColor(
 
 // --- 核心像素化计算逻辑 ---
 
+function luminanceRgb(r: number, g: number, b: number): number {
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+function addToQuantizedBin(
+  freq: Map<number, { count: number; sumR: number; sumG: number; sumB: number }>,
+  r: number,
+  g: number,
+  b: number,
+  weight = 1,
+): void {
+  const key = quantizedColorKey(r, g, b);
+  const entry = freq.get(key);
+  if (entry) {
+    entry.count += weight;
+    entry.sumR += r * weight;
+    entry.sumG += g * weight;
+    entry.sumB += b * weight;
+  } else {
+    freq.set(key, {
+      count: weight,
+      sumR: r * weight,
+      sumG: g * weight,
+      sumB: b * weight,
+    });
+  }
+}
+
+function bestBinColor(
+  freq: Map<number, { count: number; sumR: number; sumG: number; sumB: number }>,
+): RgbColor | null {
+  let bestKey = -1;
+  let bestCount = 0;
+  for (const [key, entry] of freq) {
+    if (entry.count > bestCount) {
+      bestCount = entry.count;
+      bestKey = key;
+    }
+  }
+  if (bestKey < 0) return null;
+  const best = freq.get(bestKey)!;
+  return {
+    r: Math.round(best.sumR / best.count),
+    g: Math.round(best.sumG / best.count),
+    b: Math.round(best.sumB / best.count),
+  };
+}
+
+/**
+ * 小画布时对源图做轻度对比度 + 锐化，减轻降采样糊掉轮廓。
+ * 当每格覆盖的原图像素较少时跳过。
+ */
+export function enhanceImageDataForSmallGrid(
+  imageData: ImageData,
+  gridW: number,
+  gridH: number,
+): ImageData {
+  const cellW = imageData.width / Math.max(1, gridW);
+  const cellH = imageData.height / Math.max(1, gridH);
+  if (cellW * cellH < 36) return imageData;
+
+  const w = imageData.width;
+  const h = imageData.height;
+  const src = imageData.data;
+  const copy = new Uint8ClampedArray(src);
+  const out = new Uint8ClampedArray(src.length);
+
+  const contrast = 1.18; // ~+18%
+  const sharpen = 0.22;
+  const clamp = (v: number) => Math.max(0, Math.min(255, Math.round(v)));
+
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const i = (y * w + x) * 4;
+      const a = copy[i + 3];
+      if (a < 128) {
+        out[i] = copy[i];
+        out[i + 1] = copy[i + 1];
+        out[i + 2] = copy[i + 2];
+        out[i + 3] = a;
+        continue;
+      }
+
+      let r = copy[i];
+      let g = copy[i + 1];
+      let b = copy[i + 2];
+
+      // contrast around mid-gray
+      r = (r - 128) * contrast + 128;
+      g = (g - 128) * contrast + 128;
+      b = (b - 128) * contrast + 128;
+
+      if (y > 0 && y < h - 1 && x > 0 && x < w - 1) {
+        const t = i - w * 4;
+        const bt = i + w * 4;
+        for (let c = 0; c < 3; c++) {
+          const center = c === 0 ? r : c === 1 ? g : b;
+          const lap =
+            4 * copy[i + c] - copy[t + c] - copy[bt + c] - copy[i - 4 + c] - copy[i + 4 + c];
+          const sharpened = center + sharpen * lap;
+          if (c === 0) r = sharpened;
+          else if (c === 1) g = sharpened;
+          else b = sharpened;
+        }
+      }
+
+      out[i] = clamp(r);
+      out[i + 1] = clamp(g);
+      out[i + 2] = clamp(b);
+      out[i + 3] = a;
+    }
+  }
+
+  return { data: out, width: w, height: h, colorSpace: imageData.colorSpace } as ImageData;
+}
+
 /**
  * 计算图像指定区域的代表色（根据所选模式）
- * @param imageData 包含像素数据的 ImageData 对象
- * @param startX 区域起始 X 坐标
- * @param startY 区域起始 Y 坐标
- * @param width 区域宽度
- * @param height 区域高度
- * @param mode 计算模式 ('dominant' 或 'average')
- * @returns 代表色的 RGB 对象，或 null（如果区域无效或全透明）
+ * - Average：线性 RGB 面积平均后再编码回 sRGB（减轻灰边）
+ * - Dominant：6-bit 量化直方图主色，桶内再平均（抗噪）
+ * - EdgeAware：中心加权填充 + 高对比边缘优先（小画布保轮廓）
  */
-function calculateCellRepresentativeColor(
-    imageData: ImageData,
-    startX: number,
-    startY: number,
-    width: number,
-    height: number,
-    mode: PixelationMode
+export function calculateCellRepresentativeColor(
+  imageData: ImageData,
+  startX: number,
+  startY: number,
+  width: number,
+  height: number,
+  mode: PixelationMode,
 ): RgbColor | null {
-    const data = imageData.data;
-    const imgWidth = imageData.width;
-    let rSum = 0, gSum = 0, bSum = 0;
-    let pixelCount = 0;
-    const colorCountsInCell: { [key: string]: number } = {};
-    let dominantColorRgb: RgbColor | null = null;
-    let maxCount = 0;
+  const data = imageData.data;
+  const imgWidth = imageData.width;
+  const imgHeight = imageData.height;
+  const endX = startX + width;
+  const endY = startY + height;
 
-    const endX = startX + width;
-    const endY = startY + height;
+  if (mode === PixelationMode.EdgeAware) {
+    return calculateEdgeAwareCellColor(data, imgWidth, imgHeight, startX, startY, endX, endY);
+  }
 
-    for (let y = startY; y < endY; y++) {
-        for (let x = startX; x < endX; x++) {
-            const index = (y * imgWidth + x) * 4;
-            // 检查 alpha 通道，忽略完全透明的像素
-            if (data[index + 3] < 128) continue;
+  let linR = 0;
+  let linG = 0;
+  let linB = 0;
+  let pixelCount = 0;
+  const freq = new Map<number, { count: number; sumR: number; sumG: number; sumB: number }>();
 
-            const r = data[index];
-            const g = data[index + 1];
-            const b = data[index + 2];
+  for (let y = startY; y < endY; y++) {
+    for (let x = startX; x < endX; x++) {
+      const index = (y * imgWidth + x) * 4;
+      if (data[index + 3] < 128) continue;
 
-            pixelCount++;
+      const r = data[index];
+      const g = data[index + 1];
+      const b = data[index + 2];
+      pixelCount++;
 
-            if (mode === PixelationMode.Average) {
-                rSum += r;
-                gSum += g;
-                bSum += b;
-            } else { // Dominant mode
-                const colorKey = `${r},${g},${b}`;
-                colorCountsInCell[colorKey] = (colorCountsInCell[colorKey] || 0) + 1;
-                if (colorCountsInCell[colorKey] > maxCount) {
-                    maxCount = colorCountsInCell[colorKey];
-                    dominantColorRgb = { r, g, b };
-                }
-            }
+      if (mode === PixelationMode.Average) {
+        linR += srgbChannelToLinear(r);
+        linG += srgbChannelToLinear(g);
+        linB += srgbChannelToLinear(b);
+      } else {
+        addToQuantizedBin(freq, r, g, b);
+      }
+    }
+  }
+
+  if (pixelCount === 0) return null;
+
+  if (mode === PixelationMode.Average) {
+    return {
+      r: linearChannelToSrgb(linR / pixelCount),
+      g: linearChannelToSrgb(linG / pixelCount),
+      b: linearChannelToSrgb(linB / pixelCount),
+    };
+  }
+
+  return bestBinColor(freq);
+}
+
+function calculateEdgeAwareCellColor(
+  data: Uint8ClampedArray,
+  imgWidth: number,
+  imgHeight: number,
+  startX: number,
+  startY: number,
+  endX: number,
+  endY: number,
+): RgbColor | null {
+  // 对插画细线更敏感：更低的边缘占比门槛
+  const edgeMin = 0.18;
+  const edgeRatioMin = 0.025;
+  const edgeShareMin = 0.35;
+  const edgeLumaDelta = 12;
+
+  const cx = (startX + endX - 1) / 2;
+  const cy = (startY + endY - 1) / 2;
+  const rx = Math.max(1, (endX - startX) / 2);
+  const ry = Math.max(1, (endY - startY) / 2);
+
+  const lumaAt = (x: number, y: number): number => {
+    const i = (y * imgWidth + x) * 4;
+    return luminanceRgb(data[i], data[i + 1], data[i + 2]);
+  };
+
+  let fillLinR = 0;
+  let fillLinG = 0;
+  let fillLinB = 0;
+  let fillWeightTotal = 0;
+  const domFreq = new Map<number, { count: number; sumR: number; sumG: number; sumB: number }>();
+  const edgeBins = new Map<number, { weight: number; sumR: number; sumG: number; sumB: number }>();
+  let bestEdgeKey = 0;
+  let bestEdgeWeight = -1;
+  let edgeWeightTotal = 0;
+  let edgePixels = 0;
+  let sampleCount = 0;
+
+  for (let y = startY; y < endY; y++) {
+    for (let x = startX; x < endX; x++) {
+      const index = (y * imgWidth + x) * 4;
+      if (data[index + 3] < 128) continue;
+
+      const r = data[index];
+      const g = data[index + 1];
+      const b = data[index + 2];
+
+      const lum = lumaAt(x, y);
+      const rightLum = lumaAt(Math.min(x + 1, imgWidth - 1), y);
+      const bottomLum = lumaAt(x, Math.min(y + 1, imgHeight - 1));
+      const edgeStrength = (Math.abs(lum - rightLum) + Math.abs(lum - bottomLum)) / 255;
+
+      const nx = (x - cx) / rx;
+      const ny = (y - cy) / ry;
+      const centerWeight = 1 + Math.max(0, 1 - (nx * nx + ny * ny)) * 0.35;
+
+      fillLinR += srgbChannelToLinear(r) * centerWeight;
+      fillLinG += srgbChannelToLinear(g) * centerWeight;
+      fillLinB += srgbChannelToLinear(b) * centerWeight;
+      fillWeightTotal += centerWeight;
+
+      if (edgeStrength < edgeMin) {
+        addToQuantizedBin(domFreq, r, g, b);
+      }
+
+      if (edgeStrength >= edgeMin) {
+        const key = quantizedColorKey(r, g, b);
+        const edgeW = centerWeight * Math.min(2, edgeStrength);
+        let bin = edgeBins.get(key);
+        if (bin) {
+          bin.weight += edgeW;
+          bin.sumR += r * edgeW;
+          bin.sumG += g * edgeW;
+          bin.sumB += b * edgeW;
+        } else {
+          bin = { weight: edgeW, sumR: r * edgeW, sumG: g * edgeW, sumB: b * edgeW };
+          edgeBins.set(key, bin);
         }
-    }
+        if (bin.weight > bestEdgeWeight) {
+          bestEdgeWeight = bin.weight;
+          bestEdgeKey = key;
+        }
+        edgeWeightTotal += edgeW;
+        edgePixels += 1;
+      }
 
-    if (pixelCount === 0) {
-        return null; // 区域内没有不透明像素
+      sampleCount += 1;
     }
+  }
 
-    if (mode === PixelationMode.Average) {
-        return {
-            r: Math.round(rSum / pixelCount),
-            g: Math.round(gSum / pixelCount),
-            b: Math.round(bSum / pixelCount),
-        };
-    } else { // Dominant mode
-        return dominantColorRgb; // 可能为 null 如果只有一个透明像素
+  if (fillWeightTotal <= 0 || sampleCount <= 0) return null;
+
+  const fillR = linearChannelToSrgb(fillLinR / fillWeightTotal);
+  const fillG = linearChannelToSrgb(fillLinG / fillWeightTotal);
+  const fillB = linearChannelToSrgb(fillLinB / fillWeightTotal);
+  const fillLuma = luminanceRgb(fillR, fillG, fillB);
+
+  const edgeRatio = edgePixels / sampleCount;
+  const edgeShare = edgeWeightTotal > 0 ? bestEdgeWeight / edgeWeightTotal : 0;
+  const edge = edgeWeightTotal > 0 ? edgeBins.get(bestEdgeKey) : undefined;
+
+  if (
+    edge &&
+    edge.weight > 0 &&
+    edgeRatio >= edgeRatioMin &&
+    edgeShare >= edgeShareMin
+  ) {
+    const edgeR = edge.sumR / edge.weight;
+    const edgeG = edge.sumG / edge.weight;
+    const edgeB = edge.sumB / edge.weight;
+    const edgeLuma = luminanceRgb(edgeR, edgeG, edgeB);
+    if (edgeLuma <= fillLuma - edgeLumaDelta) {
+      return {
+        r: Math.round(edgeR),
+        g: Math.round(edgeG),
+        b: Math.round(edgeB),
+      };
     }
+  }
+
+  // 有边缘但未选中描边色时，线性平均易发灰 → 回退平坦区域主色
+  if (edgePixels > 0) {
+    const dom = bestBinColor(domFreq);
+    if (dom) return dom;
+  }
+
+  return { r: fillR, g: fillG, b: fillB };
 }
 
 /**
  * 根据原始图像数据、网格尺寸、调色板和模式计算像素化网格数据。
- * @param originalCtx 原始图像的 Canvas 2D Context
- * @param imgWidth 原始图像宽度
- * @param imgHeight 原始图像高度
- * @param N 网格横向数量
- * @param M 网格纵向数量
- * @param palette 当前使用的调色板
- * @param mode 像素化模式 (Dominant/Average)
- * @param t1FallbackColor T1 或其他备用颜色数据
- * @returns 计算后的 MappedPixel 网格数据
+ * EdgeAware / Dominant 会额外做线稿掩码：细描边格子强制取暗色，避免被填充色淹没。
  */
 export function calculatePixelGrid(
-    originalCtx: CanvasRenderingContext2D,
-    imgWidth: number,
-    imgHeight: number,
-    N: number,
-    M: number,
-    palette: PaletteColor[],
-    mode: PixelationMode,
-    t1FallbackColor: PaletteColor // 传入备用色
+  originalCtx: CanvasRenderingContext2D,
+  imgWidth: number,
+  imgHeight: number,
+  N: number,
+  M: number,
+  palette: PaletteColor[],
+  mode: PixelationMode,
+  t1FallbackColor: PaletteColor, // 传入备用色
 ): MappedPixel[][] {
-    console.log(`Calculating pixel grid with mode: ${mode}`);
-    const mappedData: MappedPixel[][] = Array(M).fill(null).map(() => Array(N).fill({ key: t1FallbackColor.key, color: t1FallbackColor.hex }));
-    const cellWidthOriginal = imgWidth / N;
-    const cellHeightOriginal = imgHeight / M;
+  console.log(`Calculating pixel grid with mode: ${mode}`);
+  const mappedData: MappedPixel[][] = Array(M)
+    .fill(null)
+    .map(() => Array(N).fill({ key: t1FallbackColor.key, color: t1FallbackColor.hex }));
+  const cellWidthOriginal = imgWidth / N;
+  const cellHeightOriginal = imgHeight / M;
 
-    let fullImageData: ImageData | null = null;
-    try {
-        fullImageData = originalCtx.getImageData(0, 0, imgWidth, imgHeight);
-    } catch (e) {
-        console.error("Failed to get full image data:", e);
-        // 如果无法获取图像数据，返回一个空的或默认的网格
-        return mappedData;
-    }
-
-    for (let j = 0; j < M; j++) {
-        for (let i = 0; i < N; i++) {
-            const startXOriginal = Math.floor(i * cellWidthOriginal);
-            const startYOriginal = Math.floor(j * cellHeightOriginal);
-            // 计算精确的单元格结束位置，避免超出图像边界
-            const endXOriginal = Math.min(imgWidth, Math.ceil((i + 1) * cellWidthOriginal));
-            const endYOriginal = Math.min(imgHeight, Math.ceil((j + 1) * cellHeightOriginal));
-            // 计算实际的单元格宽高
-            const currentCellWidth = Math.max(1, endXOriginal - startXOriginal);
-            const currentCellHeight = Math.max(1, endYOriginal - startYOriginal);
-
-            // 使用提取的函数计算代表色
-            const representativeRgb = calculateCellRepresentativeColor(
-                fullImageData,
-                startXOriginal,
-                startYOriginal,
-                currentCellWidth,
-                currentCellHeight,
-                mode
-            );
-
-            let finalCellColorData: MappedPixel;
-            if (representativeRgb) {
-                const closestBead = findClosestPaletteColor(representativeRgb, palette);
-                finalCellColorData = { key: closestBead.key, color: closestBead.hex };
-            } else {
-                // 如果单元格为空或全透明，标记为透明/外部
-                finalCellColorData = { ...transparentColorData };
-            }
-            mappedData[j][i] = finalCellColorData;
-        }
-    }
-    console.log(`Pixel grid calculation complete for mode: ${mode}`);
+  let fullImageData: ImageData | null = null;
+  try {
+    fullImageData = originalCtx.getImageData(0, 0, imgWidth, imgHeight);
+  } catch (e) {
+    console.error('Failed to get full image data:', e);
     return mappedData;
-} 
+  }
+
+  // 小画布：对比度+锐化，再加粗暗线，尽量保住插画描边
+  fullImageData = enhanceImageDataForSmallGrid(fullImageData, N, M);
+  const cellArea = (imgWidth / N) * (imgHeight / M);
+  const preserveLines = mode !== PixelationMode.Average;
+  if (preserveLines && cellArea >= 16) {
+    fullImageData = thickenDarkStrokes(fullImageData, 120);
+  }
+
+  const strokeMask =
+    preserveLines
+      ? extractStrokeMask(
+          fullImageData.data,
+          imgWidth,
+          imgHeight,
+          N,
+          M,
+          120,
+          cellArea >= 64 ? 0.045 : 0.07,
+          cellArea >= 100 ? 1 : 0,
+        )
+      : null;
+
+  for (let j = 0; j < M; j++) {
+    for (let i = 0; i < N; i++) {
+      const startXOriginal = Math.floor(i * cellWidthOriginal);
+      const startYOriginal = Math.floor(j * cellHeightOriginal);
+      const endXOriginal = Math.min(imgWidth, Math.ceil((i + 1) * cellWidthOriginal));
+      const endYOriginal = Math.min(imgHeight, Math.ceil((j + 1) * cellHeightOriginal));
+      const currentCellWidth = Math.max(1, endXOriginal - startXOriginal);
+      const currentCellHeight = Math.max(1, endYOriginal - startYOriginal);
+
+      let representativeRgb: RgbColor | null = null;
+      const isStroke = strokeMask?.[j * N + i] === true;
+      if (isStroke) {
+        representativeRgb = sampleStrokeCellColor(
+          fullImageData.data,
+          imgWidth,
+          imgHeight,
+          startXOriginal,
+          startYOriginal,
+          endXOriginal,
+          endYOriginal,
+          120,
+        );
+      }
+      if (!representativeRgb) {
+        representativeRgb = calculateCellRepresentativeColor(
+          fullImageData,
+          startXOriginal,
+          startYOriginal,
+          currentCellWidth,
+          currentCellHeight,
+          mode,
+        );
+      }
+
+      let finalCellColorData: MappedPixel;
+      if (representativeRgb) {
+        let closestBead: PaletteColor;
+        if (isStroke) {
+          const strokeLuma = luminanceRgb(
+            representativeRgb.r,
+            representativeRgb.g,
+            representativeRgb.b,
+          );
+          // 描边偏暗时，限制到偏暗色板，避免映射成浅灰珠
+          const darkPalette =
+            strokeLuma < 140
+              ? palette.filter((p) => luminanceRgb(p.rgb.r, p.rgb.g, p.rgb.b) <= 170)
+              : palette;
+          closestBead = findClosestPaletteColor(
+            representativeRgb,
+            darkPalette.length > 0 ? darkPalette : palette,
+          );
+        } else {
+          closestBead = findClosestPaletteColor(representativeRgb, palette);
+        }
+        finalCellColorData = { key: closestBead.key, color: closestBead.hex };
+      } else {
+        finalCellColorData = { ...transparentColorData };
+      }
+      mappedData[j][i] = finalCellColorData;
+    }
+  }
+  console.log(`Pixel grid calculation complete for mode: ${mode}`);
+  return mappedData;
+}

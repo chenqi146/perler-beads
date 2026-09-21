@@ -152,7 +152,7 @@ function Editor() {
       similarityThreshold: 0,
       maxColorCount: 0,
       autoRemoveWhiteBg: false,
-      pixelationMode: PixelationMode.Dominant,
+      pixelationMode: PixelationMode.EdgeAware,
       remapTrigger: 0,
     };
     draftReadyToSaveRef.current = true;
@@ -605,21 +605,11 @@ function Editor() {
 
         {originalImageSrc && mappedPixelData && (
             <div className="w-full mt-4">
-              {/* 使用一个大按钮，现在所有的下载设置都通过弹窗控制 */}
-              <button
-                type="button"
-                onClick={() => setIsDownloadSettingsOpen(true)}
-                disabled={!mappedPixelData || !gridDimensions || gridDimensions.N === 0 || gridDimensions.M === 0 || activeBeadPalette.length === 0}
-                className="flex h-10 w-full items-center justify-center gap-2 rounded-xl bg-[#c47a2c] px-4 text-sm font-semibold text-white shadow-[0_8px_18px_rgba(196,122,44,0.18)] transition-[background-color,opacity,box-shadow] duration-200 hover:bg-[#b06b22] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e8b86a] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-               >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-                导出图纸
-              </button>
               <button
                 type="button"
                 onClick={() => setIsIngredientBillOpen(true)}
                 disabled={!ingredientBill}
-                className="mt-2 flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-[#e0d0bc] bg-white px-4 text-sm font-medium text-[#5c4030] transition-[background-color,border-color] duration-150 hover:bg-[#fff4e6] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e8b86a] disabled:opacity-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+                className="flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-[#e0d0bc] bg-white px-4 text-sm font-medium text-[#5c4030] transition-[background-color,border-color] duration-150 hover:bg-[#fff4e6] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e8b86a] disabled:opacity-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
               >
                 采购清单
                 {ingredientBill ? ` · ${ingredientBill.colorCount} 色` : ''}
@@ -646,6 +636,14 @@ function Editor() {
                     onUndo={handleUndoEdit}
                     onRedo={handleRedoEdit}
                     onStartBeading={handleStartBeading}
+                    onExport={() => setIsDownloadSettingsOpen(true)}
+                    canExport={Boolean(
+                      mappedPixelData &&
+                        gridDimensions &&
+                        gridDimensions.N > 0 &&
+                        gridDimensions.M > 0 &&
+                        activeBeadPalette.length > 0
+                    )}
                     onSave={() => {
                       if (currentPatternId) handleSavePattern();
                       else setIsPatternInfoOpen(true);
@@ -880,7 +878,7 @@ function Editor() {
               </button>
             </div>
             <div className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain px-3 py-3">
-              <p className="px-1 text-[11px] text-[#8a6a4a]">换图、导出与手动裁切请用电脑端完整编辑。</p>
+              <p className="px-1 text-[11px] text-[#8a6a4a]">换图与手动裁切请用电脑端完整编辑；导出在右上角。</p>
               <EditorSettingsPanel
                 mappedPixelData={mappedPixelData}
                 gridDimensions={gridDimensions}

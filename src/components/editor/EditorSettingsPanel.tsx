@@ -188,74 +188,70 @@ export function EditorSettingsPanel({
       </div>
 
       {/* 自动去除白底 */}
-      <label className="flex items-start gap-2.5 cursor-pointer select-none rounded-lg border border-gray-200 dark:border-gray-700 p-3 hover:bg-gray-50 dark:hover:bg-gray-900/30">
+      <label className="flex items-center gap-2 cursor-pointer select-none">
         <input
           type="checkbox"
           checked={autoRemoveWhiteBg}
           onChange={(e) => onAutoRemoveWhiteBgChange(e.target.checked)}
-          className="mt-0.5 h-4 w-4 rounded border-gray-300 text-amber-500 focus:ring-amber-400"
+          className="h-4 w-4 rounded border-gray-300 text-amber-500 focus:ring-amber-400"
         />
-        <span>
-          <span className="block text-sm text-gray-800 dark:text-gray-100">✨ 自动去除白底 &amp; 紧凑排版</span>
-          <span className="block mt-1 text-[11px] leading-relaxed text-gray-400 dark:text-gray-500">
-            如果原图带有纯白背景，强烈建议勾选！会自动扣掉白底并减少废豆。
-          </span>
-        </span>
+        <span className="text-sm text-gray-800 dark:text-gray-100">自动去除白底</span>
       </label>
 
-      {/* 进阶选项 */}
-      <details className="rounded-lg border border-gray-200 dark:border-gray-700 p-3">
-        <summary className="cursor-pointer text-xs font-medium text-gray-600 dark:text-gray-300">进阶选项</summary>
-        <div className="mt-3 space-y-3">
-          <div>
-            <label className="block text-xs text-gray-500 mb-1">颜色合并阈值 (0-100)</label>
-            <div className="flex gap-2">
-              <input
-                type="number"
-                min={0}
-                max={100}
-                value={similarityThresholdInput}
-                onChange={onSimilarityThresholdInputChange}
-                className="w-full h-9 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-2 text-sm"
-              />
-              <button
-                type="button"
-                onClick={onConfirmParameters}
-                className="h-9 px-3 rounded-md bg-gray-800 text-white text-xs whitespace-nowrap dark:bg-gray-600"
-              >
-                应用
-              </button>
-            </div>
-          </div>
-          <div>
-            <label className="block text-xs text-gray-500 mb-1">处理模式</label>
-            <select
-              value={pixelationMode}
-              onChange={onPixelationModeChange}
-              className="w-full h-9 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-2 text-sm"
-            >
-              <option value={PixelationMode.Dominant}>卡通 (主色)</option>
-              <option value={PixelationMode.Average}>真实 (平均)</option>
-            </select>
-          </div>
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={onAutoRemoveBackground}
-              disabled={!mappedPixelData || !gridDimensions}
-              className="flex-1 h-9 rounded-md border border-gray-300 dark:border-gray-600 text-xs disabled:opacity-50"
-            >
-              手动去背景
-            </button>
-            <button
-              type="button"
-              onClick={onUndoBgRemoval}
-              disabled={!bgRemovalSnapshot}
-              className="flex-1 h-9 rounded-md border border-gray-300 dark:border-gray-600 text-xs disabled:opacity-50"
-            >
-              回撤去背景
-            </button>
-          </div>
+      {/* 处理模式 + 去背景（常显、紧凑） */}
+      <div className="space-y-2">
+        <div className="flex items-center gap-2">
+          <label className="shrink-0 text-xs text-gray-500 w-14">处理模式</label>
+          <select
+            value={pixelationMode}
+            onChange={onPixelationModeChange}
+            className="min-w-0 flex-1 h-8 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-2 text-xs"
+          >
+            <option value={PixelationMode.EdgeAware}>清晰 (保线稿)</option>
+            <option value={PixelationMode.Dominant}>卡通 (主色)</option>
+            <option value={PixelationMode.Average}>真实 (平均)</option>
+          </select>
+        </div>
+        <div className="flex gap-1.5">
+          <button
+            type="button"
+            onClick={onAutoRemoveBackground}
+            disabled={!mappedPixelData || !gridDimensions}
+            className="flex-1 h-8 rounded-md border border-gray-300 dark:border-gray-600 text-xs disabled:opacity-50"
+          >
+            手动去背景
+          </button>
+          <button
+            type="button"
+            onClick={onUndoBgRemoval}
+            disabled={!bgRemovalSnapshot}
+            className="flex-1 h-8 rounded-md border border-gray-300 dark:border-gray-600 text-xs disabled:opacity-50"
+          >
+            回撤去背景
+          </button>
+        </div>
+      </div>
+
+      {/* 进阶：颜色合并 */}
+      <details className="rounded-md border border-gray-200 dark:border-gray-700 px-2.5 py-1.5">
+        <summary className="cursor-pointer text-xs text-gray-500 dark:text-gray-400">进阶 · 颜色合并</summary>
+        <div className="mt-2 pb-1 flex items-center gap-2">
+          <input
+            type="number"
+            min={0}
+            max={100}
+            value={similarityThresholdInput}
+            onChange={onSimilarityThresholdInputChange}
+            aria-label="颜色合并阈值"
+            className="min-w-0 flex-1 h-8 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-2 text-xs"
+          />
+          <button
+            type="button"
+            onClick={onConfirmParameters}
+            className="h-8 px-2.5 rounded-md bg-gray-800 text-white text-xs whitespace-nowrap dark:bg-gray-600"
+          >
+            应用
+          </button>
         </div>
       </details>
     </section>
