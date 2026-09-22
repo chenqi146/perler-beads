@@ -6,9 +6,9 @@ import Script from 'next/script';
 
 // 导入像素化工具和类型
 import {
-  PixelationMode,
   MappedPixel,
 } from '../utils/pixelation';
+import { TRANSPARENT_KEY } from '../domain/pixelation';
 
 // 导入新的类型和组件
 import { IconButton } from '../components/ui/IconButton';
@@ -41,7 +41,7 @@ import SelectionRecolorModal from '../components/SelectionRecolorModal';
 
 import IngredientBillModal from '../components/IngredientBillModal';
 import { PaletteManageModal } from '../components/PaletteManageModal';
-import RequireAuth from '../components/RequireAuth';
+import EnsureSession from '../components/EnsureSession';
 import PatternSaveModal from '../components/PatternSaveModal';
 import { useAppNavSubtitle } from '../components/shell';
 import {
@@ -148,19 +148,22 @@ function Editor() {
     setPatternDescription(pattern.description);
     setPatternVisibility(pattern.visibility);
     useEditorStore.getState().hydrateFromPatternData(pattern.data);
+    const s = useEditorStore.getState();
     draftPixelateLockRef.current = {
       locked: true,
-      granularity: pattern.data.gridDimensions.N || 50,
-      gridHeight: pattern.data.gridDimensions.M || 50,
-      similarityThreshold: 0,
-      maxColorCount: 0,
-      autoRemoveWhiteBg: false,
-      pixelationMode: PixelationMode.Dominant,
-      ditheringEnabled: false,
-      imageContrast: 0,
-      imageSaturation: 0,
-      remapTrigger: 0,
+      granularity: s.granularity,
+      gridHeight: s.gridHeight,
+      similarityThreshold: s.similarityThreshold,
+      maxColorCount: s.maxColorCount,
+      autoRemoveWhiteBg: s.autoRemoveWhiteBg,
+      pixelationMode: s.pixelationMode,
+      ditheringEnabled: s.ditheringEnabled,
+      imageContrast: s.imageContrast,
+      imageSaturation: s.imageSaturation,
+      remapTrigger: s.remapTrigger,
     };
+    // 原图从 IDB/R2 异步回填前抑制重算，避免冲掉已保存格子
+    suppressPixelateUntilRef.current = Date.now() + 4000;
     draftReadyToSaveRef.current = true;
 
     let cancelled = false;
@@ -176,15 +179,31 @@ function Editor() {
         }
       }
       if (cancelled || !src) return;
-      useEditorStore.getState().setOriginalImageSrc(src);
+      // 回填前再次对齐锁到当前 store，防止异步期间参数微调导致锁失效而重像素化
+      const live = useEditorStore.getState();
+      draftPixelateLockRef.current = {
+        locked: true,
+        granularity: live.granularity,
+        gridHeight: live.gridHeight,
+        similarityThreshold: live.similarityThreshold,
+        maxColorCount: live.maxColorCount,
+        autoRemoveWhiteBg: live.autoRemoveWhiteBg,
+        pixelationMode: live.pixelationMode,
+        ditheringEnabled: live.ditheringEnabled,
+        imageContrast: live.imageContrast,
+        imageSaturation: live.imageSaturation,
+        remapTrigger: live.remapTrigger,
+      };
+      suppressPixelateUntilRef.current = Date.now() + 2000;
+      live.setOriginalImageSrc(src);
       if (pattern.data.originalImageKey) {
-        useEditorStore.getState().setOriginalImageKey(pattern.data.originalImageKey);
+        live.setOriginalImageKey(pattern.data.originalImageKey);
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [currentPatternId, draftPixelateLockRef, draftReadyToSaveRef]);
+  }, [currentPatternId, draftPixelateLockRef, draftReadyToSaveRef, suppressPixelateUntilRef]);
 
   // 编辑页锁定整页滚动，保证一屏展示
   useEffect(() => {
@@ -434,8 +453,14 @@ function Editor() {
 
   // 色板选择由 useLayoutEffect → hydratePaletteSelections 完成
 
-  // Ctrl/Cmd+Z 撤回；Ctrl/Cmd+Shift+Z 或 Ctrl/Cmd+Y 重做
+  // Escape 清选区；D 擦除选中格；Ctrl/Cmd+Z 撤回；Ctrl/Cmd+Shift+Z 或 Ctrl/Cmd+Y 重做
   useEffect(() => {
+    const isTypingTarget = (target: EventTarget | null) => {
+      const el = target as HTMLElement | null;
+      const tag = el?.tagName?.toLowerCase();
+      return tag === 'input' || tag === 'textarea' || tag === 'select' || !!el?.isContentEditable;
+    };
+
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         if (event.defaultPrevented) return;
@@ -448,19 +473,20 @@ function Editor() {
           return;
         }
       }
-      const isMod = event.ctrlKey || event.metaKey;
-      if (!isMod) return;
 
-      const target = event.target as HTMLElement | null;
-      const tag = target?.tagName?.toLowerCase();
-      if (
-        tag === 'input' ||
-        tag === 'textarea' ||
-        tag === 'select' ||
-        target?.isContentEditable
-      ) {
-        return;
+      const isMod = event.ctrlKey || event.metaKey;
+      if (!isMod && !isTypingTarget(event.target)) {
+        const key = event.key.toLowerCase();
+        // D：擦除当前选中格子
+        if (key === 'd' && selectedCells.size > 0 && !event.altKey && !event.shiftKey) {
+          event.preventDefault();
+          handleApplyColorToSelection({ key: TRANSPARENT_KEY, color: '#FFFFFF' });
+          return;
+        }
       }
+
+      if (!isMod) return;
+      if (isTypingTarget(event.target)) return;
 
       const key = event.key.toLowerCase();
       const isRedo = (key === 'z' && event.shiftKey) || key === 'y';
@@ -489,6 +515,7 @@ function Editor() {
     selectedCells.size,
     highlightColorKey,
     handleClearCellSelection,
+    handleApplyColorToSelection,
   ]);
 
   useAppNavSubtitle(patternName.trim() || '未命名图纸');
@@ -686,7 +713,9 @@ function Editor() {
                     }}
                   />
                 </div>
-                <p className="hidden text-[11px] text-[#a08060] lg:block">拖拽框选改色，点已选格子可取消；空白处或空格拖动可移动画布</p>
+                <p className="hidden text-[11px] text-[#a08060] lg:block">
+                  单击选/取消单格 · 拖拽框选 · Shift+点击加选同色连通块（含对角，分开的块可连点多次）· D 擦除选中格 · 空格或空白处拖动画布 · Ctrl/⌘+Z 撤回
+                </p>
                 <p className="text-[11px] text-[#a08060] lg:hidden">点格选中 · 拖动画布 · 双指缩放 · 底栏按色全选</p>
               </div>
 
@@ -1061,7 +1090,7 @@ function EditorEntry() {
 
 export default function Home() {
   return (
-    <RequireAuth>
+    <EnsureSession>
       <Suspense
         fallback={
           <main className="platform-page">
@@ -1071,6 +1100,6 @@ export default function Home() {
       >
         <EditorEntry />
       </Suspense>
-    </RequireAuth>
+    </EnsureSession>
   );
 }

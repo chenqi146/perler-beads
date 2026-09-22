@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server';
 import { getDB } from '../../../../lib/d1';
-import { buildSessionCookie } from '../../../../lib/session';
+import { buildSessionCookie, getSessionUserId } from '../../../../lib/session';
 import { hashPassword } from '../../../../lib/password';
+import { mergeAnonymousIntoUser } from '../../../../lib/anonymous';
 
 export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
-  // users.email 列复用为登录账号（不限邮箱格式）
   const account = String(body?.account || body?.email || '')
     .trim()
     .toLowerCase();
@@ -20,15 +20,29 @@ export async function POST(request: Request) {
   if (!db) return NextResponse.json({ error: 'D1 未绑定' }, { status: 503 });
 
   const id = crypto.randomUUID();
+  const passwordHash = await hashPassword(password);
   try {
-    await db
-      .prepare('INSERT INTO users (id,email,name,password_hash,created_at) VALUES (?,?,?,?,?)')
-      .bind(id, account, name, await hashPassword(password), Date.now())
-      .run();
-    const res = NextResponse.json({ id, name, email: account, account });
-    res.cookies.set(await buildSessionCookie(id));
-    return res;
+    try {
+      await db
+        .prepare(
+          'INSERT INTO users (id,email,name,password_hash,created_at,is_anonymous) VALUES (?,?,?,?,?,?)',
+        )
+        .bind(id, account, name, passwordHash, Date.now(), 0)
+        .run();
+    } catch {
+      await db
+        .prepare('INSERT INTO users (id,email,name,password_hash,created_at) VALUES (?,?,?,?,?)')
+        .bind(id, account, name, passwordHash, Date.now())
+        .run();
+    }
   } catch {
     return NextResponse.json({ error: '账号已被占用' }, { status: 409 });
   }
+
+  const guestId = await getSessionUserId();
+  if (guestId) await mergeAnonymousIntoUser(guestId, id);
+
+  const res = NextResponse.json({ id, name, email: account, account, isAnonymous: false });
+  res.cookies.set(await buildSessionCookie(id));
+  return res;
 }

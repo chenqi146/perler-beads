@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react
 import { AppNavBar } from './AppNavBar';
 import { ToastProvider } from '../ui/ToastProvider';
 import { compactPlatformStoreIfNeeded } from '@/utils/platformStore';
+import { ensureAnonymousSession } from '@/utils/authClient';
 import {
   ImmersiveChromeContext,
   type ImmersiveChromeApi,
@@ -38,6 +39,9 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     compactPlatformStoreIfNeeded();
+    void ensureAnonymousSession().catch((err) => {
+      console.warn('[AppShell] ensureAnonymousSession', err);
+    });
   }, []);
 
   useEffect(() => {

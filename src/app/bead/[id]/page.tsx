@@ -3,7 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import RequireAuth from '../../../components/RequireAuth';
+import EnsureSession from '../../../components/EnsureSession';
 import { useAppNavSubtitle, useImmersiveChrome } from '../../../components/shell';
 import {
   BeadPageToolbar,
@@ -954,8 +954,8 @@ function BeadPageContent() {
 
 export default function BeadPage() {
   return (
-    <RequireAuth>
+    <EnsureSession>
       <BeadPageContent />
-    </RequireAuth>
+    </EnsureSession>
   );
 }

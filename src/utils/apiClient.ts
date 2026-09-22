@@ -2,7 +2,7 @@ import { clearLoggedInUser } from './platformStore';
 import { toast } from '@/components/ui/ToastProvider';
 
 export type ApiFetchOptions = {
-  /** 401 时跳转登录并 toast（默认 true） */
+  /** 401 时跳转登录并 toast（默认 false：游客场景不打断） */
   authRedirect?: boolean;
   /** 401 时自定义提示 */
   unauthorizedMessage?: string;
@@ -19,7 +19,7 @@ function redirectToLogin() {
   window.location.href = `/auth/login?next=${encodeURIComponent(next)}`;
 }
 
-/** 带 credentials 的 fetch；401 清登录态、toast、跳转登录页 */
+/** 带 credentials 的 fetch；可选在 401 时跳转登录页 */
 export async function apiFetch(
   input: RequestInfo | URL,
   init?: RequestInit,
@@ -30,7 +30,7 @@ export async function apiFetch(
     credentials: init?.credentials ?? 'include',
   });
 
-  if (res.status === 401 && options?.authRedirect !== false) {
+  if (res.status === 401 && options?.authRedirect === true) {
     clearLoggedInUser();
     toast(options?.unauthorizedMessage || '请先登录');
     redirectToLogin();

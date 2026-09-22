@@ -36,6 +36,7 @@ export function ProfileClient({
 
   const patternsCount =
     patterns.length > 0 ? patterns.length : initialPatternsCount;
+  const isAnonymous = Boolean(me.isAnonymous) || !me.email;
 
   const saveName = async (event: FormEvent) => {
     event.preventDefault();
@@ -48,15 +49,12 @@ export function ProfileClient({
         return;
       }
       setMe(result.user);
-      if (result.user.email) {
-        applyAuthSuccess({
-          id: result.user.id,
-          name: String(result.user.name || name.trim()),
-          email: result.user.email,
-        });
-      } else {
-        localStorage.setItem('perler-user-name', String(result.user.name || name.trim()));
-      }
+      applyAuthSuccess({
+        id: result.user.id,
+        name: String(result.user.name || name.trim()),
+        email: result.user.email || '',
+        isAnonymous: Boolean(result.user.isAnonymous) || !result.user.email,
+      });
       toast('昵称已更新');
     } catch {
       toast('网络异常');
@@ -78,10 +76,17 @@ export function ProfileClient({
       </header>
 
       <section className="mx-auto max-w-lg rounded-2xl border border-[#eadfce] bg-[#fffaf3] p-6">
+        {isAnonymous ? (
+          <p className="mb-4 rounded-xl bg-[#f3e6d4] px-3 py-2 text-xs text-[#5c4030]">
+            当前是本机游客身份，数据绑在这个浏览器。绑定账号后可跨设备同步。
+          </p>
+        ) : null}
         <dl className="space-y-3 text-sm">
           <div>
             <dt className="text-[#8a6a4a]">账号</dt>
-            <dd className="mt-1 font-medium text-[#3a2416]">{me.email || '—'}</dd>
+            <dd className="mt-1 font-medium text-[#3a2416]">
+              {isAnonymous ? '本机游客（未绑定）' : me.email || '—'}
+            </dd>
           </div>
           <div>
             <dt className="text-[#8a6a4a]">图纸 / 作品</dt>
@@ -106,6 +111,15 @@ export function ProfileClient({
             {saving ? '保存中…' : '保存昵称'}
           </button>
         </form>
+
+        {isAnonymous ? (
+          <Link
+            href="/auth/login?next=/profile"
+            className="mt-4 inline-flex text-sm font-medium text-[#c47a2c] underline-offset-2 hover:underline"
+          >
+            绑定账号（跨设备）
+          </Link>
+        ) : null}
       </section>
     </main>
   );

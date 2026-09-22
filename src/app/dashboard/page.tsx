@@ -2,7 +2,8 @@ import type { Metadata } from 'next';
 import { Suspense } from 'react';
 import { DashboardClient } from '@/components/dashboard/DashboardClient';
 import { PlatformListSkeleton } from '@/components/ui/PlatformListSkeleton';
-import { requireSession } from '@/lib/auth';
+import EnsureSession from '@/components/EnsureSession';
+import { getSessionUserId } from '@/lib/session';
 import { listPatternsByOwner } from '@/lib/patternQueries';
 
 export const dynamic = 'force-dynamic';
@@ -12,9 +13,13 @@ export const metadata: Metadata = {
 };
 
 async function DashboardData() {
-  const userId = await requireSession('/dashboard');
-  const { items } = await listPatternsByOwner(userId);
-  return <DashboardClient initialPatterns={items} />;
+  const userId = await getSessionUserId();
+  const { items } = userId ? await listPatternsByOwner(userId) : { items: [] };
+  return (
+    <EnsureSession>
+      <DashboardClient initialPatterns={items} />
+    </EnsureSession>
+  );
 }
 
 export default function DashboardPage() {

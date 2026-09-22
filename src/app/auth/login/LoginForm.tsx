@@ -33,6 +33,7 @@ export function LoginForm() {
             id: fallbackId,
             name: account.trim() || '拼豆玩家',
             email: account.trim(),
+            isAnonymous: false,
           });
           toast('开发模式：已本地登录（无 D1）');
           router.push(nextPath.startsWith('/') ? nextPath : '/dashboard');
@@ -45,6 +46,7 @@ export function LoginForm() {
         id: result.id,
         name: result.name || account.trim() || '拼豆玩家',
         email: result.email || account.trim(),
+        isAnonymous: false,
       });
       toast('登录成功');
       router.push(nextPath.startsWith('/') ? nextPath : '/dashboard');
@@ -61,7 +63,7 @@ export function LoginForm() {
       <form className="auth-form" onSubmit={submit}>
         <p className="eyebrow">WELCOME BACK</p>
         <h1>登录</h1>
-        <p>登录后可保存图纸、管理作品。</p>
+        <p>绑定账号后可跨设备同步图纸；本浏览器已有游客数据会自动合并。</p>
         <input type="hidden" name="next" value={nextPath} />
         <label htmlFor="login-account">
           账号

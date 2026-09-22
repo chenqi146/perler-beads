@@ -3,7 +3,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 import Link from 'next/link';
 import { usePatternStore } from '../../../stores';
-import RequireAuth from '../../../components/RequireAuth';
+import EnsureSession from '../../../components/EnsureSession';
 
 function EditorRouteContent() {
   const router = useRouter();
@@ -24,8 +24,8 @@ function EditorRouteContent() {
 
 export default function EditorRoute() {
   return (
-    <RequireAuth>
+    <EnsureSession>
       <EditorRouteContent />
-    </RequireAuth>
+    </EnsureSession>
   );
 }

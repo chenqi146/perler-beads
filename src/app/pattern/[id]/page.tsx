@@ -39,10 +39,6 @@ export default function PatternDetail() {
           type="button"
           className="primary-button"
           onClick={() => {
-            if (!localStorage.getItem('perler-user-id')) {
-              router.push('/auth/login');
-              return;
-            }
             const copy = duplicatePattern(pattern.id);
             if (copy) router.push(`/editor/${copy.id}`);
           }}

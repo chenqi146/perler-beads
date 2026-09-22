@@ -2,17 +2,23 @@
 
 import { cookies } from 'next/headers';
 import { getDB } from '@/lib/d1';
-import { buildSessionCookie } from '@/lib/session';
+import { buildSessionCookie, getSessionUserId } from '@/lib/session';
 import { hashPassword, verifyPassword } from '@/lib/password';
+import { mergeAnonymousIntoUser } from '@/lib/anonymous';
 
 export type AuthActionResult =
-  | { ok: true; id: string; name: string; email: string }
+  | { ok: true; id: string; name: string; email: string; isAnonymous?: boolean }
   | { ok: false; error: string; status?: number };
 
 function normalizeAccount(raw: FormDataEntryValue | null): string {
   return String(raw || '')
     .trim()
     .toLowerCase();
+}
+
+async function adoptGuestSession(targetUserId: string): Promise<void> {
+  const guestId = await getSessionUserId();
+  if (guestId) await mergeAnonymousIntoUser(guestId, targetUserId);
 }
 
 export async function loginAction(formData: FormData): Promise<AuthActionResult> {
@@ -37,6 +43,8 @@ export async function loginAction(formData: FormData): Promise<AuthActionResult>
     return { ok: false, error: '账号或密码错误', status: 401 };
   }
 
+  await adoptGuestSession(user.id);
+
   const jar = await cookies();
   jar.set(await buildSessionCookie(user.id));
 
@@ -45,6 +53,7 @@ export async function loginAction(formData: FormData): Promise<AuthActionResult>
     id: user.id,
     name: user.name,
     email: user.email || account,
+    isAnonymous: false,
   };
 }
 
@@ -63,17 +72,29 @@ export async function registerAction(formData: FormData): Promise<AuthActionResu
   }
 
   const id = crypto.randomUUID();
+  const passwordHash = await hashPassword(password);
   try {
-    await db
-      .prepare('INSERT INTO users (id,email,name,password_hash,created_at) VALUES (?,?,?,?,?)')
-      .bind(id, account, name, await hashPassword(password), Date.now())
-      .run();
+    try {
+      await db
+        .prepare(
+          'INSERT INTO users (id,email,name,password_hash,created_at,is_anonymous) VALUES (?,?,?,?,?,?)',
+        )
+        .bind(id, account, name, passwordHash, Date.now(), 0)
+        .run();
+    } catch {
+      await db
+        .prepare('INSERT INTO users (id,email,name,password_hash,created_at) VALUES (?,?,?,?,?)')
+        .bind(id, account, name, passwordHash, Date.now())
+        .run();
+    }
   } catch {
     return { ok: false, error: '账号已被占用', status: 409 };
   }
 
+  await adoptGuestSession(id);
+
   const jar = await cookies();
   jar.set(await buildSessionCookie(id));
 
-  return { ok: true, id, name, email: account };
+  return { ok: true, id, name, email: account, isAnonymous: false };
 }

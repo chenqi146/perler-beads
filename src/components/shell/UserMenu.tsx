@@ -4,10 +4,10 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useId, useRef, useState } from 'react';
 import { clearLoggedInUser, getLoggedInUser, type LoggedInUser } from '@/utils/platformStore';
-import { logoutRemote } from '@/utils/authClient';
+import { ensureAnonymousSession, logoutRemote, onAuthChanged } from '@/utils/authClient';
 import { toast } from '@/components/ui/ToastProvider';
 
-/** 顶栏右上角：已登录展示头像+昵称下拉；未登录展示登录入口 */
+/** 顶栏右上角：游客显示本机身份+绑定；正式账号显示资料下拉 */
 export function UserMenu() {
   const pathname = usePathname() || '/';
   const router = useRouter();
@@ -20,6 +20,7 @@ export function UserMenu() {
   useEffect(() => {
     setUser(getLoggedInUser());
     setHydrated(true);
+    return onAuthChanged(() => setUser(getLoggedInUser()));
   }, [pathname]);
 
   useEffect(() => {
@@ -57,13 +58,27 @@ export function UserMenu() {
   }
 
   const logout = async () => {
+    const previousId = user.id;
     await logoutRemote();
     clearLoggedInUser();
     setOpen(false);
-    setUser(null);
-    toast('已退出登录');
-    router.push('/auth/login');
+    try {
+      const next = await ensureAnonymousSession();
+      if (previousId && next.id && previousId !== next.id) {
+        // ensureAnonymousSession / applyAuthSuccess 已 remap
+      }
+      setUser(getLoggedInUser());
+      toast(user.isAnonymous ? '已重置本机身份' : '已退出，继续以游客使用');
+    } catch {
+      setUser(null);
+      toast('已退出登录');
+    }
+    if (!pathname.startsWith('/auth')) {
+      router.refresh();
+    }
   };
+
+  const bindHref = `/auth/login?next=${encodeURIComponent(pathname)}`;
 
   return (
     <div ref={rootRef} className="relative shrink-0">
@@ -100,25 +115,38 @@ export function UserMenu() {
         >
           <div className="border-b border-[#eadfce] px-3 py-2.5">
             <p className="truncate text-sm font-semibold text-[#3a2416]">{user.displayName}</p>
-            {user.email ? (
+            {user.isAnonymous ? (
+              <p className="mt-0.5 text-xs text-[#8a6a4a]">绑定本浏览器，清缓存会丢失</p>
+            ) : user.email ? (
               <p className="mt-0.5 truncate text-xs text-[#8a6a4a]">{user.email}</p>
             ) : null}
           </div>
-          <Link
-            href="/profile"
-            role="menuitem"
-            className="block w-full px-3 py-2 text-left text-xs font-medium text-[#3a2416] transition-[background-color] duration-150 hover:bg-[#f3e6d4] focus-visible:outline-none focus-visible:bg-[#f3e6d4]"
-            onClick={() => setOpen(false)}
-          >
-            个人信息
-          </Link>
+          {user.isAnonymous ? (
+            <Link
+              href={bindHref}
+              role="menuitem"
+              className="block w-full px-3 py-2 text-left text-xs font-medium text-[#3a2416] transition-[background-color] duration-150 hover:bg-[#f3e6d4] focus-visible:outline-none focus-visible:bg-[#f3e6d4]"
+              onClick={() => setOpen(false)}
+            >
+              绑定账号（跨设备）
+            </Link>
+          ) : (
+            <Link
+              href="/profile"
+              role="menuitem"
+              className="block w-full px-3 py-2 text-left text-xs font-medium text-[#3a2416] transition-[background-color] duration-150 hover:bg-[#f3e6d4] focus-visible:outline-none focus-visible:bg-[#f3e6d4]"
+              onClick={() => setOpen(false)}
+            >
+              个人信息
+            </Link>
+          )}
           <button
             type="button"
             role="menuitem"
             className="w-full px-3 py-2 text-left text-xs font-semibold text-[#a33] transition-[background-color] duration-150 hover:bg-[#f8e8e4] focus-visible:outline-none focus-visible:bg-[#f8e8e4]"
             onClick={logout}
           >
-            退出登录
+            {user.isAnonymous ? '重置本机身份' : '退出登录'}
           </button>
         </div>
       ) : null}

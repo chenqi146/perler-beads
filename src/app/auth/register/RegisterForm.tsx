@@ -28,7 +28,12 @@ export default function RegisterForm() {
       if (!result.ok) {
         if (result.status === 503 && process.env.NODE_ENV === 'development') {
           const fallbackId = `user_${account.toLowerCase().replace(/[^a-z0-9\u4e00-\u9fff]+/gi, '-')}`;
-          applyAuthSuccess({ id: fallbackId, name: name.trim(), email: account.trim() });
+          applyAuthSuccess({
+            id: fallbackId,
+            name: name.trim(),
+            email: account.trim(),
+            isAnonymous: false,
+          });
           toast('开发模式：已本地注册登录（无 D1）');
           router.push('/dashboard');
           return;
@@ -40,6 +45,7 @@ export default function RegisterForm() {
         id: result.id,
         name: result.name || name.trim(),
         email: result.email || account.trim(),
+        isAnonymous: false,
       });
       toast('注册成功');
       router.push('/dashboard');
@@ -56,6 +62,9 @@ export default function RegisterForm() {
       <form className="auth-form" onSubmit={submit}>
         <p className="eyebrow">CREATE ACCOUNT</p>
         <h1>注册账号</h1>
+        <p style={{ color: '#8a6a4a', marginTop: 0 }}>
+          用于跨设备同步；当前浏览器里的游客图纸会自动合并过来。
+        </p>
         <label htmlFor="register-name">
           昵称
           <input

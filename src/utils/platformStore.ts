@@ -135,7 +135,7 @@ export function compactPlatformStoreIfNeeded(): void {
 
 const id = (prefix: string) => `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 
-/** 仅读取已登录用户 id，不再自动创建游客身份（避免未登录也能写图纸） */
+/** 读取当前本机身份 id（游客或正式账号，由 ensureAnonymousSession 写入） */
 export function getLoggedInUserId(): string | null {
   if (typeof window === 'undefined') return null;
   return localStorage.getItem('perler-user-id');
@@ -147,19 +147,21 @@ export type LoggedInUser = {
   name: string | null;
   displayName: string;
   initial: string;
+  isAnonymous: boolean;
 };
 
-/** 读取本地登录用户展示信息（昵称优先，其次账号） */
+/** 读取本地身份展示信息（昵称优先，其次账号） */
 export function getLoggedInUser(): LoggedInUser | null {
   if (typeof window === 'undefined') return null;
   const id = localStorage.getItem('perler-user-id');
   if (!id) return null;
-  const email = localStorage.getItem('perler-user-email');
+  const isAnonymous = localStorage.getItem('perler-user-anonymous') === '1';
+  const email = isAnonymous ? null : localStorage.getItem('perler-user-email');
   const name = localStorage.getItem('perler-user-name');
   const fromEmail = email?.split('@')[0]?.trim() || null;
-  const displayName = (name?.trim() || fromEmail || '拼豆玩家').trim();
+  const displayName = (name?.trim() || fromEmail || (isAnonymous ? '本机游客' : '拼豆玩家')).trim();
   const initial = Array.from(displayName)[0]?.toUpperCase() || '豆';
-  return { id, email, name, displayName, initial };
+  return { id, email, name, displayName, initial, isAnonymous };
 }
 
 /** 清除本地登录态 */
@@ -168,6 +170,7 @@ export function clearLoggedInUser(): void {
   localStorage.removeItem('perler-user-id');
   localStorage.removeItem('perler-user-email');
   localStorage.removeItem('perler-user-name');
+  localStorage.removeItem('perler-user-anonymous');
 }
 
 /** 将本地图纸/会话/作品的 ownerId 从旧假 id 迁到新 UUID */
@@ -195,7 +198,7 @@ export function remapLocalOwnerId(fromOwnerId: string, toOwnerId: string): void 
 
 const ownerId = () => {
   const value = getLoggedInUserId();
-  if (!value) throw new Error('请先登录后再操作图纸');
+  if (!value) throw new Error('身份未就绪，请刷新页面');
   return value;
 };
 

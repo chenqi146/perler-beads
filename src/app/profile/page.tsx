@@ -1,9 +1,10 @@
 import type { Metadata } from 'next';
-import { redirect } from 'next/navigation';
 import { Suspense } from 'react';
 import { ProfileClient } from '@/components/profile/ProfileClient';
 import { PlatformListSkeleton } from '@/components/ui/PlatformListSkeleton';
-import { getCurrentUser, requireSession } from '@/lib/auth';
+import EnsureSession from '@/components/EnsureSession';
+import { getCurrentUser } from '@/lib/auth';
+import { getSessionUserId } from '@/lib/session';
 import { listPatternsByOwner } from '@/lib/patternQueries';
 import { listWorksByOwner } from '@/lib/workQueries';
 
@@ -14,21 +15,29 @@ export const metadata: Metadata = {
 };
 
 async function ProfileData() {
-  const userId = await requireSession('/profile');
+  const userId = await getSessionUserId();
   const user = await getCurrentUser();
-  if (!user) redirect('/auth/login?next=/profile');
 
   const [patterns, works] = await Promise.all([
-    listPatternsByOwner(userId),
-    listWorksByOwner(userId),
+    userId ? listPatternsByOwner(userId) : Promise.resolve({ items: [] }),
+    userId ? listWorksByOwner(userId) : Promise.resolve({ items: [] }),
   ]);
 
   return (
-    <ProfileClient
-      initialUser={user}
-      initialPatternsCount={patterns.items.length}
-      initialWorksCount={works.items.length}
-    />
+    <EnsureSession>
+      <ProfileClient
+        initialUser={
+          user || {
+            id: userId || '',
+            email: null,
+            name: '本机游客',
+            isAnonymous: true,
+          }
+        }
+        initialPatternsCount={patterns.items.length}
+        initialWorksCount={works.items.length}
+      />
+    </EnsureSession>
   );
 }
 
