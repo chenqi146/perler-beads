@@ -367,9 +367,11 @@ function binWeightForKey(
  */
 export function enhanceImageDataForSmallGrid(
   imageData: ImageData,
-  _gridW: number,
-  _gridH: number,
+  gridW: number,
+  gridH: number,
 ): ImageData {
+  void gridW;
+  void gridH;
   return imageData;
 }
 
