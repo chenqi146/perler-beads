@@ -184,15 +184,15 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   setMaxColorCount: (n) => set({ maxColorCount: Math.max(0, Math.min(50, Math.round(n) || 0)) }),
   setAutoRemoveWhiteBg: (v) => set({ autoRemoveWhiteBg: v }),
   setPixelationMode: (m) =>
-    set((s) => ({
+    set({
       pixelationMode: m,
-      creativePreset: matchCreativePreset(m, s.ditheringEnabled),
-    })),
+      creativePreset: matchCreativePreset(m),
+    }),
   setCreativePreset: (id) => set({ creativePreset: id }),
   setDitheringEnabled: (v) =>
     set((s) => ({
       ditheringEnabled: v,
-      creativePreset: matchCreativePreset(s.pixelationMode, v),
+      creativePreset: matchCreativePreset(s.pixelationMode),
     })),
   setImageContrast: (n) =>
     set({ imageContrast: Math.max(-50, Math.min(50, Math.round(n) || 0)) }),

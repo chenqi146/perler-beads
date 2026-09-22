@@ -52,7 +52,6 @@ export function useEditorSettings({ showToast }: UseEditorSettingsOptions) {
   } = useEditorGenerationParams();
 
   const gridManuallyEdited = useEditorStore((s) => s.gridManuallyEdited);
-  const mappedPixelData = useEditorStore((s) => s.mappedPixelData);
   const gridDimensions = useEditorStore((s) => s.gridDimensions);
   const setMappedPixelData = useEditorStore((s) => s.setMappedPixelData);
   const setGridDimensions = useEditorStore((s) => s.setGridDimensions);

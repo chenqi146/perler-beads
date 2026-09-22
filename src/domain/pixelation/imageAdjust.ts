@@ -43,9 +43,9 @@ export function adjustImageData(
       continue;
     }
 
-    let r = (src[i] - 128) * c + 128;
-    let g = (src[i + 1] - 128) * c + 128;
-    let b = (src[i + 2] - 128) * c + 128;
+    const r = (src[i] - 128) * c + 128;
+    const g = (src[i + 1] - 128) * c + 128;
+    const b = (src[i + 2] - 128) * c + 128;
 
     const gray = 0.2126 * r + 0.7152 * g + 0.0722 * b;
     // 近白低彩度像素不抬饱和度，避免描边抗锯齿被放大成色边

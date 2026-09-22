@@ -44,10 +44,7 @@ export const CREATIVE_PRESETS: Record<CreativePresetId, CreativePresetConfig> = 
 export const CREATIVE_PRESET_ORDER: CreativePresetId[] = ['clear', 'cartoon', 'photo'];
 
 /** 根据当前模式反推预设；抖动为独立开关，不影响预设高亮 */
-export function matchCreativePreset(
-  mode: PixelationMode,
-  _ditheringEnabled?: boolean,
-): CreativePresetId | null {
+export function matchCreativePreset(mode: PixelationMode): CreativePresetId | null {
   if (mode === PixelationMode.EdgeAware) return 'clear';
   if (mode === PixelationMode.Dominant) return 'cartoon';
   if (mode === PixelationMode.Average) return 'photo';
