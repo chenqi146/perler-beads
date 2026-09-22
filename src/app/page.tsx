@@ -157,6 +157,8 @@ function Editor() {
       autoRemoveWhiteBg: false,
       pixelationMode: PixelationMode.EdgeAware,
       ditheringEnabled: false,
+      imageContrast: 0,
+      imageSaturation: 0,
       remapTrigger: 0,
     };
     draftReadyToSaveRef.current = true;
@@ -214,6 +216,10 @@ function Editor() {
     pixelationMode,
     creativePreset,
     ditheringEnabled,
+    imageContrast,
+    setImageContrast,
+    imageSaturation,
+    setImageSaturation,
     remapTrigger,
     handleGranularityInputChange,
     handleGridHeightInputChange,
@@ -571,6 +577,10 @@ function Editor() {
               onCreativePresetChange={handleCreativePresetChange}
               ditheringEnabled={ditheringEnabled}
               onDitheringChange={handleDitheringChange}
+              imageContrast={imageContrast}
+              onImageContrastChange={setImageContrast}
+              imageSaturation={imageSaturation}
+              onImageSaturationChange={setImageSaturation}
               pixelationMode={pixelationMode}
               onPixelationModeChange={handlePixelationModeChange}
               customPaletteSelections={customPaletteSelections}
@@ -920,6 +930,10 @@ function Editor() {
                 onCreativePresetChange={handleCreativePresetChange}
                 ditheringEnabled={ditheringEnabled}
                 onDitheringChange={handleDitheringChange}
+                imageContrast={imageContrast}
+                onImageContrastChange={setImageContrast}
+                imageSaturation={imageSaturation}
+                onImageSaturationChange={setImageSaturation}
                 pixelationMode={pixelationMode}
                 onPixelationModeChange={handlePixelationModeChange}
                 customPaletteSelections={customPaletteSelections}

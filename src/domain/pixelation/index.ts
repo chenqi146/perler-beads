@@ -19,6 +19,16 @@ export type {
 export { applyFloydSteinbergDither } from './dithering';
 export type { DitheringMode } from './dithering';
 
+export { adjustImageData, normalizeImageAdjust } from './imageAdjust';
+export type { ImageAdjustOptions } from './imageAdjust';
+
+export { detectSubjectBounds } from './subjectCrop';
+export type {
+  SubjectBackgroundMode,
+  SubjectCropOptions,
+  SubjectBounds,
+} from './subjectCrop';
+
 export {
   CREATIVE_PRESETS,
   CREATIVE_PRESET_ORDER,

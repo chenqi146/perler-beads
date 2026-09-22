@@ -4,6 +4,7 @@ import {
   sampleStrokeCellColor,
 } from './strokeExtract';
 import { applyFloydSteinbergDither } from './dithering';
+import { adjustImageData } from './imageAdjust';
 
 // 定义像素化模式
 export enum PixelationMode {
@@ -572,6 +573,10 @@ function calculateEdgeAwareCellColor(
 export type CalculatePixelGridOptions = {
   /** Floyd–Steinberg 抖动：限色时用邻格误差扩散保留渐变层次 */
   dithering?: boolean;
+  /** 像素化前对比度，0 = 不变，建议 -50～50 */
+  contrast?: number;
+  /** 像素化前饱和度，0 = 不变，建议 -50～50 */
+  saturation?: number;
 };
 
 /**
@@ -591,7 +596,11 @@ export function calculatePixelGrid(
   options?: CalculatePixelGridOptions,
 ): MappedPixel[][] {
   const dithering = options?.dithering === true;
-  console.log(`Calculating pixel grid with mode: ${mode}, dithering: ${dithering}`);
+  const contrast = options?.contrast ?? 0;
+  const saturation = options?.saturation ?? 0;
+  console.log(
+    `Calculating pixel grid with mode: ${mode}, dithering: ${dithering}, contrast: ${contrast}, saturation: ${saturation}`,
+  );
   const mappedData: MappedPixel[][] = Array(M)
     .fill(null)
     .map(() => Array(N).fill({ key: t1FallbackColor.key, color: t1FallbackColor.hex }));
@@ -606,7 +615,8 @@ export function calculatePixelGrid(
     return mappedData;
   }
 
-  // 小画布：轻度对比度+锐化。不再预加粗暗线（会把 1px 线扩成 2~3 格黑边）
+  // 生成前外观调整（对比度 / 饱和度），再做小画布锐化
+  fullImageData = adjustImageData(fullImageData, { contrast, saturation });
   fullImageData = enhanceImageDataForSmallGrid(fullImageData, N, M);
   const cellArea = (imgWidth / N) * (imgHeight / M);
   // 抖动路径用连续代表色，跳过描边强制，避免误差扩散被打断

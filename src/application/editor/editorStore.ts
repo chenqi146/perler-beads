@@ -49,6 +49,10 @@ type EditorState = {
   creativePreset: CreativePresetId | null;
   /** Floyd–Steinberg 抖动（建议写实/照片） */
   ditheringEnabled: boolean;
+  /** 像素化前对比度 -50～50，0 为原图 */
+  imageContrast: number;
+  /** 像素化前饱和度 -50～50，0 为原图 */
+  imageSaturation: number;
   remapTrigger: number;
 
   selectedColorSystem: ColorSystem;
@@ -89,6 +93,8 @@ type EditorState = {
   setPixelationMode: (m: PixelationMode) => void;
   setCreativePreset: (id: CreativePresetId | null) => void;
   setDitheringEnabled: (v: boolean) => void;
+  setImageContrast: (n: number) => void;
+  setImageSaturation: (n: number) => void;
   /** 一键应用创作预设（模式 + 并色 + 抖动） */
   applyCreativePreset: (id: CreativePresetId) => void;
   bumpRemapTrigger: () => void;
@@ -140,6 +146,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   pixelationMode: PixelationMode.EdgeAware,
   creativePreset: 'clear',
   ditheringEnabled: false,
+  imageContrast: 0,
+  imageSaturation: 0,
   remapTrigger: 0,
 
   selectedColorSystem: 'MARD',
@@ -186,6 +194,10 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       ditheringEnabled: v,
       creativePreset: matchCreativePreset(s.pixelationMode, v),
     })),
+  setImageContrast: (n) =>
+    set({ imageContrast: Math.max(-50, Math.min(50, Math.round(n) || 0)) }),
+  setImageSaturation: (n) =>
+    set({ imageSaturation: Math.max(-50, Math.min(50, Math.round(n) || 0)) }),
   applyCreativePreset: (id) => {
     const preset = CREATIVE_PRESETS[id];
     set({

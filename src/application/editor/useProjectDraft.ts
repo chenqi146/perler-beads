@@ -114,6 +114,8 @@ export function useProjectDraft({
       autoRemoveWhiteBg: !!draft.autoRemoveWhiteBg,
       pixelationMode: mode,
       ditheringEnabled: false,
+      imageContrast: 0,
+      imageSaturation: 0,
       remapTrigger: 0,
     };
     suppressPixelateUntilRef.current = Date.now() + 1500;

@@ -38,6 +38,10 @@ export type EditorSettingsPanelProps = {
   onCreativePresetChange: (id: CreativePresetId) => void;
   ditheringEnabled: boolean;
   onDitheringChange: (value: boolean) => void;
+  imageContrast: number;
+  onImageContrastChange: (value: number) => void;
+  imageSaturation: number;
+  onImageSaturationChange: (value: number) => void;
   pixelationMode: PixelationMode;
   onPixelationModeChange: (event: ChangeEvent<HTMLSelectElement>) => void;
   customPaletteSelections: PaletteSelections;
@@ -76,6 +80,10 @@ export function EditorSettingsPanel({
   onCreativePresetChange,
   ditheringEnabled,
   onDitheringChange,
+  imageContrast,
+  onImageContrastChange,
+  imageSaturation,
+  onImageSaturationChange,
   pixelationMode,
   onPixelationModeChange,
   customPaletteSelections,
@@ -128,62 +136,7 @@ export function EditorSettingsPanel({
         </div>
       ) : null}
 
-      {/* 色板品牌 */}
-      <div>
-        <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1.5">色板品牌</label>
-        <select
-          value={selectedColorSystem}
-          onChange={(e) => onSelectedColorSystemChange(e.target.value as ColorSystem)}
-          className="w-full h-10 rounded-lg border border-[#e0d0bc] dark:border-gray-600 bg-white dark:bg-gray-700 px-3 text-sm text-gray-900 dark:text-gray-100"
-        >
-          {colorSystemOptions.map((option) => (
-            <option key={option.key} value={option.key}>
-              {option.name}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      <button
-        type="button"
-        onClick={onManagePalette}
-        className="app-btn app-btn--soft app-btn--block app-btn--md"
-      >
-        管理色板（{selectedCount} 色）
-      </button>
-
-      {/* 创作预设 */}
-      <div>
-        <label className="mb-1.5 block text-xs font-medium text-gray-600 dark:text-gray-300">
-          创作风格
-        </label>
-        <div className="grid grid-cols-3 gap-1.5" role="group" aria-label="创作风格预设">
-          {CREATIVE_PRESET_ORDER.map((id) => {
-            const preset = CREATIVE_PRESETS[id];
-            const selected = creativePreset === id;
-            return (
-              <button
-                key={id}
-                type="button"
-                onClick={() => onCreativePresetChange(id)}
-                aria-pressed={selected}
-                className={`rounded-xl border px-2 py-2 text-center transition-colors ${
-                  selected
-                    ? 'border-[#c47a2c] bg-[#fff4e6] text-[#8a4e18]'
-                    : 'border-[#e0d0bc] bg-white text-[#5a4030] hover:border-[#d4b896] dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200'
-                }`}
-              >
-                <span className="block text-sm font-medium">{preset.label}</span>
-              </button>
-            );
-          })}
-        </div>
-        <p className="mt-1.5 text-[11px] leading-relaxed text-gray-400 dark:text-gray-500">
-          {activePresetHint}
-        </p>
-      </div>
-
-      {/* 图纸尺寸 宽 x 高 */}
+      {/* 图纸尺寸 宽 x 高 — 生成时通常最先调 */}
       <div>
         <div className="flex items-center justify-between mb-1.5">
           <label className="block text-xs font-medium text-gray-600 dark:text-gray-300">图纸尺寸 (宽 × 高)</label>
@@ -244,6 +197,110 @@ export function EditorSettingsPanel({
               ? ' · 输入尺寸待应用'
               : ' · 改尺寸请用上方按钮'
             : ' · 改动后自动生成'}
+        </p>
+      </div>
+
+      {/* 色板品牌 */}
+      <div>
+        <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1.5">色板品牌</label>
+        <select
+          value={selectedColorSystem}
+          onChange={(e) => onSelectedColorSystemChange(e.target.value as ColorSystem)}
+          className="w-full h-10 rounded-lg border border-[#e0d0bc] dark:border-gray-600 bg-white dark:bg-gray-700 px-3 text-sm text-gray-900 dark:text-gray-100"
+        >
+          {colorSystemOptions.map((option) => (
+            <option key={option.key} value={option.key}>
+              {option.name}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <button
+        type="button"
+        onClick={onManagePalette}
+        className="app-btn app-btn--soft app-btn--block app-btn--md"
+      >
+        管理色板（{selectedCount} 色）
+      </button>
+
+      {/* 创作预设 */}
+      <div>
+        <label className="mb-1.5 block text-xs font-medium text-gray-600 dark:text-gray-300">
+          创作风格
+        </label>
+        <div className="grid grid-cols-3 gap-1.5" role="group" aria-label="创作风格预设">
+          {CREATIVE_PRESET_ORDER.map((id) => {
+            const preset = CREATIVE_PRESETS[id];
+            const selected = creativePreset === id;
+            return (
+              <button
+                key={id}
+                type="button"
+                onClick={() => onCreativePresetChange(id)}
+                aria-pressed={selected}
+                className={`rounded-xl border px-2 py-2 text-center transition-colors ${
+                  selected
+                    ? 'border-[#c47a2c] bg-[#fff4e6] text-[#8a4e18]'
+                    : 'border-[#e0d0bc] bg-white text-[#5a4030] hover:border-[#d4b896] dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200'
+                }`}
+              >
+                <span className="block text-sm font-medium">{preset.label}</span>
+              </button>
+            );
+          })}
+        </div>
+        <p className="mt-1.5 text-[11px] leading-relaxed text-gray-400 dark:text-gray-500">
+          {activePresetHint}
+        </p>
+      </div>
+
+      {/* 生成前外观 */}
+      <div className="space-y-3">
+        <div>
+          <div className="mb-1.5 flex items-center justify-between">
+            <label className="block text-xs font-medium text-gray-600 dark:text-gray-300">
+              对比度
+            </label>
+            <span className="text-xs font-medium tabular-nums text-amber-600 dark:text-amber-400">
+              {imageContrast > 0 ? `+${imageContrast}` : imageContrast}
+            </span>
+          </div>
+          <input
+            type="range"
+            min={-50}
+            max={50}
+            step={1}
+            value={imageContrast}
+            onChange={(e) => onImageContrastChange(Number(e.target.value))}
+            className="w-full accent-amber-500"
+            aria-label="生成前对比度"
+          />
+        </div>
+        <div>
+          <div className="mb-1.5 flex items-center justify-between">
+            <label className="block text-xs font-medium text-gray-600 dark:text-gray-300">
+              饱和度
+            </label>
+            <span className="text-xs font-medium tabular-nums text-amber-600 dark:text-amber-400">
+              {imageSaturation > 0 ? `+${imageSaturation}` : imageSaturation}
+            </span>
+          </div>
+          <input
+            type="range"
+            min={-50}
+            max={50}
+            step={1}
+            value={imageSaturation}
+            onChange={(e) => onImageSaturationChange(Number(e.target.value))}
+            className="w-full accent-amber-500"
+            aria-label="生成前饱和度"
+          />
+        </div>
+        <p className="text-[11px] leading-relaxed text-gray-400 dark:text-gray-500">
+          {gridManuallyEdited
+            ? '已手改时此项仅在「从原图重新生成」时生效。'
+            : '像素化前调整原图。浅色贴画可试对比度 +15～+25、饱和度 +10～+20。'}
         </p>
       </div>
 

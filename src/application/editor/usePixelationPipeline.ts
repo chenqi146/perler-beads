@@ -28,6 +28,8 @@ export type DraftPixelateLock = {
   autoRemoveWhiteBg: boolean;
   pixelationMode: string;
   ditheringEnabled: boolean;
+  imageContrast: number;
+  imageSaturation: number;
   remapTrigger: number;
 };
 
@@ -70,6 +72,8 @@ export function usePixelationPipeline({
   const setAutoRemoveWhiteBg = useEditorStore((s) => s.setAutoRemoveWhiteBg);
   const pixelationMode = useEditorStore((s) => s.pixelationMode);
   const ditheringEnabled = useEditorStore((s) => s.ditheringEnabled);
+  const imageContrast = useEditorStore((s) => s.imageContrast);
+  const imageSaturation = useEditorStore((s) => s.imageSaturation);
   const remapTrigger = useEditorStore((s) => s.remapTrigger);
   const gridManuallyEdited = useEditorStore((s) => s.gridManuallyEdited);
   const clearGridManuallyEdited = useEditorStore((s) => s.clearGridManuallyEdited);
@@ -104,9 +108,11 @@ export function usePixelationPipeline({
       colorLimit: number,
       doAutoRemoveBg: boolean,
       enableDithering: boolean,
+      contrast: number,
+      saturation: number,
     ) => {
       console.log(
-        `Attempting to pixelate with size: ${gridW}x${gridH}, threshold: ${threshold}, mode: ${mode}, colorLimit: ${colorLimit}, dithering: ${enableDithering}`,
+        `Attempting to pixelate with size: ${gridW}x${gridH}, threshold: ${threshold}, mode: ${mode}, colorLimit: ${colorLimit}, dithering: ${enableDithering}, contrast: ${contrast}, saturation: ${saturation}`,
       );
       const originalCanvas = originalCanvasRef.current;
       const pixelatedCanvas = pixelatedCanvasRef.current;
@@ -171,7 +177,7 @@ export function usePixelationPipeline({
           currentPalette,
           mode,
           t1FallbackColor,
-          { dithering: enableDithering },
+          { dithering: enableDithering, contrast, saturation },
         );
         console.log(
           `Initial data mapping complete using mode ${mode}${enableDithering ? ' + dithering' : ''}. Starting global color merging...`,
@@ -349,6 +355,8 @@ export function usePixelationPipeline({
         lock.autoRemoveWhiteBg === autoRemoveWhiteBg &&
         lock.pixelationMode === pixelationMode &&
         lock.ditheringEnabled === ditheringEnabled &&
+        lock.imageContrast === imageContrast &&
+        lock.imageSaturation === imageSaturation &&
         lock.remapTrigger === remapTrigger;
       if (unchanged) {
         return;
@@ -382,6 +390,8 @@ export function usePixelationPipeline({
             maxColorCount,
             autoRemoveWhiteBg,
             ditheringEnabled,
+            imageContrast,
+            imageSaturation,
           );
         } else {
           console.warn(
@@ -424,6 +434,8 @@ export function usePixelationPipeline({
     customPaletteSelections,
     pixelationMode,
     ditheringEnabled,
+    imageContrast,
+    imageSaturation,
     maxColorCount,
     autoRemoveWhiteBg,
     remapTrigger,
