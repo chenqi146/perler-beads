@@ -1,4 +1,5 @@
 import type { MappedPixel } from './pixelation';
+import { colorDistance, hexToRgb } from './pixelation';
 import { TRANSPARENT_KEY } from './pixelEditingUtils';
 
 function isContentCell(cell: MappedPixel | undefined): boolean {
@@ -15,13 +16,32 @@ function lumaOfHex(hex: string): number {
 }
 
 /**
+ * 是否应保留细节：亮度差大（描边）或感知色差够大（灰腿 vs 浅蓝底等近亮度异色）。
+ */
+function shouldPreserveAgainst(
+  centerHex: string,
+  neighborHex: string,
+  preserveContrast: number,
+  preserveDeltaE = 4.5,
+): boolean {
+  if (Math.abs(lumaOfHex(centerHex) - lumaOfHex(neighborHex)) >= preserveContrast) {
+    return true;
+  }
+  const a = hexToRgb(centerHex);
+  const b = hexToRgb(neighborHex);
+  if (!a || !b) return false;
+  return colorDistance(a, b) >= preserveDeltaE;
+}
+
+/**
  * 3×3 多数滤波：邻域内某色达到 minMajority 时替换中心格。
- * 跳过透明/外部格；与多数色高对比的中心格（描边）保留。
+ * 跳过透明/外部格；与多数色高对比的中心格（描边 / 近背景异色）保留。
  */
 export function majorityFilter(
   data: MappedPixel[][],
   minMajority = 5,
   preserveContrast = 42,
+  preserveDeltaE = 4.5,
 ): MappedPixel[][] {
   const M = data.length;
   const N = data[0]?.length || 0;
@@ -60,8 +80,9 @@ export function majorityFilter(
       }
       if (bestN < minMajority || !bestKey || bestKey === center.key) continue;
 
-      const contrast = Math.abs(lumaOfHex(center.color) - lumaOfHex(bestColor));
-      if (contrast >= preserveContrast) continue;
+      if (shouldPreserveAgainst(center.color, bestColor, preserveContrast, preserveDeltaE)) {
+        continue;
+      }
 
       output[y][x] = { key: bestKey, color: bestColor, isExternal: false };
     }
@@ -77,6 +98,7 @@ export function removeIsolatedNoise(
   data: MappedPixel[][],
   minComponentSize = 2,
   preserveContrast = 42,
+  preserveDeltaE = 4.5,
 ): MappedPixel[][] {
   const M = data.length;
   const N = data[0]?.length || 0;
@@ -84,8 +106,6 @@ export function removeIsolatedNoise(
 
   const output = data.map((row) => row.map((cell) => ({ ...cell })));
   const visited = Array.from({ length: M }, () => Array(N).fill(false));
-
-  const lumaOf = (hex: string): number => lumaOfHex(hex);
 
   const neighbors4 = (r: number, c: number): Array<[number, number]> => {
     const out: Array<[number, number]> = [];
@@ -125,8 +145,7 @@ export function removeIsolatedNoise(
       if (component.length >= minComponentSize) continue;
 
       const neighborCount = new Map<string, { count: number; color: string }>();
-      let maxContrast = 0;
-      const selfLuma = lumaOf(start.color);
+      let preserve = false;
 
       for (const [r, c] of component) {
         for (const [nr, nc] of neighbors4(r, c)) {
@@ -135,12 +154,13 @@ export function removeIsolatedNoise(
           const prev = neighborCount.get(cell.key);
           if (prev) prev.count++;
           else neighborCount.set(cell.key, { count: 1, color: cell.color });
-          maxContrast = Math.max(maxContrast, Math.abs(selfLuma - lumaOf(cell.color)));
+          if (shouldPreserveAgainst(start.color, cell.color, preserveContrast, preserveDeltaE)) {
+            preserve = true;
+          }
         }
       }
 
-      if (neighborCount.size === 0) continue;
-      if (maxContrast >= preserveContrast) continue;
+      if (neighborCount.size === 0 || preserve) continue;
 
       let replaceKey = targetKey;
       let replaceColor = start.color;
@@ -162,16 +182,15 @@ export function removeIsolatedNoise(
   return output;
 }
 
-/** 默认清理：多数滤波 + 去孤点；strong 适合小图碎色 */
+/** 默认清理：多数滤波 + 去孤点；strong 适合小图碎色（仍保护近背景异色细节） */
 export function cleanupPixelGrid(
   data: MappedPixel[][],
   intensity: 'normal' | 'strong' = 'normal',
 ): MappedPixel[][] {
   if (intensity === 'strong') {
-    // 两轮多数滤波 + 去掉面积 < 3 的杂色块（高对比描边仍保留）
-    let out = majorityFilter(data, 4, 38);
-    out = majorityFilter(out, 5, 38);
-    out = removeIsolatedNoise(out, 3, 48);
+    // 一轮多数滤波 + 去掉面积 < 2 的真碎点；色相不同的浅色结构（腿等）靠 ΔE 保留
+    let out = majorityFilter(data, 5, 42, 4.5);
+    out = removeIsolatedNoise(out, 2, 48, 4.5);
     return out;
   }
   return removeIsolatedNoise(majorityFilter(data, 5), 2);

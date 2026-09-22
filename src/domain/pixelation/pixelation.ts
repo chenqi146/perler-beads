@@ -236,6 +236,7 @@ export function colorDistanceOklab(rgb1: RgbColor, rgb2: RgbColor): number {
 }
 
 // 查找最接近的颜色（CIEDE2000 最小者）
+// 近白区额外按亮度决胜：避免浅灰底与纯白袜都落到 T01
 export function findClosestPaletteColor(
   targetRgb: RgbColor,
   palette: PaletteColor[]
@@ -247,17 +248,40 @@ export function findClosestPaletteColor(
   }
 
   let minDistance = Infinity;
-  let closestColor = palette[0];
+  const candidates: Array<{ color: PaletteColor; distance: number }> = [];
 
   for (const paletteColor of palette) {
     const distance = colorDistance(targetRgb, paletteColor.rgb);
-    if (distance < minDistance) {
+    if (distance < minDistance - 1e-9) {
       minDistance = distance;
-      closestColor = paletteColor;
+      candidates.length = 0;
+      candidates.push({ color: paletteColor, distance });
+    } else if (Math.abs(distance - minDistance) <= 1e-9 || distance <= minDistance + 1.75) {
+      candidates.push({ color: paletteColor, distance });
     }
-    if (distance === 0) break; // 完全匹配，提前退出
+    if (distance === 0) break;
   }
-  return closestColor;
+
+  if (candidates.length === 0) return palette[0];
+  if (candidates.length === 1 || minDistance === 0) return candidates[0].color;
+
+  const targetLuma = luminanceRgb(targetRgb.r, targetRgb.g, targetRgb.b);
+  // 仅在高亮区用亮度决胜（灰底 #F0 vs 白袜 #FF）
+  if (targetLuma >= 220) {
+    const nearBest = candidates.filter((c) => c.distance <= minDistance + 1.75);
+    nearBest.sort((a, b) => {
+      const la = luminanceRgb(a.color.rgb.r, a.color.rgb.g, a.color.rgb.b);
+      const lb = luminanceRgb(b.color.rgb.r, b.color.rgb.g, b.color.rgb.b);
+      const da = Math.abs(la - targetLuma);
+      const db = Math.abs(lb - targetLuma);
+      if (da !== db) return da - db;
+      return a.distance - b.distance;
+    });
+    return nearBest[0].color;
+  }
+
+  candidates.sort((a, b) => a.distance - b.distance);
+  return candidates[0].color;
 }
 
 
@@ -311,72 +335,42 @@ function bestBinColor(
   };
 }
 
+/** 按权重取前两名色桶（用于细结构与背景争色） */
+function topBinColors(
+  freq: Map<number, { count: number; sumR: number; sumG: number; sumB: number }>,
+  limit = 2,
+): Array<{ key: number; weight: number; rgb: RgbColor }> {
+  const ranked = [...freq.entries()]
+    .map(([key, entry]) => ({
+      key,
+      weight: entry.count,
+      rgb: {
+        r: Math.round(entry.sumR / entry.count),
+        g: Math.round(entry.sumG / entry.count),
+        b: Math.round(entry.sumB / entry.count),
+      },
+    }))
+    .sort((a, b) => b.weight - a.weight);
+  return ranked.slice(0, limit);
+}
+
+function binWeightForKey(
+  freq: Map<number, { count: number; sumR: number; sumG: number; sumB: number }>,
+  key: number,
+): number {
+  return freq.get(key)?.count ?? 0;
+}
+
 /**
- * 小画布时对源图做轻度对比度 + 锐化，减轻降采样糊掉轮廓。
- * 当每格覆盖的原图像素较少时跳过。
+ * 小画布增强已关闭：对比度会把浅灰背景拉向纯白，导致「灰底 vs 白袜子」并成同一色。
+ * 保留函数供调用链兼容，直接返回原图。
  */
 export function enhanceImageDataForSmallGrid(
   imageData: ImageData,
-  gridW: number,
-  gridH: number,
+  _gridW: number,
+  _gridH: number,
 ): ImageData {
-  const cellW = imageData.width / Math.max(1, gridW);
-  const cellH = imageData.height / Math.max(1, gridH);
-  if (cellW * cellH < 36) return imageData;
-
-  const w = imageData.width;
-  const h = imageData.height;
-  const src = imageData.data;
-  const copy = new Uint8ClampedArray(src);
-  const out = new Uint8ClampedArray(src.length);
-
-  const contrast = 1.18; // ~+18%
-  const sharpen = 0.22;
-  const clamp = (v: number) => Math.max(0, Math.min(255, Math.round(v)));
-
-  for (let y = 0; y < h; y++) {
-    for (let x = 0; x < w; x++) {
-      const i = (y * w + x) * 4;
-      const a = copy[i + 3];
-      if (a < 128) {
-        out[i] = copy[i];
-        out[i + 1] = copy[i + 1];
-        out[i + 2] = copy[i + 2];
-        out[i + 3] = a;
-        continue;
-      }
-
-      let r = copy[i];
-      let g = copy[i + 1];
-      let b = copy[i + 2];
-
-      // contrast around mid-gray
-      r = (r - 128) * contrast + 128;
-      g = (g - 128) * contrast + 128;
-      b = (b - 128) * contrast + 128;
-
-      if (y > 0 && y < h - 1 && x > 0 && x < w - 1) {
-        const t = i - w * 4;
-        const bt = i + w * 4;
-        for (let c = 0; c < 3; c++) {
-          const center = c === 0 ? r : c === 1 ? g : b;
-          const lap =
-            4 * copy[i + c] - copy[t + c] - copy[bt + c] - copy[i - 4 + c] - copy[i + 4 + c];
-          const sharpened = center + sharpen * lap;
-          if (c === 0) r = sharpened;
-          else if (c === 1) g = sharpened;
-          else b = sharpened;
-        }
-      }
-
-      out[i] = clamp(r);
-      out[i + 1] = clamp(g);
-      out[i + 2] = clamp(b);
-      out[i + 3] = a;
-    }
-  }
-
-  return { data: out, width: w, height: h, colorSpace: imageData.colorSpace } as ImageData;
+  return imageData;
 }
 
 /**
@@ -461,23 +455,28 @@ function calculateEdgeAwareCellColor(
   const cy = (startY + endY - 1) / 2;
   const rx = Math.max(1, (endX - startX) / 2);
   const ry = Math.max(1, (endY - startY) / 2);
+  // 更大的格心：细腿不一定正好穿过正中
+  const coreRx = rx * 0.7;
+  const coreRy = ry * 0.7;
 
   const lumaAt = (x: number, y: number): number => {
     const i = (y * imgWidth + x) * 4;
     return luminanceRgb(data[i], data[i + 1], data[i + 2]);
   };
 
-  let fillLinR = 0;
-  let fillLinG = 0;
-  let fillLinB = 0;
-  let fillWeightTotal = 0;
-  const domFreq = new Map<number, { count: number; sumR: number; sumG: number; sumB: number }>();
+  const fullDomFreq = new Map<number, { count: number; sumR: number; sumG: number; sumB: number }>();
+  const coreDomFreq = new Map<number, { count: number; sumR: number; sumG: number; sumB: number }>();
+  const borderDomFreq = new Map<number, { count: number; sumR: number; sumG: number; sumB: number }>();
   const edgeBins = new Map<number, { weight: number; sumR: number; sumG: number; sumB: number }>();
   let bestEdgeKey = 0;
   let bestEdgeWeight = -1;
   let edgeWeightTotal = 0;
   let edgePixels = 0;
   let sampleCount = 0;
+  let fillLinR = 0;
+  let fillLinG = 0;
+  let fillLinB = 0;
+  let fillWeightTotal = 0;
 
   for (let y = startY; y < endY; y++) {
     for (let x = startX; x < endX; x++) {
@@ -495,15 +494,25 @@ function calculateEdgeAwareCellColor(
 
       const nx = (x - cx) / rx;
       const ny = (y - cy) / ry;
-      const centerWeight = 1 + Math.max(0, 1 - (nx * nx + ny * ny)) * 0.35;
+      const centerWeight = 1 + Math.max(0, 1 - (nx * nx + ny * ny)) * 1.25;
+      const inCore = Math.abs(x - cx) <= coreRx && Math.abs(y - cy) <= coreRy;
+      const onBorder =
+        x === startX ||
+        y === startY ||
+        x === endX - 1 ||
+        y === endY - 1;
 
       fillLinR += srgbChannelToLinear(r) * centerWeight;
       fillLinG += srgbChannelToLinear(g) * centerWeight;
       fillLinB += srgbChannelToLinear(b) * centerWeight;
       fillWeightTotal += centerWeight;
 
-      if (edgeStrength < edgeMin) {
-        addToQuantizedBin(domFreq, r, g, b);
+      addToQuantizedBin(fullDomFreq, r, g, b, centerWeight);
+      if (inCore) {
+        addToQuantizedBin(coreDomFreq, r, g, b, centerWeight);
+      }
+      if (onBorder) {
+        addToQuantizedBin(borderDomFreq, r, g, b, 1);
       }
 
       if (edgeStrength >= edgeMin) {
@@ -561,11 +570,37 @@ function calculateEdgeAwareCellColor(
     }
   }
 
-  // 有边缘但未选中描边色时，线性平均易发灰 → 回退平坦区域主色
-  if (edgePixels > 0) {
-    const dom = bestBinColor(domFreq);
-    if (dom) return dom;
+  const fullDom = bestBinColor(fullDomFreq);
+  const coreDom = bestBinColor(coreDomFreq);
+  const borderDom = bestBinColor(borderDomFreq);
+  // 格心与全格主色明显不同时，信格心（肉色细腿 vs 浅蓝大底）
+  if (coreDom && fullDom && colorDistance(coreDom, fullDom) >= 5) {
+    return coreDom;
   }
+
+  // 第二主色与格边背景色差大、占比够 → 视为穿过格子的细结构（腿偏格边也能保住）
+  const top2 = topBinColors(fullDomFreq, 2);
+  if (top2.length === 2 && top2[0].weight > 0) {
+    const ratio = top2[1].weight / top2[0].weight;
+    if (ratio >= 0.1 && colorDistance(top2[0].rgb, top2[1].rgb) >= 5) {
+      const core0 = binWeightForKey(coreDomFreq, top2[0].key);
+      const core1 = binWeightForKey(coreDomFreq, top2[1].key);
+      if (core1 > core0) {
+        return top2[1].rgb;
+      }
+      if (borderDom) {
+        const d0 = colorDistance(top2[0].rgb, borderDom);
+        const d1 = colorDistance(top2[1].rgb, borderDom);
+        // 第一色≈格边背景，第二色明显不是背景
+        if (d0 < 4 && d1 >= 5) {
+          return top2[1].rgb;
+        }
+      }
+    }
+  }
+
+  if (coreDom) return coreDom;
+  if (fullDom) return fullDom;
 
   return { r: fillR, g: fillG, b: fillB };
 }

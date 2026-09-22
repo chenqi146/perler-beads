@@ -41,7 +41,7 @@ export const CREATIVE_PRESETS: Record<CreativePresetId, CreativePresetConfig> = 
   },
 };
 
-export const CREATIVE_PRESET_ORDER: CreativePresetId[] = ['clear', 'cartoon', 'photo'];
+export const CREATIVE_PRESET_ORDER: CreativePresetId[] = ['cartoon', 'clear', 'photo'];
 
 /** 根据当前模式反推预设；抖动为独立开关，不影响预设高亮 */
 export function matchCreativePreset(mode: PixelationMode): CreativePresetId | null {

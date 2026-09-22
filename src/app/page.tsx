@@ -155,7 +155,7 @@ function Editor() {
       similarityThreshold: 0,
       maxColorCount: 0,
       autoRemoveWhiteBg: false,
-      pixelationMode: PixelationMode.EdgeAware,
+      pixelationMode: PixelationMode.Dominant,
       ditheringEnabled: false,
       imageContrast: 0,
       imageSaturation: 0,

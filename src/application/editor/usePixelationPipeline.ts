@@ -10,9 +10,6 @@ import {
   removeEdgeBackground,
   recountColors,
   cleanupPixelGrid,
-  mergeRareColors,
-  isSmallPixelGrid,
-  removeIsolatedNoise,
   type RgbColor,
   type PaletteColor,
   type MappedPixel,
@@ -212,13 +209,8 @@ export function usePixelationPipeline({
           row.map((cell) => ({ ...cell, isExternal: cell.isExternal ?? false })),
         );
 
-        const smallGrid = isSmallPixelGrid(N, M);
-        // 抖动靠邻格混色保留层次；并色/清杂点会把椒盐点抹成大色块，导致「颜色都没了」
-        const similarityThresholdValue = enableDithering
-          ? threshold
-          : smallGrid
-            ? Math.max(threshold, 7) // 小图自动轻度并色（CIEDE2000），减轻碎色
-            : threshold;
+        // 不再对小图强制并色：浅色细结构（腿）易被并进背景
+        const similarityThresholdValue = threshold;
         const replacedColors = new Set<string>();
 
         if (similarityThresholdValue > 0) {
@@ -283,14 +275,8 @@ export function usePixelationPipeline({
         let finalData = limitColorCount(mergedData, currentPalette, colorLimit);
 
         if (!enableDithering) {
-          // 小图：先清空间杂点，再合并极少出现的色号
-          finalData = cleanupPixelGrid(finalData, smallGrid ? 'strong' : 'normal');
-          if (smallGrid) {
-            const rareMin = Math.max(3, Math.floor((N * M) * 0.0015));
-            finalData = mergeRareColors(finalData, currentPalette, rareMin);
-            // 稀有色合并后再轻扫一轮，去掉新产生的孤点
-            finalData = removeIsolatedNoise(finalData, 2, 48);
-          }
+          // 小图也用 normal 清理；不再 mergeRareColors（会把残留的少数肉色腿并进背景）
+          finalData = cleanupPixelGrid(finalData, 'normal');
         } else {
           console.log('Dithering on: skipped cleanup / rare-color merge to preserve grain.');
         }

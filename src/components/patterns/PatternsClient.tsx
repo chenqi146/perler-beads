@@ -40,14 +40,7 @@ export function PatternsClient({ initialPatterns }: Props) {
           patterns.map((pattern) => (
             <article className="pattern-card" key={pattern.id}>
               <div className="pattern-card-media">
-                <Link
-                  href={
-                    pattern.data.gridDimensions.N > 0
-                      ? `/bead/${pattern.id}`
-                      : `/editor/${pattern.id}`
-                  }
-                  className="pattern-preview"
-                >
+                <Link href={`/editor/${pattern.id}`} className="pattern-preview">
                   <PatternPreviewImage
                     data={pattern.data}
                     cacheKey={`${pattern.id}:${pattern.updatedAt}`}

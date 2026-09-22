@@ -3,11 +3,12 @@ import {
   PixelationMode,
   calculateCellRepresentativeColor,
   colorDistance,
+  findClosestPaletteColor,
   hexToRgb,
 } from './pixelation';
+import type { MappedPixel, PaletteColor } from './pixelation';
 import { cleanupPixelGrid, majorityFilter, removeIsolatedNoise } from './patternCleanup';
 import { extractStrokeMask, sampleStrokeCellColor } from './strokeExtract';
-import type { MappedPixel } from './pixelation';
 
 function makeImageData(width: number, height: number, rgba: number[]): ImageData {
   const data = new Uint8ClampedArray(width * height * 4);
@@ -36,6 +37,29 @@ describe('colorDistance', () => {
     const b = { r: 10, g: 0, b: 0 };
     const c = { r: 20, g: 0, b: 0 };
     expect(colorDistance(a, c)).toBeGreaterThan(colorDistance(a, b));
+  });
+});
+
+describe('findClosestPaletteColor near-white', () => {
+  const palette: PaletteColor[] = [
+    { key: 'T01', hex: '#FFFFFF', rgb: { r: 255, g: 255, b: 255 } },
+    { key: 'H09', hex: '#EDEDED', rgb: { r: 237, g: 237, b: 237 } },
+    { key: 'H10', hex: '#EEE9EA', rgb: { r: 238, g: 233, b: 234 } },
+    { key: 'H02', hex: '#FEFFFF', rgb: { r: 254, g: 255, b: 255 } },
+  ];
+
+  it('maps pure white to T01', () => {
+    expect(findClosestPaletteColor({ r: 255, g: 255, b: 255 }, palette).key).toBe('T01');
+  });
+
+  it('maps light gray background to H09 not T01', () => {
+    expect(findClosestPaletteColor({ r: 240, g: 240, b: 240 }, palette).key).toBe('H09');
+  });
+
+  it('maps #E8E8E8 away from pure white T01', () => {
+    const key = findClosestPaletteColor({ r: 232, g: 232, b: 232 }, palette).key;
+    expect(key).not.toBe('T01');
+    expect(key).not.toBe('H02');
   });
 });
 
@@ -129,6 +153,58 @@ describe('calculateCellRepresentativeColor', () => {
     // 应明显偏暗（描边），而不是接近白灰
     expect(result!.r).toBeLessThan(80);
   });
+
+  it('EdgeAware keeps peach leg column against light blue background', () => {
+    // 8x8：中间两列肉色腿，两侧浅蓝；平均会冲成蓝，主色应保住肉色
+    const peach = [232, 190, 160];
+    const blue = [168, 200, 224];
+    const rgba: number[] = [];
+    for (let y = 0; y < 8; y++) {
+      for (let x = 0; x < 8; x++) {
+        const isLeg = x === 3 || x === 4;
+        const c = isLeg ? peach : blue;
+        rgba.push(c[0], c[1], c[2], 255);
+      }
+    }
+    const img = makeImageData(8, 8, rgba);
+    const result = calculateCellRepresentativeColor(
+      img,
+      0,
+      0,
+      8,
+      8,
+      PixelationMode.EdgeAware,
+    );
+    expect(result).not.toBeNull();
+    // 应偏肉色（R 明显高于 B），而不是浅蓝底
+    expect(result!.r).toBeGreaterThan(result!.b + 20);
+    expect(result!.r).toBeGreaterThan(200);
+  });
+
+  it('EdgeAware keeps off-center peach strip via second-color contest', () => {
+    // 腿偏在格子左侧（非正中），全格主色仍是蓝
+    const peach = [232, 190, 160];
+    const blue = [168, 200, 224];
+    const rgba: number[] = [];
+    for (let y = 0; y < 8; y++) {
+      for (let x = 0; x < 8; x++) {
+        const isLeg = x === 1 || x === 2;
+        const c = isLeg ? peach : blue;
+        rgba.push(c[0], c[1], c[2], 255);
+      }
+    }
+    const img = makeImageData(8, 8, rgba);
+    const result = calculateCellRepresentativeColor(
+      img,
+      0,
+      0,
+      8,
+      8,
+      PixelationMode.EdgeAware,
+    );
+    expect(result).not.toBeNull();
+    expect(result!.r).toBeGreaterThan(result!.b + 20);
+  });
 });
 
 describe('strokeExtract', () => {
@@ -171,8 +247,8 @@ describe('patternCleanup', () => {
   });
 
   it('majorityFilter replaces minority center when neighbors agree', () => {
-    const a = cell('A', '#FF0000');
-    const b = cell('B', '#0000FF');
+    const a = cell('A', '#C8C8C8');
+    const b = cell('B', '#C4C4C4'); // 近同色碎点，应被多数吞掉
     const grid: MappedPixel[][] = [
       [a, a, a],
       [a, b, a],
@@ -180,6 +256,18 @@ describe('patternCleanup', () => {
     ];
     const out = majorityFilter(grid, 5);
     expect(out[1][1].key).toBe('A');
+  });
+
+  it('majorityFilter keeps hue-different center even if luma is close', () => {
+    const bg = cell('BG', '#A8C8E0');
+    const leg = cell('LEG', '#E8E8E8');
+    const grid: MappedPixel[][] = [
+      [bg, bg, bg],
+      [bg, leg, bg],
+      [bg, bg, bg],
+    ];
+    const out = majorityFilter(grid, 5);
+    expect(out[1][1].key).toBe('LEG');
   });
 
   it('removeIsolatedNoise removes single-pixel speck', () => {
@@ -217,5 +305,18 @@ describe('patternCleanup', () => {
     ];
     const out = cleanupPixelGrid(grid, 'strong');
     expect(out[1][1].key).toBe('A');
+  });
+
+  it('strong cleanup keeps light gray leg column against light blue bg', () => {
+    const bg = cell('BG', '#A8C8E0');
+    const leg = cell('LEG', '#E8E8E8');
+    // 5×5：中间一列浅灰腿，两侧浅蓝底（亮度接近、色相不同）
+    const grid: MappedPixel[][] = Array.from({ length: 5 }, () =>
+      [bg, bg, leg, bg, bg].map((c) => ({ ...c })),
+    );
+    const out = cleanupPixelGrid(grid, 'strong');
+    for (let r = 0; r < 5; r++) {
+      expect(out[r][2].key).toBe('LEG');
+    }
   });
 });
