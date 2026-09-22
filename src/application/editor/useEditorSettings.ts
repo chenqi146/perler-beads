@@ -1,7 +1,9 @@
 'use client';
 
-import { useCallback, useEffect, type ChangeEvent } from 'react';
-import { PixelationMode } from '../../utils/pixelation';
+import { useCallback, useEffect, useRef, type ChangeEvent } from 'react';
+import { PixelationMode, recountColors, scalePixelGrid } from '../../domain/pixelation';
+import type { CreativePresetId } from '../../domain/pixelation';
+import { useEditorStore } from './editorStore';
 import { useEditorGenerationParams } from './editorSelectors';
 
 type UseEditorSettingsOptions = {
@@ -9,8 +11,10 @@ type UseEditorSettingsOptions = {
 };
 
 const clampGridSize = (value: number) => Math.max(10, Math.min(300, value));
+const clampSimilarity = (value: number) => Math.max(0, Math.min(100, value));
+const COMMIT_DEBOUNCE_MS = 320;
 
-/** 参数面板：输入同步、网格/相似度确认、像素化模式切换 */
+/** 参数面板：未手改时改动即生成；已手改时仅改参数，需缩放或重新生成 */
 export function useEditorSettings({ showToast }: UseEditorSettingsOptions) {
   const {
     granularity,
@@ -34,38 +38,44 @@ export function useEditorSettings({ showToast }: UseEditorSettingsOptions) {
     setAutoRemoveWhiteBg,
     pixelationMode,
     setPixelationMode,
+    creativePreset,
+    ditheringEnabled,
+    setDitheringEnabled,
+    applyCreativePreset,
     remapTrigger,
     setRemapTrigger,
     setSelectedColor,
   } = useEditorGenerationParams();
 
-  // 当状态变化时同步更新输入框的值
+  const gridManuallyEdited = useEditorStore((s) => s.gridManuallyEdited);
+  const mappedPixelData = useEditorStore((s) => s.mappedPixelData);
+  const gridDimensions = useEditorStore((s) => s.gridDimensions);
+  const setMappedPixelData = useEditorStore((s) => s.setMappedPixelData);
+  const setGridDimensions = useEditorStore((s) => s.setGridDimensions);
+  const setColorCounts = useEditorStore((s) => s.setColorCounts);
+  const setTotalBeadCount = useEditorStore((s) => s.setTotalBeadCount);
+  const clearGridManuallyEdited = useEditorStore((s) => s.clearGridManuallyEdited);
+  const setSelectedCells = useEditorStore((s) => s.setSelectedCells);
+  const setShowSelectionRecolor = useEditorStore((s) => s.setShowSelectionRecolor);
+
+  const widthTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const heightTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const similarityTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   useEffect(() => {
-    setGranularityInput(granularity.toString());
-    setGridHeightInput(gridHeight.toString());
-    setSimilarityThresholdInput(similarityThreshold.toString());
-  }, [
-    granularity,
-    gridHeight,
-    similarityThreshold,
-    setGranularityInput,
-    setGridHeightInput,
-    setSimilarityThresholdInput,
-  ]);
+    return () => {
+      if (widthTimerRef.current) clearTimeout(widthTimerRef.current);
+      if (heightTimerRef.current) clearTimeout(heightTimerRef.current);
+      if (similarityTimerRef.current) clearTimeout(similarityTimerRef.current);
+    };
+  }, []);
 
-  const handleGranularityInputChange = useCallback(
-    (event: ChangeEvent<HTMLInputElement>) => {
-      setGranularityInput(event.target.value);
-    },
-    [setGranularityInput],
-  );
-
-  const handleGridHeightInputChange = useCallback(
-    (event: ChangeEvent<HTMLInputElement>) => {
-      setGridHeightInput(event.target.value);
-    },
-    [setGridHeightInput],
-  );
+  const triggerRemapIfAllowed = useCallback(() => {
+    if (!useEditorStore.getState().gridManuallyEdited) {
+      setRemapTrigger((prev) => prev + 1);
+      setSelectedColor(null);
+    }
+  }, [setRemapTrigger, setSelectedColor]);
 
   const applyGridWidth = useCallback(
     (rawWidth: number, commit = true) => {
@@ -75,16 +85,21 @@ export function useEditorSettings({ showToast }: UseEditorSettingsOptions) {
         height = clampGridSize(Math.round(width * imageAspectRatio));
       }
       if (commit) {
+        const sizeChanged = width !== granularity || height !== gridHeight;
         setGranularity(width);
         setGridHeight(height);
-        setRemapTrigger((prev) => prev + 1);
-        setSelectedColor(null);
+        // 已手改：只改目标尺寸，不触发从原图重算
+        if (sizeChanged && !useEditorStore.getState().gridManuallyEdited) {
+          setRemapTrigger((prev) => prev + 1);
+          setSelectedColor(null);
+        }
       }
       setGranularityInput(width.toString());
       setGridHeightInput(height.toString());
       return { width, height };
     },
     [
+      granularity,
       gridHeight,
       keepAspectRatio,
       imageAspectRatio,
@@ -99,20 +114,19 @@ export function useEditorSettings({ showToast }: UseEditorSettingsOptions) {
 
   const applyGridHeight = useCallback(
     (rawHeight: number, commit = true) => {
-      // 保持比例时高度是派生值，不能再反向覆盖用户刚提交的宽度。
       if (keepAspectRatio) {
         return { width: granularity, height: gridHeight };
       }
       const height = clampGridSize(rawHeight);
-      let width = granularity;
-      if (keepAspectRatio && imageAspectRatio > 0) {
-        width = clampGridSize(Math.round(height / imageAspectRatio));
-      }
+      const width = granularity;
       if (commit) {
+        const sizeChanged = height !== gridHeight;
         setGranularity(width);
         setGridHeight(height);
-        setRemapTrigger((prev) => prev + 1);
-        setSelectedColor(null);
+        if (sizeChanged && !useEditorStore.getState().gridManuallyEdited) {
+          setRemapTrigger((prev) => prev + 1);
+          setSelectedColor(null);
+        }
       }
       setGranularityInput(width.toString());
       setGridHeightInput(height.toString());
@@ -122,7 +136,6 @@ export function useEditorSettings({ showToast }: UseEditorSettingsOptions) {
       keepAspectRatio,
       granularity,
       gridHeight,
-      imageAspectRatio,
       setGranularity,
       setGridHeight,
       setRemapTrigger,
@@ -132,81 +145,203 @@ export function useEditorSettings({ showToast }: UseEditorSettingsOptions) {
     ],
   );
 
-  const handleSimilarityThresholdInputChange = useCallback(
-    (event: ChangeEvent<HTMLInputElement>) => {
-      setSimilarityThresholdInput(event.target.value);
+  const commitSimilarity = useCallback(
+    (raw: string) => {
+      const parsed = parseInt(raw, 10);
+      const next = clampSimilarity(Number.isFinite(parsed) ? parsed : 0);
+      if (next !== similarityThreshold) {
+        setSimilarityThreshold(next);
+        if (!useEditorStore.getState().gridManuallyEdited) {
+          setRemapTrigger((prev) => prev + 1);
+          setSelectedColor(null);
+        }
+      }
+      setSimilarityThresholdInput(next.toString());
     },
-    [setSimilarityThresholdInput],
+    [
+      similarityThreshold,
+      setSimilarityThreshold,
+      setRemapTrigger,
+      setSelectedColor,
+      setSimilarityThresholdInput,
+    ],
   );
 
-  const handleConfirmParameters = useCallback(() => {
-    const width = clampGridSize(parseInt(granularityInput, 10) || 10);
-    const height = keepAspectRatio
-      ? clampGridSize(Math.round(width * (imageAspectRatio || 1)))
-      : clampGridSize(parseInt(gridHeightInput, 10) || 10);
+  const handleGranularityInputChange = useCallback(
+    (event: ChangeEvent<HTMLInputElement>) => {
+      const value = event.target.value;
+      setGranularityInput(value);
+      if (value.trim() === '') return;
+      const n = parseInt(value, 10);
+      if (!Number.isFinite(n)) return;
+      if (widthTimerRef.current) clearTimeout(widthTimerRef.current);
+      widthTimerRef.current = setTimeout(() => {
+        applyGridWidth(n, true);
+      }, COMMIT_DEBOUNCE_MS);
+    },
+    [setGranularityInput, applyGridWidth],
+  );
 
-    const minSimilarity = 0;
-    const maxSimilarity = 100;
-    let newSimilarity = parseInt(similarityThresholdInput, 10);
-    if (isNaN(newSimilarity) || newSimilarity < minSimilarity) newSimilarity = minSimilarity;
-    else if (newSimilarity > maxSimilarity) newSimilarity = maxSimilarity;
+  const handleGridHeightInputChange = useCallback(
+    (event: ChangeEvent<HTMLInputElement>) => {
+      const value = event.target.value;
+      setGridHeightInput(value);
+      if (keepAspectRatio) return;
+      if (value.trim() === '') return;
+      const n = parseInt(value, 10);
+      if (!Number.isFinite(n)) return;
+      if (heightTimerRef.current) clearTimeout(heightTimerRef.current);
+      heightTimerRef.current = setTimeout(() => {
+        applyGridHeight(n, true);
+      }, COMMIT_DEBOUNCE_MS);
+    },
+    [setGridHeightInput, keepAspectRatio, applyGridHeight],
+  );
 
-    const sizeChanged = width !== granularity || height !== gridHeight;
-    const similarityChanged = newSimilarity !== similarityThreshold;
+  const handleSimilarityThresholdInputChange = useCallback(
+    (event: ChangeEvent<HTMLInputElement>) => {
+      const value = event.target.value;
+      setSimilarityThresholdInput(value);
+      if (value.trim() === '') return;
+      const n = parseInt(value, 10);
+      if (!Number.isFinite(n)) return;
+      if (similarityTimerRef.current) clearTimeout(similarityTimerRef.current);
+      similarityTimerRef.current = setTimeout(() => {
+        commitSimilarity(value);
+      }, COMMIT_DEBOUNCE_MS);
+    },
+    [setSimilarityThresholdInput, commitSimilarity],
+  );
 
-    if (sizeChanged) {
-      setGranularity(width);
-      setGridHeight(height);
+  const flushGridWidth = useCallback(() => {
+    if (widthTimerRef.current) {
+      clearTimeout(widthTimerRef.current);
+      widthTimerRef.current = null;
     }
-    if (similarityChanged) {
-      setSimilarityThreshold(newSimilarity);
-    }
+    applyGridWidth(parseInt(granularityInput, 10) || 10, true);
+  }, [applyGridWidth, granularityInput]);
 
-    if (sizeChanged || similarityChanged) {
-      setRemapTrigger((prev) => prev + 1);
-      setSelectedColor(null);
+  const flushGridHeight = useCallback(() => {
+    if (heightTimerRef.current) {
+      clearTimeout(heightTimerRef.current);
+      heightTimerRef.current = null;
     }
+    if (!keepAspectRatio) {
+      applyGridHeight(parseInt(gridHeightInput, 10) || 10, true);
+    }
+  }, [applyGridHeight, gridHeightInput, keepAspectRatio]);
 
-    setGranularityInput(width.toString());
-    setGridHeightInput(height.toString());
-    setSimilarityThresholdInput(newSimilarity.toString());
-    showToast(`已应用 ${width} × ${height} 网格`);
-  }, [
-    granularityInput,
-    keepAspectRatio,
-    imageAspectRatio,
-    gridHeightInput,
-    similarityThresholdInput,
-    granularity,
-    gridHeight,
-    similarityThreshold,
-    setGranularity,
-    setGridHeight,
-    setSimilarityThreshold,
-    setRemapTrigger,
-    setSelectedColor,
-    setGranularityInput,
-    setGridHeightInput,
-    setSimilarityThresholdInput,
-    showToast,
-  ]);
+  const flushSimilarity = useCallback(() => {
+    if (similarityTimerRef.current) {
+      clearTimeout(similarityTimerRef.current);
+      similarityTimerRef.current = null;
+    }
+    commitSimilarity(similarityThresholdInput);
+  }, [commitSimilarity, similarityThresholdInput]);
 
   const handlePixelationModeChange = useCallback(
     (event: ChangeEvent<HTMLSelectElement>) => {
       const newMode = event.target.value as PixelationMode;
-      if (Object.values(PixelationMode).includes(newMode)) {
-        setPixelationMode(newMode);
-        setRemapTrigger((prev) => prev + 1);
-        setSelectedColor(null);
-      } else {
+      if (!Object.values(PixelationMode).includes(newMode)) {
         console.warn(`无效的像素化模式: ${newMode}`);
+        return;
       }
+      setPixelationMode(newMode);
+      triggerRemapIfAllowed();
     },
-    [setPixelationMode, setRemapTrigger, setSelectedColor],
+    [setPixelationMode, triggerRemapIfAllowed],
   );
 
+  const handleCreativePresetChange = useCallback(
+    (id: CreativePresetId) => {
+      applyCreativePreset(id);
+      triggerRemapIfAllowed();
+    },
+    [applyCreativePreset, triggerRemapIfAllowed],
+  );
+
+  const handleDitheringChange = useCallback(
+    (enabled: boolean) => {
+      setDitheringEnabled(enabled);
+      triggerRemapIfAllowed();
+    },
+    [setDitheringEnabled, triggerRemapIfAllowed],
+  );
+
+  const scaleGridToInputs = useCallback(() => {
+    flushGridWidth();
+    flushGridHeight();
+    const state = useEditorStore.getState();
+    const data = state.mappedPixelData;
+    if (!data || !state.gridDimensions) {
+      showToast('暂无图纸可缩放');
+      return;
+    }
+    const nextN = clampGridSize(state.granularity);
+    const nextM = clampGridSize(state.gridHeight);
+    if (nextN === state.gridDimensions.N && nextM === state.gridDimensions.M) {
+      showToast('尺寸未变化');
+      return;
+    }
+
+    const scaled = scalePixelGrid(data, nextN, nextM);
+    const { counts, total } = recountColors(scaled);
+    setMappedPixelData(scaled);
+    setGridDimensions({ N: nextN, M: nextM });
+    setGranularity(nextN);
+    setGridHeight(nextM);
+    setGranularityInput(String(nextN));
+    setGridHeightInput(String(nextM));
+    setColorCounts(counts);
+    setTotalBeadCount(total);
+    setSelectedCells(new Set());
+    setShowSelectionRecolor(false);
+    setSelectedColor(null);
+    showToast(`已缩放至 ${nextN}×${nextM}（保留手改）`);
+  }, [
+    flushGridWidth,
+    flushGridHeight,
+    showToast,
+    setMappedPixelData,
+    setGridDimensions,
+    setGranularity,
+    setGridHeight,
+    setGranularityInput,
+    setGridHeightInput,
+    setColorCounts,
+    setTotalBeadCount,
+    setSelectedCells,
+    setShowSelectionRecolor,
+    setSelectedColor,
+  ]);
+
+  const regenerateFromOriginal = useCallback(() => {
+    flushGridWidth();
+    flushGridHeight();
+    flushSimilarity();
+    if (useEditorStore.getState().gridManuallyEdited) {
+      const ok = window.confirm('从原图重新生成会丢弃当前手改（换色、裁剪等），确定继续？');
+      if (!ok) return;
+    }
+    clearGridManuallyEdited();
+    setRemapTrigger((prev) => prev + 1);
+    setSelectedColor(null);
+    showToast('正在从原图重新生成…');
+  }, [
+    flushGridWidth,
+    flushGridHeight,
+    flushSimilarity,
+    clearGridManuallyEdited,
+    setRemapTrigger,
+    setSelectedColor,
+    showToast,
+  ]);
+
+  const sizePending =
+    !!gridDimensions &&
+    (granularity !== gridDimensions.N || gridHeight !== gridDimensions.M);
+
   return {
-    // 参数面板所需状态
     keepAspectRatio,
     setKeepAspectRatio,
     granularityInput,
@@ -217,14 +352,21 @@ export function useEditorSettings({ showToast }: UseEditorSettingsOptions) {
     autoRemoveWhiteBg,
     setAutoRemoveWhiteBg,
     pixelationMode,
+    creativePreset,
+    ditheringEnabled,
     remapTrigger,
-    // 处理器
+    gridManuallyEdited,
+    sizePending,
     handleGranularityInputChange,
     handleGridHeightInputChange,
-    applyGridWidth,
-    applyGridHeight,
+    applyGridWidth: flushGridWidth,
+    applyGridHeight: flushGridHeight,
+    flushSimilarity,
     handleSimilarityThresholdInputChange,
-    handleConfirmParameters,
     handlePixelationModeChange,
+    handleCreativePresetChange,
+    handleDitheringChange,
+    scaleGridToInputs,
+    regenerateFromOriginal,
   };
 }

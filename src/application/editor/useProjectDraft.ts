@@ -113,6 +113,7 @@ export function useProjectDraft({
       maxColorCount: draft.maxColorCount ?? 0,
       autoRemoveWhiteBg: !!draft.autoRemoveWhiteBg,
       pixelationMode: mode,
+      ditheringEnabled: false,
       remapTrigger: 0,
     };
     suppressPixelateUntilRef.current = Date.now() + 1500;

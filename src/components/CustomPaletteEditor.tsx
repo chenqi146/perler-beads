@@ -324,16 +324,22 @@ const CustomPaletteEditor: React.FC<CustomPaletteEditorProps> = ({
       </div>
       
       {/* 底部按钮 */}
-      <div className="mt-4 pt-3 border-t dark:border-gray-700 flex justify-between">
+      <div className="mt-4 pt-3 border-t dark:border-gray-700 flex justify-between gap-2">
+        {onClose ? (
+          <button
+            type="button"
+            onClick={onClose}
+            className="app-btn app-btn--secondary app-btn--md"
+          >
+            取消
+          </button>
+        ) : (
+          <span />
+        )}
         <button
-          onClick={onClose}
-          className="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 rounded-md hover:bg-gray-300 dark:hover:bg-gray-600"
-        >
-          取消
-        </button>
-        <button
+          type="button"
           onClick={onSaveCustomPalette}
-          className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+          className="app-btn app-btn--primary app-btn--md"
         >
           保存并应用
         </button>

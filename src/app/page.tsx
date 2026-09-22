@@ -40,6 +40,7 @@ import GridTooltip from '../components/GridTooltip';
 import SelectionRecolorModal from '../components/SelectionRecolorModal';
 
 import IngredientBillModal from '../components/IngredientBillModal';
+import { PaletteManageModal } from '../components/PaletteManageModal';
 import RequireAuth from '../components/RequireAuth';
 import PatternSaveModal from '../components/PatternSaveModal';
 import { useAppNavSubtitle } from '../components/shell';
@@ -83,7 +84,10 @@ function Editor() {
   const [patternVisibility, setPatternVisibility] = useState<'private' | 'public'>('private');
   const [isPatternInfoOpen, setIsPatternInfoOpen] = useState(false);
   const [mobileSettingsOpen, setMobileSettingsOpen] = useState(false);
+  const [isPaletteOpen, setIsPaletteOpen] = useState(false);
   const [isNarrowScreen, setIsNarrowScreen] = useState(false);
+  /** 成品预览：隐藏色号与网格线，看拼豆成品效果 */
+  const [finishedPreview, setFinishedPreview] = useState(false);
   const {
     mappedPixelData,
     gridDimensions,
@@ -152,6 +156,7 @@ function Editor() {
       maxColorCount: 0,
       autoRemoveWhiteBg: false,
       pixelationMode: PixelationMode.EdgeAware,
+      ditheringEnabled: false,
       remapTrigger: 0,
     };
     draftReadyToSaveRef.current = true;
@@ -207,14 +212,22 @@ function Editor() {
     autoRemoveWhiteBg,
     setAutoRemoveWhiteBg,
     pixelationMode,
+    creativePreset,
+    ditheringEnabled,
     remapTrigger,
     handleGranularityInputChange,
     handleGridHeightInputChange,
     applyGridWidth,
     applyGridHeight,
+    flushSimilarity,
     handleSimilarityThresholdInputChange,
-    handleConfirmParameters,
     handlePixelationModeChange,
+    handleCreativePresetChange,
+    handleDitheringChange,
+    gridManuallyEdited,
+    sizePending,
+    scaleGridToInputs,
+    regenerateFromOriginal,
   } = useEditorSettings({ showToast });
 
   const {
@@ -547,24 +560,33 @@ function Editor() {
               onGridHeightInputChange={handleGridHeightInputChange}
               onApplyGridWidth={applyGridWidth}
               onApplyGridHeight={applyGridHeight}
-              onConfirmParameters={handleConfirmParameters}
               maxColorCount={maxColorCount}
               onMaxColorCountChange={setMaxColorCount}
               autoRemoveWhiteBg={autoRemoveWhiteBg}
               onAutoRemoveWhiteBgChange={setAutoRemoveWhiteBg}
               similarityThresholdInput={similarityThresholdInput}
               onSimilarityThresholdInputChange={handleSimilarityThresholdInputChange}
+              onApplySimilarity={flushSimilarity}
+              creativePreset={creativePreset}
+              onCreativePresetChange={handleCreativePresetChange}
+              ditheringEnabled={ditheringEnabled}
+              onDitheringChange={handleDitheringChange}
               pixelationMode={pixelationMode}
               onPixelationModeChange={handlePixelationModeChange}
               customPaletteSelections={customPaletteSelections}
+              onManagePalette={() => setIsPaletteOpen(true)}
               onAutoRemoveBackground={handleAutoRemoveBackground}
               onUndoBgRemoval={handleUndoBgRemoval}
               bgRemovalSnapshot={bgRemovalSnapshot}
+              gridManuallyEdited={gridManuallyEdited}
+              sizePending={sizePending}
+              onScaleGrid={scaleGridToInputs}
+              onRegenerateFromOriginal={regenerateFromOriginal}
             />
 
         {originalImageSrc && activeBeadPalette.length === 0 && useEditorStore.getState().paletteHydrated && (
              <div className="w-full bg-yellow-100 dark:bg-yellow-900/50 p-4 rounded-lg shadow border border-yellow-200 dark:border-yellow-800/60 text-center text-sm text-yellow-800 dark:text-yellow-300">
-                 当前可用颜色过少或为空。请到「色板」页勾选颜色。
+                 当前可用颜色过少或为空。请点击「管理色板」勾选颜色。
              </div>
          )}
 
@@ -574,7 +596,7 @@ function Editor() {
                 type="button"
                 onClick={() => setIsIngredientBillOpen(true)}
                 disabled={!ingredientBill}
-                className="flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-[#e0d0bc] bg-white px-4 text-sm font-medium text-[#5c4030] transition-[background-color,border-color] duration-150 hover:bg-[#fff4e6] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e8b86a] disabled:opacity-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+                className="app-btn app-btn--secondary app-btn--block app-btn--md"
               >
                 采购清单
                 {ingredientBill ? ` · ${ingredientBill.colorCount} 色` : ''}
@@ -592,6 +614,22 @@ function Editor() {
                   <div className="flex min-w-0 items-center gap-2">
                     <h2 className="text-sm font-semibold text-[#3a2416] dark:text-gray-100">图纸预览</h2>
                     {gridDimensions && <span className="rounded-md bg-[#f3e6d4] px-1.5 py-0.5 font-mono text-[10px] tabular-nums text-[#8a6a4a] dark:bg-gray-800 dark:text-gray-400">{gridDimensions.N} × {gridDimensions.M}</span>}
+                    {mappedPixelData ? (
+                      <button
+                        type="button"
+                        onClick={() => setFinishedPreview((v) => !v)}
+                        aria-pressed={finishedPreview}
+                        title={finishedPreview ? '显示色号与网格' : '隐藏色号与网格，看成品效果'}
+                        className={[
+                          'inline-flex h-7 touch-manipulation items-center gap-1 rounded-lg px-2 text-[11px] font-medium transition-colors',
+                          finishedPreview
+                            ? 'bg-[#c47a2c] text-white'
+                            : 'bg-[#f3e6d4] text-[#5c4030] hover:bg-[#eadfce] dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700',
+                        ].join(' ')}
+                      >
+                        {finishedPreview ? '成品预览开' : '成品预览'}
+                      </button>
+                    ) : null}
                   </div>
                   <EditorPageToolbar
                     showAutosave={Boolean(currentPatternId)}
@@ -644,6 +682,8 @@ function Editor() {
                   onCropRectChange={setCropRect}
                   onInteraction={handleCanvasInteraction}
                   onPinchZoom={handlePinchZoom}
+                  showCellKeys={!finishedPreview}
+                  showGrid={!finishedPreview}
                 >
                   {originalImageSrc && (
                     <div
@@ -734,6 +774,18 @@ function Editor() {
                             )
                           }
                         />
+                        <IconButton
+                          aria-label={finishedPreview ? '退出成品预览' : '成品预览'}
+                          title={finishedPreview ? '退出成品预览（显示色号与网格）' : '成品预览（隐藏色号与网格）'}
+                          isActive={finishedPreview}
+                          disabled={!mappedPixelData}
+                          onClick={() => setFinishedPreview((v) => !v)}
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8} aria-hidden="true">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12s3.75-6.75 9.75-6.75S21.75 12 21.75 12s-3.75 6.75-9.75 6.75S2.25 12 2.25 12z" />
+                            <circle cx="12" cy="12" r="2.75" />
+                          </svg>
+                        </IconButton>
                         {selectedCells.size > 0 && (
                           <>
                             <span className="mx-1 h-5 w-px shrink-0 bg-gray-200 dark:bg-gray-700" />
@@ -857,19 +909,28 @@ function Editor() {
                 onGridHeightInputChange={handleGridHeightInputChange}
                 onApplyGridWidth={applyGridWidth}
                 onApplyGridHeight={applyGridHeight}
-                onConfirmParameters={handleConfirmParameters}
                 maxColorCount={maxColorCount}
                 onMaxColorCountChange={setMaxColorCount}
                 autoRemoveWhiteBg={autoRemoveWhiteBg}
                 onAutoRemoveWhiteBgChange={setAutoRemoveWhiteBg}
                 similarityThresholdInput={similarityThresholdInput}
                 onSimilarityThresholdInputChange={handleSimilarityThresholdInputChange}
+                onApplySimilarity={flushSimilarity}
+                creativePreset={creativePreset}
+                onCreativePresetChange={handleCreativePresetChange}
+                ditheringEnabled={ditheringEnabled}
+                onDitheringChange={handleDitheringChange}
                 pixelationMode={pixelationMode}
                 onPixelationModeChange={handlePixelationModeChange}
                 customPaletteSelections={customPaletteSelections}
+                onManagePalette={() => setIsPaletteOpen(true)}
                 onAutoRemoveBackground={handleAutoRemoveBackground}
                 onUndoBgRemoval={handleUndoBgRemoval}
                 bgRemovalSnapshot={bgRemovalSnapshot}
+                gridManuallyEdited={gridManuallyEdited}
+                sizePending={sizePending}
+                onScaleGrid={scaleGridToInputs}
+                onRegenerateFromOriginal={regenerateFromOriginal}
               />
               <button
                 type="button"
@@ -878,7 +939,7 @@ function Editor() {
                   handleAutoCrop();
                   setMobileSettingsOpen(false);
                 }}
-                className="flex h-11 w-full touch-manipulation items-center justify-center rounded-xl border border-[#e0d0bc] bg-white text-sm font-medium text-[#5c4030] disabled:opacity-40"
+                className="app-btn app-btn--secondary app-btn--block app-btn--md"
               >
                 自动裁边
               </button>
@@ -910,6 +971,8 @@ function Editor() {
       {isIngredientBillOpen && ingredientBill && (
         <IngredientBillModal bill={ingredientBill} onClose={() => setIsIngredientBillOpen(false)} />
       )}
+
+      <PaletteManageModal open={isPaletteOpen} onClose={() => setIsPaletteOpen(false)} />
 
       {/* 统一改色板 */}
       {showSelectionRecolor && selectedCells.size > 0 && (

@@ -327,6 +327,124 @@ body {
   background: #fff4e6;
 }
 
+/* Editor sidebar: unified warm craft button scale */
+.app-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  box-sizing: border-box;
+  border-radius: 12px;
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 500;
+  line-height: 1.2;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background-color 150ms, border-color 150ms, color 150ms, box-shadow 150ms, opacity 150ms;
+  touch-action: manipulation;
+}
+
+.app-btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px #fffaf3, 0 0 0 4px #e8b86a;
+}
+
+.app-btn:disabled,
+.app-btn[aria-disabled='true'] {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.app-btn--block {
+  width: 100%;
+}
+
+.app-btn--md {
+  height: 2.5rem;
+  padding: 0 1rem;
+}
+
+.app-btn--sm {
+  height: 2.25rem;
+  padding: 0 0.75rem;
+  font-size: 0.8125rem;
+}
+
+.app-btn--xs {
+  height: 2rem;
+  padding: 0 0.625rem;
+  border-radius: 8px;
+  font-size: 0.75rem;
+}
+
+.app-btn--primary {
+  border: 0;
+  background: var(--app-accent);
+  color: #fff;
+  font-weight: 600;
+  box-shadow: 0 6px 14px rgba(196, 122, 44, 0.2);
+}
+
+.app-btn--primary:hover:not(:disabled) {
+  background: var(--app-accent-hover);
+}
+
+.app-btn--soft {
+  border: 1px solid #e0d0bc;
+  background: var(--app-cream);
+  color: #5c4030;
+  font-weight: 600;
+}
+
+.app-btn--soft:hover:not(:disabled) {
+  background: #fff4e6;
+  border-color: #d4c0a4;
+}
+
+.app-btn--secondary {
+  border: 1px solid #e0d0bc;
+  background: #fff;
+  color: #5c4030;
+}
+
+.app-btn--secondary:hover:not(:disabled) {
+  background: #fff4e6;
+}
+
+.app-btn--chip {
+  height: 1.75rem;
+  padding: 0 0.5rem;
+  border-radius: 8px;
+  border: 1px solid #e0d0bc;
+  background: #fff;
+  color: var(--app-muted);
+  font-size: 0.6875rem;
+  font-weight: 500;
+}
+
+.app-btn--chip:hover:not(:disabled) {
+  background: #fff4e6;
+}
+
+.app-btn--chip.is-on {
+  border-color: #c47a2c;
+  background: #fff4e6;
+  color: #8a4e18;
+}
+
+.app-btn--ghost {
+  border: 1px solid #eadfce;
+  background: transparent;
+  color: var(--app-muted);
+  font-weight: 400;
+}
+
+.app-btn--ghost:hover:not(:disabled) {
+  background: #fffaf3;
+  color: #5c4030;
+}
+
 .work-image {
   display: block;
   max-width: min(720px, 100%);

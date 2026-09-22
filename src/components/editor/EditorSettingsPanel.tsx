@@ -1,8 +1,12 @@
 'use client';
 
-import Link from 'next/link';
 import type { ChangeEvent } from 'react';
 import { PixelationMode, type MappedPixel } from '../../utils/pixelation';
+import {
+  CREATIVE_PRESET_ORDER,
+  CREATIVE_PRESETS,
+  type CreativePresetId,
+} from '../../domain/pixelation';
 import {
   colorSystemOptions,
   type ColorSystem,
@@ -21,24 +25,33 @@ export type EditorSettingsPanelProps = {
   gridHeightInput: string;
   onGranularityInputChange: (event: ChangeEvent<HTMLInputElement>) => void;
   onGridHeightInputChange: (event: ChangeEvent<HTMLInputElement>) => void;
-  onApplyGridWidth: (width: number) => void;
-  onApplyGridHeight: (height: number) => void;
-  onConfirmParameters: () => void;
+  onApplyGridWidth: () => void;
+  onApplyGridHeight: () => void;
   maxColorCount: number;
   onMaxColorCountChange: (value: number) => void;
   autoRemoveWhiteBg: boolean;
   onAutoRemoveWhiteBgChange: (value: boolean) => void;
   similarityThresholdInput: string;
   onSimilarityThresholdInputChange: (event: ChangeEvent<HTMLInputElement>) => void;
+  onApplySimilarity: () => void;
+  creativePreset: CreativePresetId | null;
+  onCreativePresetChange: (id: CreativePresetId) => void;
+  ditheringEnabled: boolean;
+  onDitheringChange: (value: boolean) => void;
   pixelationMode: PixelationMode;
   onPixelationModeChange: (event: ChangeEvent<HTMLSelectElement>) => void;
   customPaletteSelections: PaletteSelections;
+  onManagePalette: () => void;
   onAutoRemoveBackground: () => void;
   onUndoBgRemoval: () => void;
   bgRemovalSnapshot: EditSnapshot | null;
+  gridManuallyEdited: boolean;
+  sizePending: boolean;
+  onScaleGrid: () => void;
+  onRegenerateFromOriginal: () => void;
 };
 
-/** 左侧「生成设置」区块：色板、尺寸、用色限制与进阶选项 */
+/** 左侧「生成设置」：未手改时改动即生成；已手改时需缩放或重新生成 */
 export function EditorSettingsPanel({
   mappedPixelData,
   gridDimensions,
@@ -52,28 +65,68 @@ export function EditorSettingsPanel({
   onGridHeightInputChange,
   onApplyGridWidth,
   onApplyGridHeight,
-  onConfirmParameters,
   maxColorCount,
   onMaxColorCountChange,
   autoRemoveWhiteBg,
   onAutoRemoveWhiteBgChange,
   similarityThresholdInput,
   onSimilarityThresholdInputChange,
+  onApplySimilarity,
+  creativePreset,
+  onCreativePresetChange,
+  ditheringEnabled,
+  onDitheringChange,
   pixelationMode,
   onPixelationModeChange,
   customPaletteSelections,
+  onManagePalette,
   onAutoRemoveBackground,
   onUndoBgRemoval,
   bgRemovalSnapshot,
+  gridManuallyEdited,
+  sizePending,
+  onScaleGrid,
+  onRegenerateFromOriginal,
 }: EditorSettingsPanelProps) {
   const selectedCount = Object.values(customPaletteSelections).filter(Boolean).length;
+  const activePresetHint =
+    creativePreset != null ? CREATIVE_PRESETS[creativePreset].hint : '已手动调整处理参数';
 
   return (
     <section className="bg-white dark:bg-gray-900 rounded-xl border border-[#eadfce] dark:border-gray-800 p-4 space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-sm font-semibold text-[#3a2416] dark:text-gray-100">生成设置</h2>
-        {mappedPixelData && <span className="text-[11px] font-medium text-[#c47a2c]">已生成</span>}
+        {mappedPixelData && (
+          <span className="text-[11px] font-medium text-[#c47a2c]">
+            {gridManuallyEdited ? '已手改' : '已生成'}
+          </span>
+        )}
       </div>
+
+      {gridManuallyEdited ? (
+        <div className="space-y-2 rounded-xl border border-[#e8c49a] bg-[#fff4e6] px-3 py-2.5">
+          <p className="text-[11px] leading-relaxed text-[#8a4e18]">
+            图纸已手动修改。改左侧参数不会自动重算；可缩放当前图纸，或从原图重新生成。
+          </p>
+          <div className="flex flex-col gap-1.5">
+            <button
+              type="button"
+              onClick={onScaleGrid}
+              disabled={!sizePending}
+              className="app-btn app-btn--soft app-btn--block app-btn--sm"
+            >
+              缩放到输入尺寸（保留手改）
+            </button>
+            <button
+              type="button"
+              onClick={onRegenerateFromOriginal}
+              className="app-btn app-btn--secondary app-btn--block app-btn--sm"
+            >
+              从原图重新生成…
+            </button>
+          </div>
+        </div>
+      ) : null}
 
       {/* 色板品牌 */}
       <div>
@@ -81,7 +134,7 @@ export function EditorSettingsPanel({
         <select
           value={selectedColorSystem}
           onChange={(e) => onSelectedColorSystemChange(e.target.value as ColorSystem)}
-          className="w-full h-10 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 text-sm text-gray-900 dark:text-gray-100"
+          className="w-full h-10 rounded-lg border border-[#e0d0bc] dark:border-gray-600 bg-white dark:bg-gray-700 px-3 text-sm text-gray-900 dark:text-gray-100"
         >
           {colorSystemOptions.map((option) => (
             <option key={option.key} value={option.key}>
@@ -91,12 +144,44 @@ export function EditorSettingsPanel({
         </select>
       </div>
 
-      <Link
-        href="/palette"
-        className="flex h-10 w-full items-center justify-center rounded-lg border border-[#e0d0bc] bg-[#fffaf3] text-sm font-medium text-[#5c4030] transition-colors hover:bg-[#fff4e6]"
+      <button
+        type="button"
+        onClick={onManagePalette}
+        className="app-btn app-btn--soft app-btn--block app-btn--md"
       >
         管理色板（{selectedCount} 色）
-      </Link>
+      </button>
+
+      {/* 创作预设 */}
+      <div>
+        <label className="mb-1.5 block text-xs font-medium text-gray-600 dark:text-gray-300">
+          创作风格
+        </label>
+        <div className="grid grid-cols-3 gap-1.5" role="group" aria-label="创作风格预设">
+          {CREATIVE_PRESET_ORDER.map((id) => {
+            const preset = CREATIVE_PRESETS[id];
+            const selected = creativePreset === id;
+            return (
+              <button
+                key={id}
+                type="button"
+                onClick={() => onCreativePresetChange(id)}
+                aria-pressed={selected}
+                className={`rounded-xl border px-2 py-2 text-center transition-colors ${
+                  selected
+                    ? 'border-[#c47a2c] bg-[#fff4e6] text-[#8a4e18]'
+                    : 'border-[#e0d0bc] bg-white text-[#5a4030] hover:border-[#d4b896] dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200'
+                }`}
+              >
+                <span className="block text-sm font-medium">{preset.label}</span>
+              </button>
+            );
+          })}
+        </div>
+        <p className="mt-1.5 text-[11px] leading-relaxed text-gray-400 dark:text-gray-500">
+          {activePresetHint}
+        </p>
+      </div>
 
       {/* 图纸尺寸 宽 x 高 */}
       <div>
@@ -105,12 +190,9 @@ export function EditorSettingsPanel({
           <button
             type="button"
             onClick={() => onKeepAspectRatioChange(!keepAspectRatio)}
-            className={`inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-md border ${
-              keepAspectRatio
-                ? 'border-amber-400 bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-600'
-                : 'border-gray-300 text-gray-500 dark:border-gray-600 dark:text-gray-400'
-            }`}
+            className={`app-btn app-btn--chip ${keepAspectRatio ? 'is-on' : ''}`}
             title="保持比例"
+            aria-pressed={keepAspectRatio}
           >
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5">
               <path
@@ -129,11 +211,13 @@ export function EditorSettingsPanel({
             max={300}
             value={granularityInput}
             onChange={onGranularityInputChange}
-            onBlur={() => onApplyGridWidth(parseInt(granularityInput, 10) || 10)}
+            onBlur={onApplyGridWidth}
             onKeyDown={(e) => {
-              if (e.key === 'Enter') onApplyGridWidth(parseInt(granularityInput, 10) || 10);
+              if (e.key === 'Enter') {
+                e.currentTarget.blur();
+              }
             }}
-            className="w-full h-10 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 text-sm text-center"
+            className="w-full h-10 rounded-lg border border-[#e0d0bc] dark:border-gray-600 bg-white dark:bg-gray-700 px-3 text-sm text-center"
           />
           <span className="text-gray-400">×</span>
           <input
@@ -142,31 +226,31 @@ export function EditorSettingsPanel({
             max={300}
             value={gridHeightInput}
             onChange={onGridHeightInputChange}
-            onBlur={() => {
-              if (!keepAspectRatio) onApplyGridHeight(parseInt(gridHeightInput, 10) || 10);
-            }}
+            onBlur={onApplyGridHeight}
             onKeyDown={(e) => {
-              if (e.key === 'Enter' && !keepAspectRatio) onApplyGridHeight(parseInt(gridHeightInput, 10) || 10);
+              if (e.key === 'Enter' && !keepAspectRatio) {
+                e.currentTarget.blur();
+              }
             }}
             readOnly={keepAspectRatio}
             aria-label={keepAspectRatio ? '图纸高度（按比例自动计算）' : '图纸高度'}
-            className={`w-full h-10 rounded-lg border border-gray-300 dark:border-gray-600 px-3 text-sm text-center ${keepAspectRatio ? 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400 cursor-not-allowed' : 'bg-white dark:bg-gray-700'}`}
+            className={`w-full h-10 rounded-lg border border-[#e0d0bc] dark:border-gray-600 px-3 text-sm text-center ${keepAspectRatio ? 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400 cursor-not-allowed' : 'bg-white dark:bg-gray-700'}`}
           />
         </div>
-        <button
-          type="button"
-          onClick={onConfirmParameters}
-          className="mt-2 w-full h-9 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-sm font-medium"
-        >
-          应用尺寸
-          {gridDimensions ? ` · 当前 ${gridDimensions.N}×${gridDimensions.M}` : ''}
-        </button>
+        <p className="mt-1.5 text-[11px] tabular-nums text-[#a08060]">
+          {gridDimensions ? `当前图纸 ${gridDimensions.N}×${gridDimensions.M}` : '尚未生成'}
+          {gridManuallyEdited
+            ? sizePending
+              ? ' · 输入尺寸待应用'
+              : ' · 改尺寸请用上方按钮'
+            : ' · 改动后自动生成'}
+        </p>
       </div>
 
       {/* 精简拼豆种类 */}
       <div>
         <div className="flex items-center justify-between mb-1.5">
-          <label className="block text-xs font-medium text-gray-600 dark:text-gray-300">🎨 精简拼豆种类 (限制用色)</label>
+          <label className="block text-xs font-medium text-gray-600 dark:text-gray-300">精简拼豆种类 (限制用色)</label>
           <span className="text-xs text-amber-600 dark:text-amber-400 font-medium">
             {maxColorCount === 0 ? '无限制 (原图直转)' : `限制 ${maxColorCount} 色`}
           </span>
@@ -174,7 +258,7 @@ export function EditorSettingsPanel({
         <input
           type="range"
           min={0}
-          max={30}
+          max={50}
           step={1}
           value={maxColorCount}
           onChange={(e) => {
@@ -183,7 +267,9 @@ export function EditorSettingsPanel({
           className="w-full accent-amber-500"
         />
         <p className="mt-1.5 text-[11px] leading-relaxed text-gray-400 dark:text-gray-500">
-          如果不限制，生成的图纸可能会用到几十种颜色，导致买豆成本极高。建议限制在 15-20 种以内。
+          {gridManuallyEdited
+            ? '已手改时此项仅在「从原图重新生成」时生效。'
+            : '如果不限制，生成的图纸可能会用到几十种颜色。建议限制在 15-30 种以内。'}
         </p>
       </div>
 
@@ -198,14 +284,32 @@ export function EditorSettingsPanel({
         <span className="text-sm text-gray-800 dark:text-gray-100">自动去除白底</span>
       </label>
 
-      {/* 处理模式 + 去背景（常显、紧凑） */}
+      {/* Floyd–Steinberg 抖动 */}
+      <div className="space-y-1">
+        <label className="flex items-center gap-2 cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={ditheringEnabled}
+            onChange={(e) => onDitheringChange(e.target.checked)}
+            className="h-4 w-4 rounded border-gray-300 text-amber-500 focus:ring-amber-400"
+          />
+          <span className="text-sm text-gray-800 dark:text-gray-100">颜色抖动（Floyd–Steinberg）</span>
+        </label>
+        <p className="pl-6 text-[11px] leading-relaxed text-gray-400 dark:text-gray-500">
+          {gridManuallyEdited
+            ? '已手改时此项仅在「从原图重新生成」时生效。'
+            : '用邻格混色保留渐变层次，适合照片；开启后会跳过清杂点以免抹掉抖动。卡通/线稿建议关闭。'}
+        </p>
+      </div>
+
+      {/* 处理模式 + 去背景 */}
       <div className="space-y-2">
         <div className="flex items-center gap-2">
           <label className="shrink-0 text-xs text-gray-500 w-14">处理模式</label>
           <select
             value={pixelationMode}
             onChange={onPixelationModeChange}
-            className="min-w-0 flex-1 h-8 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-2 text-xs"
+            className="min-w-0 flex-1 h-9 rounded-lg border border-[#e0d0bc] dark:border-gray-600 bg-white dark:bg-gray-700 px-2 text-xs"
           >
             <option value={PixelationMode.EdgeAware}>清晰 (保线稿)</option>
             <option value={PixelationMode.Dominant}>卡通 (主色)</option>
@@ -217,7 +321,7 @@ export function EditorSettingsPanel({
             type="button"
             onClick={onAutoRemoveBackground}
             disabled={!mappedPixelData || !gridDimensions}
-            className="flex-1 h-8 rounded-md border border-gray-300 dark:border-gray-600 text-xs disabled:opacity-50"
+            className="app-btn app-btn--secondary app-btn--xs flex-1"
           >
             手动去背景
           </button>
@@ -225,35 +329,37 @@ export function EditorSettingsPanel({
             type="button"
             onClick={onUndoBgRemoval}
             disabled={!bgRemovalSnapshot}
-            className="flex-1 h-8 rounded-md border border-gray-300 dark:border-gray-600 text-xs disabled:opacity-50"
+            className="app-btn app-btn--secondary app-btn--xs flex-1"
           >
             回撤去背景
           </button>
         </div>
       </div>
 
-      {/* 进阶：颜色合并 */}
-      <details className="rounded-md border border-gray-200 dark:border-gray-700 px-2.5 py-1.5">
-        <summary className="cursor-pointer text-xs text-gray-500 dark:text-gray-400">进阶 · 颜色合并</summary>
-        <div className="mt-2 pb-1 flex items-center gap-2">
-          <input
-            type="number"
-            min={0}
-            max={100}
-            value={similarityThresholdInput}
-            onChange={onSimilarityThresholdInputChange}
-            aria-label="颜色合并阈值"
-            className="min-w-0 flex-1 h-8 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-2 text-xs"
-          />
-          <button
-            type="button"
-            onClick={onConfirmParameters}
-            className="h-8 px-2.5 rounded-md bg-gray-800 text-white text-xs whitespace-nowrap dark:bg-gray-600"
-          >
-            应用
-          </button>
-        </div>
-      </details>
+      {/* 颜色合并 */}
+      <div>
+        <label className="mb-1.5 block text-xs font-medium text-gray-600 dark:text-gray-300">
+          颜色合并阈值
+        </label>
+        <input
+          type="number"
+          min={0}
+          max={100}
+          value={similarityThresholdInput}
+          onChange={onSimilarityThresholdInputChange}
+          onBlur={onApplySimilarity}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') e.currentTarget.blur();
+          }}
+          aria-label="颜色合并阈值"
+          className="w-full h-9 rounded-xl border border-[#e0d0bc] bg-white px-3 text-sm dark:border-gray-600 dark:bg-gray-700"
+        />
+        <p className="mt-1.5 text-[11px] leading-relaxed text-gray-400 dark:text-gray-500">
+          {gridManuallyEdited
+            ? '已手改时此项仅在「从原图重新生成」时生效。'
+            : '数值越大，相近色越容易合并。改动后自动生效。'}
+        </p>
+      </div>
     </section>
   );
 }

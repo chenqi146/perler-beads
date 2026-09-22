@@ -3,6 +3,7 @@ import {
   extractStrokeMask,
   sampleStrokeCellColor,
 } from './strokeExtract';
+import { applyFloydSteinbergDither } from './dithering';
 
 // 定义像素化模式
 export enum PixelationMode {
@@ -568,9 +569,15 @@ function calculateEdgeAwareCellColor(
   return { r: fillR, g: fillG, b: fillB };
 }
 
+export type CalculatePixelGridOptions = {
+  /** Floyd–Steinberg 抖动：限色时用邻格误差扩散保留渐变层次 */
+  dithering?: boolean;
+};
+
 /**
  * 根据原始图像数据、网格尺寸、调色板和模式计算像素化网格数据。
  * EdgeAware / Dominant 会额外做线稿掩码：细描边格子强制取暗色，避免被填充色淹没。
+ * 开启 dithering 时跳过描边强制映射，先取代表色再抖动量化。
  */
 export function calculatePixelGrid(
   originalCtx: CanvasRenderingContext2D,
@@ -581,8 +588,10 @@ export function calculatePixelGrid(
   palette: PaletteColor[],
   mode: PixelationMode,
   t1FallbackColor: PaletteColor, // 传入备用色
+  options?: CalculatePixelGridOptions,
 ): MappedPixel[][] {
-  console.log(`Calculating pixel grid with mode: ${mode}`);
+  const dithering = options?.dithering === true;
+  console.log(`Calculating pixel grid with mode: ${mode}, dithering: ${dithering}`);
   const mappedData: MappedPixel[][] = Array(M)
     .fill(null)
     .map(() => Array(N).fill({ key: t1FallbackColor.key, color: t1FallbackColor.hex }));
@@ -600,7 +609,8 @@ export function calculatePixelGrid(
   // 小画布：轻度对比度+锐化。不再预加粗暗线（会把 1px 线扩成 2~3 格黑边）
   fullImageData = enhanceImageDataForSmallGrid(fullImageData, N, M);
   const cellArea = (imgWidth / N) * (imgHeight / M);
-  const preserveLines = mode !== PixelationMode.Average;
+  // 抖动路径用连续代表色，跳过描边强制，避免误差扩散被打断
+  const preserveLines = !dithering && mode !== PixelationMode.Average;
 
   // 描边掩码：提高覆盖率门槛、禁止膨胀，避免「沾一点黑就整格变黑边」
   const strokeMask =
@@ -616,6 +626,13 @@ export function calculatePixelGrid(
           0, // 不膨胀掩码
         )
       : null;
+
+  const representativeGrid: (RgbColor | null)[][] = Array.from({ length: M }, () =>
+    Array.from({ length: N }, () => null),
+  );
+  const strokeFlags: boolean[][] = Array.from({ length: M }, () =>
+    Array.from({ length: N }, () => false),
+  );
 
   for (let j = 0; j < M; j++) {
     for (let i = 0; i < N; i++) {
@@ -658,6 +675,26 @@ export function calculatePixelGrid(
           mode,
         );
       }
+
+      representativeGrid[j][i] = representativeRgb;
+      strokeFlags[j][i] = isStroke && representativeRgb !== null;
+    }
+  }
+
+  if (dithering) {
+    const dithered = applyFloydSteinbergDither(
+      representativeGrid,
+      palette,
+      findClosestPaletteColor,
+    );
+    console.log(`Pixel grid calculation complete for mode: ${mode} (dithered)`);
+    return dithered;
+  }
+
+  for (let j = 0; j < M; j++) {
+    for (let i = 0; i < N; i++) {
+      const representativeRgb = representativeGrid[j][i];
+      const isStroke = strokeFlags[j][i];
 
       let finalCellColorData: MappedPixel;
       if (representativeRgb) {

@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { usePatternStore } from '@/stores';
 import type { Pattern, Work } from '@/types/platform';
+import { PatternPreviewImage } from '@/components/patterns/PatternPreviewImage';
 import { useToast } from '@/components/ui/ToastProvider';
 
 type Props = {
@@ -42,10 +43,10 @@ export function ExploreClient({ initialPatterns, initialWorks, cloudAvailable }:
           patterns.map((pattern) => (
             <Link className="pattern-card" href={`/pattern/${pattern.id}`} key={pattern.id}>
               <div className="pattern-preview">
-                {pattern.data.originalImageSrc && (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={pattern.data.originalImageSrc} alt="" />
-                )}
+                <PatternPreviewImage
+                  data={pattern.data}
+                  cacheKey={`${pattern.id}:${pattern.updatedAt}`}
+                />
               </div>
               <div className="pattern-card-body pattern-card-body--padded">
                 <h2>{pattern.name}</h2>

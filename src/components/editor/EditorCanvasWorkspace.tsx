@@ -36,6 +36,10 @@ export type EditorCanvasWorkspaceProps = {
   ) => void;
   /** 双指捏合缩放 */
   onPinchZoom?: (scale: number, centerClient: { x: number; y: number }) => void;
+  /** 色号编码；成品预览时可关掉 */
+  showCellKeys?: boolean;
+  /** 格子边界/坐标轴；成品预览时可关掉 */
+  showGrid?: boolean;
   /** 底部工具条等叠加层 */
   children?: ReactNode;
 };
@@ -64,10 +68,15 @@ export function EditorCanvasWorkspace({
   onCropRectChange,
   onInteraction,
   onPinchZoom,
+  showCellKeys,
+  showGrid = true,
   children,
 }: EditorCanvasWorkspaceProps) {
   const canvasPanRef = useRef<{ x: number; y: number; pointerId: number } | null>(null);
   const spaceHeldRef = useRef(false);
+  const panSurfaceRef = useRef<HTMLDivElement | null>(null);
+  const panByRef = useRef(panBy);
+  panByRef.current = panBy;
 
   useEffect(() => {
     const isTypingTarget = (target: EventTarget | null) => {
@@ -91,12 +100,28 @@ export function EditorCanvasWorkspace({
     };
   }, []);
 
+  // React onWheel 默认 passive，滚轮平移需要非被动监听才能 preventDefault
+  useEffect(() => {
+    const el = panSurfaceRef.current;
+    if (!el) return;
+    const onWheel = (event: WheelEvent) => {
+      event.preventDefault();
+      panByRef.current(-event.deltaX, -event.deltaY);
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, [originalImageSrc, mappedPixelData, gridDimensions]);
+
+  const hasCanvasContent =
+    Boolean(originalImageSrc) ||
+    Boolean(mappedPixelData?.length && gridDimensions && gridDimensions.N > 0);
+
   return (
     <div
       ref={viewportRef}
       className="relative min-h-0 min-w-0 flex-1 overflow-hidden rounded-lg border border-[#eadfce] bg-[#f3ebe0] dark:border-gray-800 dark:bg-gray-950"
     >
-      {!originalImageSrc ? (
+      {!hasCanvasContent ? (
         <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-400 dark:text-gray-500">
           <svg
             xmlns="http://www.w3.org/2000/svg"
@@ -116,11 +141,8 @@ export function EditorCanvasWorkspace({
         </div>
       ) : (
         <div
+          ref={panSurfaceRef}
           className="absolute inset-0 cursor-grab overflow-hidden active:cursor-grabbing"
-          onWheel={(event) => {
-            event.preventDefault();
-            panBy(-event.deltaX, -event.deltaY);
-          }}
           onPointerDown={(event) => {
             if (event.pointerType === 'touch') return;
             if (event.button !== 0) return;
@@ -174,6 +196,8 @@ export function EditorCanvasWorkspace({
                 onCropRectChange={onCropRectChange}
                 onPanBy={panBy}
                 onPinchZoom={onPinchZoom}
+                showCellKeys={showCellKeys}
+                showGrid={showGrid}
               />
             </div>
           </div>

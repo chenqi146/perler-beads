@@ -44,7 +44,7 @@ export function EditorUploadPanel({
           <button
             type="button"
             onClick={() => onOpenImagePrep(preAiImageSrc || originalImageSrc)}
-            className="w-full h-9 rounded-lg border border-amber-300 bg-amber-50 text-amber-800 text-sm font-medium hover:bg-amber-100"
+            className="app-btn app-btn--soft app-btn--block app-btn--sm"
           >
             重新裁剪 / 抠图
           </button>
@@ -52,7 +52,7 @@ export function EditorUploadPanel({
             <button
               type="button"
               onClick={onUndoAiMatting}
-              className="w-full h-8 rounded-lg border border-violet-200 text-violet-600 text-xs hover:bg-violet-50"
+              className="app-btn app-btn--ghost app-btn--block app-btn--xs"
             >
               用抠图前原图重新处理
             </button>
@@ -60,7 +60,7 @@ export function EditorUploadPanel({
           <button
             type="button"
             onClick={isMounted ? onTriggerFileInput : undefined}
-            className="w-full h-9 rounded-lg border border-gray-300 dark:border-gray-600 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700"
+            className="app-btn app-btn--secondary app-btn--block app-btn--sm"
           >
             更换图片
           </button>

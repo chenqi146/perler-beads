@@ -142,6 +142,7 @@ export function useCanvasInteraction({
 
     setColorCounts(newColorCounts);
     setTotalBeadCount(newTotalCount);
+    useEditorStore.getState().markGridManuallyEdited();
   }, [
     mappedPixelData,
     gridDimensions,

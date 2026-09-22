@@ -27,6 +27,7 @@ export type DraftPixelateLock = {
   maxColorCount: number;
   autoRemoveWhiteBg: boolean;
   pixelationMode: string;
+  ditheringEnabled: boolean;
   remapTrigger: number;
 };
 
@@ -68,7 +69,10 @@ export function usePixelationPipeline({
   const autoRemoveWhiteBg = useEditorStore((s) => s.autoRemoveWhiteBg);
   const setAutoRemoveWhiteBg = useEditorStore((s) => s.setAutoRemoveWhiteBg);
   const pixelationMode = useEditorStore((s) => s.pixelationMode);
+  const ditheringEnabled = useEditorStore((s) => s.ditheringEnabled);
   const remapTrigger = useEditorStore((s) => s.remapTrigger);
+  const gridManuallyEdited = useEditorStore((s) => s.gridManuallyEdited);
+  const clearGridManuallyEdited = useEditorStore((s) => s.clearGridManuallyEdited);
   const setRemapTrigger = useEditorStore((s) => s.setRemapTrigger);
 
   const activeBeadPalette = useEditorStore((s) => s.activeBeadPalette);
@@ -99,9 +103,10 @@ export function usePixelationPipeline({
       mode: PixelationMode,
       colorLimit: number,
       doAutoRemoveBg: boolean,
+      enableDithering: boolean,
     ) => {
       console.log(
-        `Attempting to pixelate with size: ${gridW}x${gridH}, threshold: ${threshold}, mode: ${mode}, colorLimit: ${colorLimit}`,
+        `Attempting to pixelate with size: ${gridW}x${gridH}, threshold: ${threshold}, mode: ${mode}, colorLimit: ${colorLimit}, dithering: ${enableDithering}`,
       );
       const originalCanvas = originalCanvasRef.current;
       const pixelatedCanvas = pixelatedCanvasRef.current;
@@ -166,9 +171,10 @@ export function usePixelationPipeline({
           currentPalette,
           mode,
           t1FallbackColor,
+          { dithering: enableDithering },
         );
         console.log(
-          `Initial data mapping complete using mode ${mode}. Starting global color merging...`,
+          `Initial data mapping complete using mode ${mode}${enableDithering ? ' + dithering' : ''}. Starting global color merging...`,
         );
 
         const keyToRgbMap = new Map<string, RgbColor>();
@@ -201,52 +207,57 @@ export function usePixelationPipeline({
         );
 
         const smallGrid = isSmallPixelGrid(N, M);
-        const similarityThresholdValue = smallGrid
-          ? Math.max(threshold, 7) // 小图自动轻度并色（CIEDE2000），减轻碎色
-          : threshold;
+        // 抖动靠邻格混色保留层次；并色/清杂点会把椒盐点抹成大色块，导致「颜色都没了」
+        const similarityThresholdValue = enableDithering
+          ? threshold
+          : smallGrid
+            ? Math.max(threshold, 7) // 小图自动轻度并色（CIEDE2000），减轻碎色
+            : threshold;
         const replacedColors = new Set<string>();
 
-        for (let i = 0; i < colorsByFrequency.length; i++) {
-          const currentKey = colorsByFrequency[i];
+        if (similarityThresholdValue > 0) {
+          for (let i = 0; i < colorsByFrequency.length; i++) {
+            const currentKey = colorsByFrequency[i];
 
-          if (replacedColors.has(currentKey)) continue;
+            if (replacedColors.has(currentKey)) continue;
 
-          const currentRgb = keyToRgbMap.get(currentKey);
-          if (!currentRgb) {
-            console.warn(`RGB not found for key ${currentKey}. Skipping.`);
-            continue;
-          }
-
-          for (let j = i + 1; j < colorsByFrequency.length; j++) {
-            const lowerFreqKey = colorsByFrequency[j];
-
-            if (replacedColors.has(lowerFreqKey)) continue;
-
-            const lowerFreqRgb = keyToRgbMap.get(lowerFreqKey);
-            if (!lowerFreqRgb) {
-              console.warn(`RGB not found for key ${lowerFreqKey}. Skipping.`);
+            const currentRgb = keyToRgbMap.get(currentKey);
+            if (!currentRgb) {
+              console.warn(`RGB not found for key ${currentKey}. Skipping.`);
               continue;
             }
 
-            const dist = colorDistance(currentRgb, lowerFreqRgb);
+            for (let j = i + 1; j < colorsByFrequency.length; j++) {
+              const lowerFreqKey = colorsByFrequency[j];
 
-            if (dist < similarityThresholdValue) {
-              console.log(
-                `Merging color ${lowerFreqKey} into ${currentKey} (Distance: ${dist.toFixed(2)})`,
-              );
+              if (replacedColors.has(lowerFreqKey)) continue;
 
-              replacedColors.add(lowerFreqKey);
+              const lowerFreqRgb = keyToRgbMap.get(lowerFreqKey);
+              if (!lowerFreqRgb) {
+                console.warn(`RGB not found for key ${lowerFreqKey}. Skipping.`);
+                continue;
+              }
 
-              for (let r = 0; r < M; r++) {
-                for (let c = 0; c < N; c++) {
-                  if (mergedData[r][c].key === lowerFreqKey) {
-                    const colorData = keyToColorDataMap.get(currentKey);
-                    if (colorData) {
-                      mergedData[r][c] = {
-                        key: currentKey,
-                        color: colorData.hex,
-                        isExternal: false,
-                      };
+              const dist = colorDistance(currentRgb, lowerFreqRgb);
+
+              if (dist < similarityThresholdValue) {
+                console.log(
+                  `Merging color ${lowerFreqKey} into ${currentKey} (Distance: ${dist.toFixed(2)})`,
+                );
+
+                replacedColors.add(lowerFreqKey);
+
+                for (let r = 0; r < M; r++) {
+                  for (let c = 0; c < N; c++) {
+                    if (mergedData[r][c].key === lowerFreqKey) {
+                      const colorData = keyToColorDataMap.get(currentKey);
+                      if (colorData) {
+                        mergedData[r][c] = {
+                          key: currentKey,
+                          color: colorData.hex,
+                          isExternal: false,
+                        };
+                      }
                     }
                   }
                 }
@@ -265,13 +276,17 @@ export function usePixelationPipeline({
 
         let finalData = limitColorCount(mergedData, currentPalette, colorLimit);
 
-        // 小图：先清空间杂点，再合并极少出现的色号
-        finalData = cleanupPixelGrid(finalData, smallGrid ? 'strong' : 'normal');
-        if (smallGrid) {
-          const rareMin = Math.max(3, Math.floor((N * M) * 0.0015));
-          finalData = mergeRareColors(finalData, currentPalette, rareMin);
-          // 稀有色合并后再轻扫一轮，去掉新产生的孤点
-          finalData = removeIsolatedNoise(finalData, 2, 48);
+        if (!enableDithering) {
+          // 小图：先清空间杂点，再合并极少出现的色号
+          finalData = cleanupPixelGrid(finalData, smallGrid ? 'strong' : 'normal');
+          if (smallGrid) {
+            const rareMin = Math.max(3, Math.floor((N * M) * 0.0015));
+            finalData = mergeRareColors(finalData, currentPalette, rareMin);
+            // 稀有色合并后再轻扫一轮，去掉新产生的孤点
+            finalData = removeIsolatedNoise(finalData, 2, 48);
+          }
+        } else {
+          console.log('Dithering on: skipped cleanup / rare-color merge to preserve grain.');
         }
 
         if (doAutoRemoveBg) {
@@ -281,6 +296,7 @@ export function usePixelationPipeline({
         if (pixelatedCanvasRef.current) {
           setMappedPixelData(finalData);
           setGridDimensions({ N, M });
+          clearGridManuallyEdited();
 
           const { counts, total } = recountColors(finalData);
           setColorCounts(counts);
@@ -306,6 +322,7 @@ export function usePixelationPipeline({
       setImageAspectRatio,
       setTotalBeadCount,
       setSelectedColor,
+      clearGridManuallyEdited,
     ],
   );
 
@@ -318,6 +335,10 @@ export function usePixelationPipeline({
 
   // 参数变更时触发重像素化（含草稿锁 / 抑制窗口）
   useEffect(() => {
+    // 已手改：禁止静默从原图重算，须用户点「重新生成」
+    if (gridManuallyEdited) {
+      return;
+    }
     const lock = draftPixelateLockRef.current;
     if (lock?.locked) {
       const unchanged =
@@ -327,6 +348,7 @@ export function usePixelationPipeline({
         lock.maxColorCount === maxColorCount &&
         lock.autoRemoveWhiteBg === autoRemoveWhiteBg &&
         lock.pixelationMode === pixelationMode &&
+        lock.ditheringEnabled === ditheringEnabled &&
         lock.remapTrigger === remapTrigger;
       if (unchanged) {
         return;
@@ -359,6 +381,7 @@ export function usePixelationPipeline({
             pixelationMode,
             maxColorCount,
             autoRemoveWhiteBg,
+            ditheringEnabled,
           );
         } else {
           console.warn(
@@ -400,9 +423,11 @@ export function usePixelationPipeline({
     similarityThreshold,
     customPaletteSelections,
     pixelationMode,
+    ditheringEnabled,
     maxColorCount,
     autoRemoveWhiteBg,
     remapTrigger,
+    gridManuallyEdited,
   ]);
 
   /** 应用新原图（预处理确认后）并重新生成图纸 */

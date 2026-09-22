@@ -250,6 +250,39 @@ export function autoCropPixelGrid(data: MappedPixel[][]): {
   return { data: cropPixelGrid(data, bounds), bounds };
 }
 
+/** 最近邻缩放网格，尽量保留手改色块（放大会呈块状） */
+export function scalePixelGrid(
+  data: MappedPixel[][],
+  newN: number,
+  newM: number,
+): MappedPixel[][] {
+  const oldM = data.length;
+  const oldN = data[0]?.length || 0;
+  if (oldM <= 0 || oldN <= 0) return data;
+  const targetN = Math.max(1, Math.round(newN));
+  const targetM = Math.max(1, Math.round(newM));
+  if (targetN === oldN && targetM === oldM) {
+    return data.map((row) => row.map((cell) => ({ ...cell })));
+  }
+
+  const out: MappedPixel[][] = [];
+  for (let r = 0; r < targetM; r++) {
+    const srcR = Math.min(oldM - 1, Math.floor(((r + 0.5) * oldM) / targetM));
+    const row: MappedPixel[] = [];
+    for (let c = 0; c < targetN; c++) {
+      const srcC = Math.min(oldN - 1, Math.floor(((c + 0.5) * oldN) / targetN));
+      const cell = data[srcR]?.[srcC];
+      row.push(
+        cell
+          ? { ...cell }
+          : { key: TRANSPARENT_KEY, color: '#FFFFFF', isExternal: true },
+      );
+    }
+    out.push(row);
+  }
+  return out;
+}
+
 /**
  * 将出现次数过少的颜色并入最近似色，去掉小图碎点杂色。
  * 极暗色优先并到其他暗色，避免描边被并进浅色填充。

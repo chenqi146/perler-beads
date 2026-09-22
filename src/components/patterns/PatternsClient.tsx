@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { usePatternStore } from '@/stores';
 import type { Pattern } from '@/types/platform';
+import { PatternPreviewImage } from './PatternPreviewImage';
 
 type Props = {
   initialPatterns: Pattern[];
@@ -47,12 +48,10 @@ export function PatternsClient({ initialPatterns }: Props) {
                   }
                   className="pattern-preview"
                 >
-                  {pattern.data.originalImageSrc ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={pattern.data.originalImageSrc} alt="" />
-                  ) : (
-                    <span>暂无预览</span>
-                  )}
+                  <PatternPreviewImage
+                    data={pattern.data}
+                    cacheKey={`${pattern.id}:${pattern.updatedAt}`}
+                  />
                 </Link>
                 <span
                   className={`pattern-badge ${pattern.visibility === 'public' ? 'is-public' : 'is-private'}`}

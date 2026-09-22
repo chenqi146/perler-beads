@@ -49,6 +49,8 @@ interface PixelatedPreviewCanvasProps {
   highlightFade?: number;
   /** 是否在色块上显示色号编码；默认自动（格子够大时显示） */
   showCellKeys?: boolean;
+  /** 是否绘制格子边界、分割线与坐标轴；关闭后接近成品观感 */
+  showGrid?: boolean;
 }
 
 export function cellKey(row: number, col: number): string {
@@ -72,6 +74,7 @@ function drawPixelatedCanvas(
     cropRect?: CropRect | null;
     highlightFade?: number;
     showCellKeys?: boolean;
+    showGrid?: boolean;
   }
 ) {
   const {
@@ -87,6 +90,7 @@ function drawPixelatedCanvas(
     cropRect,
     highlightFade = 0.84,
     showCellKeys,
+    showGrid = true,
   } = options;
 
   const { N, M } = dims;
@@ -112,34 +116,36 @@ function drawPixelatedCanvas(
 
   ctx.clearRect(0, 0, canvasWidth, canvasHeight);
 
-  ctx.fillStyle = axisBg;
-  ctx.fillRect(axisSize, 0, gridWidth, axisSize);
-  ctx.fillRect(axisSize, axisSize + gridHeight, gridWidth, axisSize);
-  ctx.fillRect(0, axisSize, axisSize, gridHeight);
-  ctx.fillRect(axisSize + gridWidth, axisSize, axisSize, gridHeight);
-  ctx.fillRect(0, 0, axisSize, axisSize);
-  ctx.fillRect(axisSize + gridWidth, 0, axisSize, axisSize);
-  ctx.fillRect(0, axisSize + gridHeight, axisSize, axisSize);
-  ctx.fillRect(axisSize + gridWidth, axisSize + gridHeight, axisSize, axisSize);
+  if (showGrid) {
+    ctx.fillStyle = axisBg;
+    ctx.fillRect(axisSize, 0, gridWidth, axisSize);
+    ctx.fillRect(axisSize, axisSize + gridHeight, gridWidth, axisSize);
+    ctx.fillRect(0, axisSize, axisSize, gridHeight);
+    ctx.fillRect(axisSize + gridWidth, axisSize, axisSize, gridHeight);
+    ctx.fillRect(0, 0, axisSize, axisSize);
+    ctx.fillRect(axisSize + gridWidth, 0, axisSize, axisSize);
+    ctx.fillRect(0, axisSize + gridHeight, axisSize, axisSize);
+    ctx.fillRect(axisSize + gridWidth, axisSize + gridHeight, axisSize, axisSize);
 
-  const axisFontSize = Math.max(9, Math.min(12, Math.floor(axisSize * 0.45)));
-  ctx.font = `${axisFontSize}px sans-serif`;
-  ctx.fillStyle = axisText;
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
+    const axisFontSize = Math.max(9, Math.min(12, Math.floor(axisSize * 0.45)));
+    ctx.font = `${axisFontSize}px sans-serif`;
+    ctx.fillStyle = axisText;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
 
-  for (let i = 0; i < N; i++) {
-    if ((i + 1) % gridInterval === 0 || i === 0 || i === N - 1) {
-      const numX = axisSize + i * cellSize + cellSize / 2;
-      ctx.fillText(String(i + 1), numX, axisSize / 2);
-      ctx.fillText(String(i + 1), numX, axisSize + gridHeight + axisSize / 2);
+    for (let i = 0; i < N; i++) {
+      if ((i + 1) % gridInterval === 0 || i === 0 || i === N - 1) {
+        const numX = axisSize + i * cellSize + cellSize / 2;
+        ctx.fillText(String(i + 1), numX, axisSize / 2);
+        ctx.fillText(String(i + 1), numX, axisSize + gridHeight + axisSize / 2);
+      }
     }
-  }
-  for (let j = 0; j < M; j++) {
-    if ((j + 1) % gridInterval === 0 || j === 0 || j === M - 1) {
-      const numY = axisSize + j * cellSize + cellSize / 2;
-      ctx.fillText(String(j + 1), axisSize / 2, numY);
-      ctx.fillText(String(j + 1), axisSize + gridWidth + axisSize / 2, numY);
+    for (let j = 0; j < M; j++) {
+      if ((j + 1) % gridInterval === 0 || j === 0 || j === M - 1) {
+        const numY = axisSize + j * cellSize + cellSize / 2;
+        ctx.fillText(String(j + 1), axisSize / 2, numY);
+        ctx.fillText(String(j + 1), axisSize + gridWidth + axisSize / 2, numY);
+      }
     }
   }
 
@@ -229,31 +235,35 @@ function drawPixelatedCanvas(
         }
       }
 
-      if (highlightStyle) {
-        ctx.strokeStyle = isAccent ? highlightStyle.accentGridColor : highlightStyle.mutedGridColor;
-      } else {
-        ctx.strokeStyle = gridLineColor;
+      if (showGrid) {
+        if (highlightStyle) {
+          ctx.strokeStyle = isAccent ? highlightStyle.accentGridColor : highlightStyle.mutedGridColor;
+        } else {
+          ctx.strokeStyle = gridLineColor;
+        }
+        ctx.lineWidth = 0.5;
+        ctx.strokeRect(drawX + 0.5, drawY + 0.5, cellSize, cellSize);
       }
-      ctx.lineWidth = 0.5;
-      ctx.strokeRect(drawX + 0.5, drawY + 0.5, cellSize, cellSize);
     }
   }
 
-  ctx.strokeStyle = sectionLineColor;
-  ctx.lineWidth = 2;
-  for (let i = gridInterval; i < N; i += gridInterval) {
-    const x = axisSize + i * cellSize;
-    ctx.beginPath();
-    ctx.moveTo(x, axisSize);
-    ctx.lineTo(x, axisSize + gridHeight);
-    ctx.stroke();
-  }
-  for (let j = gridInterval; j < M; j += gridInterval) {
-    const y = axisSize + j * cellSize;
-    ctx.beginPath();
-    ctx.moveTo(axisSize, y);
-    ctx.lineTo(axisSize + gridWidth, y);
-    ctx.stroke();
+  if (showGrid) {
+    ctx.strokeStyle = sectionLineColor;
+    ctx.lineWidth = 2;
+    for (let i = gridInterval; i < N; i += gridInterval) {
+      const x = axisSize + i * cellSize;
+      ctx.beginPath();
+      ctx.moveTo(x, axisSize);
+      ctx.lineTo(x, axisSize + gridHeight);
+      ctx.stroke();
+    }
+    for (let j = gridInterval; j < M; j += gridInterval) {
+      const y = axisSize + j * cellSize;
+      ctx.beginPath();
+      ctx.moveTo(axisSize, y);
+      ctx.lineTo(axisSize + gridWidth, y);
+      ctx.stroke();
+    }
   }
 
   if (cropRect) {
@@ -278,9 +288,11 @@ function drawPixelatedCanvas(
     ctx.strokeRect(x + 1, y + 1, w - 2, h - 2);
   }
 
-  ctx.strokeStyle = isDarkMode ? '#9ca3af' : '#111111';
-  ctx.lineWidth = 1.5;
-  ctx.strokeRect(axisSize + 0.5, axisSize + 0.5, gridWidth, gridHeight);
+  if (showGrid) {
+    ctx.strokeStyle = isDarkMode ? '#9ca3af' : '#111111';
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(axisSize + 0.5, axisSize + 0.5, gridWidth, gridHeight);
+  }
 }
 
 const PixelatedPreviewCanvas: React.FC<PixelatedPreviewCanvasProps> = ({
@@ -304,6 +316,7 @@ const PixelatedPreviewCanvas: React.FC<PixelatedPreviewCanvasProps> = ({
   gridInterval = 10,
   highlightFade = 0.84,
   showCellKeys,
+  showGrid = true,
 }) => {
   const [darkModeState, setDarkModeState] = useState<boolean | null>(null);
   const touchStartPosRef = useRef<{ x: number; y: number; pageX: number; pageY: number } | null>(null);
@@ -376,6 +389,7 @@ const PixelatedPreviewCanvas: React.FC<PixelatedPreviewCanvasProps> = ({
         cropRect,
         highlightFade,
         showCellKeys,
+        showGrid,
       });
     }
   }, [
@@ -394,6 +408,7 @@ const PixelatedPreviewCanvas: React.FC<PixelatedPreviewCanvasProps> = ({
     cropRect,
     highlightFade,
     showCellKeys,
+    showGrid,
   ]);
 
   useEffect(() => {
@@ -656,7 +671,7 @@ const PixelatedPreviewCanvas: React.FC<PixelatedPreviewCanvasProps> = ({
     }
   };
 
-  const handleTouchMove = (event: TouchEvent<HTMLCanvasElement>) => {
+  const handleTouchMove = (event: globalThis.TouchEvent) => {
     if (event.touches.length >= 2) {
       touchMovedRef.current = true;
       const a = event.touches[0];
@@ -731,6 +746,19 @@ const PixelatedPreviewCanvas: React.FC<PixelatedPreviewCanvasProps> = ({
     }
   };
 
+  // React 的 onTouchMove 默认 passive，无法 preventDefault；改用原生非被动监听
+  const handleTouchMoveRef = useRef(handleTouchMove);
+  handleTouchMoveRef.current = handleTouchMove;
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const listener = (event: globalThis.TouchEvent) => {
+      handleTouchMoveRef.current(event);
+    };
+    canvas.addEventListener('touchmove', listener, { passive: false });
+    return () => canvas.removeEventListener('touchmove', listener);
+  }, [canvasRef]);
+
   const handleTouchEnd = (event: TouchEvent<HTMLCanvasElement>) => {
     if (event.touches.length >= 2) {
       const a = event.touches[0];
@@ -797,7 +825,6 @@ const PixelatedPreviewCanvas: React.FC<PixelatedPreviewCanvasProps> = ({
       onClick={handleClick}
       onDoubleClick={handleDoubleClick}
       onTouchStart={handleTouchStart}
-      onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
       onTouchCancel={handleTouchEnd}
       className={`max-w-none h-auto block select-none ${

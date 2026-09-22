@@ -119,6 +119,7 @@ function BeadPageContent() {
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const canvasPanRef = useRef<{ x: number; y: number; pointerId: number } | null>(null);
   const spaceHeldRef = useRef(false);
+  const panSurfaceRef = useRef<HTMLDivElement | null>(null);
 
   const completedCellsArr = useBeadCompletedCells(patternId);
   const { markCell, setColorCompleted, setCells } = useBeadProgressActions();
@@ -313,6 +314,20 @@ function BeadPageContent() {
       window.removeEventListener('keyup', onKeyUp);
     };
   }, []);
+
+  // React onWheel 默认 passive，滚轮平移需要非被动监听才能 preventDefault
+  const panByRef = useRef(panBy);
+  panByRef.current = panBy;
+  useEffect(() => {
+    const el = panSurfaceRef.current;
+    if (!el) return;
+    const onWheel = (event: WheelEvent) => {
+      event.preventDefault();
+      panByRef.current(-event.deltaX, -event.deltaY);
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, [mappedPixelData]);
 
   const advanceHighlightIfNeeded = useCallback(
     (hexJustDone: string, doneColors: Iterable<string>) => {
@@ -670,11 +685,8 @@ function BeadPageContent() {
             ) : null}
 
             <div
+              ref={panSurfaceRef}
               className="absolute inset-0 cursor-grab overflow-hidden active:cursor-grabbing"
-              onWheel={(event) => {
-                event.preventDefault();
-                panBy(-event.deltaX, -event.deltaY);
-              }}
               onPointerDown={(event) => {
                 if (event.pointerType === 'touch') return;
                 if (event.button !== 0) return;

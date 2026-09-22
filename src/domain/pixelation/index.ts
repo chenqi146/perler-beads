@@ -8,7 +8,23 @@ export {
   colorDistanceOklab,
   findClosestPaletteColor,
 } from './pixelation';
-export type { RgbColor, PaletteColor, MappedPixel, ColorSystem } from './pixelation';
+export type {
+  RgbColor,
+  PaletteColor,
+  MappedPixel,
+  ColorSystem,
+  CalculatePixelGridOptions,
+} from './pixelation';
+
+export { applyFloydSteinbergDither } from './dithering';
+export type { DitheringMode } from './dithering';
+
+export {
+  CREATIVE_PRESETS,
+  CREATIVE_PRESET_ORDER,
+  matchCreativePreset,
+} from './creativePreset';
+export type { CreativePresetId, CreativePresetConfig } from './creativePreset';
 
 export {
   TRANSPARENT_KEY,
@@ -37,6 +53,7 @@ export {
   recountColors,
   cropPixelGrid,
   autoCropPixelGrid,
+  scalePixelGrid,
   mergeRareColors,
   isSmallPixelGrid,
 } from './colorLimitUtils';

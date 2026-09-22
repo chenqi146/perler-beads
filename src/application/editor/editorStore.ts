@@ -4,13 +4,16 @@ import {
   PaletteColor,
   PixelationMode,
 } from '../../domain/pixelation';
+import type { CreativePresetId } from '../../domain/pixelation';
 import type { ColorSystem } from '../../domain/palette';
 import { fullBeadPalette } from '../../domain/palette/fullBeadPalette';
 import { convertPaletteToColorSystem } from '../../domain/palette/colorSystemUtils';
 import type { CanvasToolMode, CropRect } from '../../components/PixelatedPreviewCanvas';
 import type { PaletteSelections } from '../../domain/palette';
 import type { PatternData } from '../../domain/pattern';
+import { resolvePatternImageSrc } from '../../domain/pattern/previewImage';
 import { resolvePaletteSelections } from '../../infrastructure/storage/paletteSelectionsRepository';
+import { CREATIVE_PRESETS, matchCreativePreset } from '../../domain/pixelation/creativePreset';
 
 export type EditSnapshot = {
   mappedPixelData: MappedPixel[][];
@@ -42,6 +45,10 @@ type EditorState = {
   maxColorCount: number;
   autoRemoveWhiteBg: boolean;
   pixelationMode: PixelationMode;
+  /** 创作预设；null 表示用户手动改过参数 */
+  creativePreset: CreativePresetId | null;
+  /** Floyd–Steinberg 抖动（建议写实/照片） */
+  ditheringEnabled: boolean;
   remapTrigger: number;
 
   selectedColorSystem: ColorSystem;
@@ -59,6 +66,8 @@ type EditorState = {
   editHistory: EditSnapshot[];
   editRedo: EditSnapshot[];
   bgRemovalSnapshot: EditSnapshot | null;
+  /** 画布手改后为 true：生成参数不再自动重算，需显式缩放或重新生成 */
+  gridManuallyEdited: boolean;
 
   setMappedPixelData: (data: MappedPixel[][] | null) => void;
   setGridDimensions: (dims: { N: number; M: number } | null) => void;
@@ -78,6 +87,10 @@ type EditorState = {
   setMaxColorCount: (n: number) => void;
   setAutoRemoveWhiteBg: (v: boolean) => void;
   setPixelationMode: (m: PixelationMode) => void;
+  setCreativePreset: (id: CreativePresetId | null) => void;
+  setDitheringEnabled: (v: boolean) => void;
+  /** 一键应用创作预设（模式 + 并色 + 抖动） */
+  applyCreativePreset: (id: CreativePresetId) => void;
   bumpRemapTrigger: () => void;
   setRemapTrigger: (n: number | ((prev: number) => number)) => void;
 
@@ -98,6 +111,8 @@ type EditorState = {
   setEditHistory: (h: EditSnapshot[] | ((prev: EditSnapshot[]) => EditSnapshot[])) => void;
   setEditRedo: (h: EditSnapshot[] | ((prev: EditSnapshot[]) => EditSnapshot[])) => void;
   setBgRemovalSnapshot: (s: EditSnapshot | null) => void;
+  markGridManuallyEdited: () => void;
+  clearGridManuallyEdited: () => void;
 
   hydrateFromPatternData: (data: PatternData) => void;
   getPatternDataSnapshot: () => PatternData;
@@ -123,6 +138,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   maxColorCount: 0,
   autoRemoveWhiteBg: false,
   pixelationMode: PixelationMode.EdgeAware,
+  creativePreset: 'clear',
+  ditheringEnabled: false,
   remapTrigger: 0,
 
   selectedColorSystem: 'MARD',
@@ -139,6 +156,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   editHistory: [],
   editRedo: [],
   bgRemovalSnapshot: null,
+  gridManuallyEdited: false,
 
   setMappedPixelData: (data) => set({ mappedPixelData: data }),
   setGridDimensions: (dims) => set({ gridDimensions: dims }),
@@ -155,9 +173,29 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   setImageAspectRatio: (n) => set({ imageAspectRatio: n }),
   setSimilarityThreshold: (n) => set({ similarityThreshold: n }),
   setSimilarityThresholdInput: (s) => set({ similarityThresholdInput: s }),
-  setMaxColorCount: (n) => set({ maxColorCount: n }),
+  setMaxColorCount: (n) => set({ maxColorCount: Math.max(0, Math.min(50, Math.round(n) || 0)) }),
   setAutoRemoveWhiteBg: (v) => set({ autoRemoveWhiteBg: v }),
-  setPixelationMode: (m) => set({ pixelationMode: m }),
+  setPixelationMode: (m) =>
+    set((s) => ({
+      pixelationMode: m,
+      creativePreset: matchCreativePreset(m, s.ditheringEnabled),
+    })),
+  setCreativePreset: (id) => set({ creativePreset: id }),
+  setDitheringEnabled: (v) =>
+    set((s) => ({
+      ditheringEnabled: v,
+      creativePreset: matchCreativePreset(s.pixelationMode, v),
+    })),
+  applyCreativePreset: (id) => {
+    const preset = CREATIVE_PRESETS[id];
+    set({
+      creativePreset: id,
+      pixelationMode: preset.pixelationMode,
+      similarityThreshold: preset.similarityThreshold,
+      similarityThresholdInput: String(preset.similarityThreshold),
+      ditheringEnabled: preset.dithering,
+    });
+  },
   bumpRemapTrigger: () => set((s) => ({ remapTrigger: s.remapTrigger + 1 })),
   setRemapTrigger: (n) =>
     set((s) => ({
@@ -211,6 +249,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       editRedo: typeof h === 'function' ? h(s.editRedo) : h,
     })),
   setBgRemovalSnapshot: (snap) => set({ bgRemovalSnapshot: snap }),
+  markGridManuallyEdited: () => set({ gridManuallyEdited: true }),
+  clearGridManuallyEdited: () => set({ gridManuallyEdited: false }),
 
   hydrateFromPatternData: (data) => {
     set({
@@ -218,7 +258,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       gridDimensions: data.gridDimensions,
       colorCounts: data.colorCounts,
       totalBeadCount: data.totalBeadCount,
-      originalImageSrc: data.originalImageSrc,
+      originalImageSrc: resolvePatternImageSrc(data),
       selectedColorSystem: (data.selectedColorSystem as ColorSystem) || 'MARD',
       granularity: data.gridDimensions.N || 50,
       granularityInput: String(data.gridDimensions.N || 50),
@@ -229,6 +269,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       editHistory: [],
       editRedo: [],
       bgRemovalSnapshot: null,
+      gridManuallyEdited: false,
     });
   },
 
@@ -258,5 +299,6 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       editRedo: [],
       bgRemovalSnapshot: null,
       selectedColor: null,
+      gridManuallyEdited: false,
     }),
 }));
