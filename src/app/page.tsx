@@ -714,7 +714,7 @@ function Editor() {
                   />
                 </div>
                 <p className="hidden text-[11px] text-[#a08060] lg:block">
-                  单击选/取消单格 · 拖拽框选 · Shift+点击加选同色连通块（含对角，分开的块可连点多次）· D 擦除选中格 · 空格或空白处拖动画布 · Ctrl/⌘+Z 撤回
+                  单击选/取消单格 · 拖拽框选 · Shift+点击同色连通块加选/再点取消（含对角）· D 擦除选中格 · 空格或空白处拖动画布 · Ctrl/⌘+Z 撤回
                 </p>
                 <p className="text-[11px] text-[#a08060] lg:hidden">点格选中 · 拖动画布 · 双指缩放 · 底栏按色全选</p>
               </div>

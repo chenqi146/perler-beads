@@ -488,12 +488,18 @@ const PixelatedPreviewCanvas: React.FC<PixelatedPreviewCanvasProps> = ({
     const { key, row, col, wasSelected, shiftKey } = selectClickRef.current;
     const next = new Set(dragBaseKeysRef.current);
 
-    // Shift+点击：加选与该格八连通的同色区域（含对角，桌面）
+    // Shift+点击：八连通同色块；点已选则整块取消，否则加选
     if (shiftKey && mappedPixelData) {
       const cell = mappedPixelData[row]?.[col];
       if (cell && !cell.isExternal && cell.key !== TRANSPARENT_KEY) {
         const region = getConnectedRegion(mappedPixelData, row, col, cell.color, 8);
-        region.forEach(({ row: r, col: c }) => next.add(cellKey(r, c)));
+        if (wasSelected) {
+          region.forEach(({ row: r, col: c }) => next.delete(cellKey(r, c)));
+        } else {
+          region.forEach(({ row: r, col: c }) => next.add(cellKey(r, c)));
+        }
+      } else if (wasSelected) {
+        next.delete(key);
       } else {
         next.add(key);
       }
