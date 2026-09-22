@@ -41,6 +41,7 @@ export function usePatternAutosave({
   const originalImageSrc = useEditorStore((s) => s.originalImageSrc);
   const originalImageKey = useEditorStore((s) => s.originalImageKey);
   const selectedColorSystem = useEditorStore((s) => s.selectedColorSystem);
+  const gridManuallyEdited = useEditorStore((s) => s.gridManuallyEdited);
 
   // pattern 切换 / 首次挂载：重置指纹并进入水合保护期
   useEffect(() => {
@@ -62,6 +63,7 @@ export function usePatternAutosave({
       totalBeadCount,
       selectedColorSystem,
       colorCounts,
+      gridManuallyEdited,
       // 抽样格子指纹，避免整图 stringify 过重
       cells: mappedPixelData.map((row) =>
         row.map((cell) =>
@@ -104,6 +106,7 @@ export function usePatternAutosave({
               originalImageSrc,
               originalImageKey,
               selectedColorSystem,
+              gridManuallyEdited,
             },
           },
           currentPatternId,
@@ -131,6 +134,7 @@ export function usePatternAutosave({
     originalImageSrc,
     originalImageKey,
     selectedColorSystem,
+    gridManuallyEdited,
     patternName,
     patternDescription,
     patternVisibility,

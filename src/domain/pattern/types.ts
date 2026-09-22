@@ -14,6 +14,8 @@ export interface PatternData {
   /** R2 对象 key，如 patterns/{userId}/{patternId}.jpg */
   originalImageKey?: string | null;
   selectedColorSystem: string;
+  /** 是否已在画布上手改；刷新后需保留，避免原图回填时静默重像素化冲掉 */
+  gridManuallyEdited?: boolean;
 }
 
 /** 图纸聚合根 */

@@ -102,39 +102,37 @@ export function EditorSettingsPanel({
 
   return (
     <section className="bg-white dark:bg-gray-900 rounded-xl border border-[#eadfce] dark:border-gray-800 p-4 space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2">
         <h2 className="text-sm font-semibold text-[#3a2416] dark:text-gray-100">生成设置</h2>
         {mappedPixelData && (
-          <span className="text-[11px] font-medium text-[#c47a2c]">
-            {gridManuallyEdited ? '已手改' : '已生成'}
-          </span>
+          gridManuallyEdited ? (
+            <div className="flex shrink-0 items-center gap-1">
+              <span className="text-[11px] font-medium text-[#c47a2c]" title="已手改：改参数不会自动重算">
+                已手改
+              </span>
+              <button
+                type="button"
+                onClick={onScaleGrid}
+                disabled={!sizePending}
+                title="缩放到输入尺寸（保留手改）"
+                className="app-btn app-btn--chip app-btn--sm"
+              >
+                缩放
+              </button>
+              <button
+                type="button"
+                onClick={onRegenerateFromOriginal}
+                title="从原图重新生成（会丢弃手改）"
+                className="app-btn app-btn--chip app-btn--sm"
+              >
+                重生成
+              </button>
+            </div>
+          ) : (
+            <span className="text-[11px] font-medium text-[#c47a2c]">已生成</span>
+          )
         )}
       </div>
-
-      {gridManuallyEdited ? (
-        <div className="space-y-2 rounded-xl border border-[#e8c49a] bg-[#fff4e6] px-3 py-2.5">
-          <p className="text-[11px] leading-relaxed text-[#8a4e18]">
-            图纸已手动修改。改左侧参数不会自动重算；可缩放当前图纸，或从原图重新生成。
-          </p>
-          <div className="flex flex-col gap-1.5">
-            <button
-              type="button"
-              onClick={onScaleGrid}
-              disabled={!sizePending}
-              className="app-btn app-btn--soft app-btn--block app-btn--sm"
-            >
-              缩放到输入尺寸（保留手改）
-            </button>
-            <button
-              type="button"
-              onClick={onRegenerateFromOriginal}
-              className="app-btn app-btn--secondary app-btn--block app-btn--sm"
-            >
-              从原图重新生成…
-            </button>
-          </div>
-        </div>
-      ) : null}
 
       {/* 图纸尺寸 宽 x 高 — 生成时通常最先调 */}
       <div>

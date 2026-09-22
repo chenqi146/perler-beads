@@ -348,6 +348,31 @@ export function usePixelationPipeline({
       if (unchanged) {
         return;
       }
+      // 已有等尺寸图纸且并非显式 remap：多半是原图异步回填/水合竞态，对齐锁并保留格子
+      const existing = useEditorStore.getState().mappedPixelData;
+      const dims = useEditorStore.getState().gridDimensions;
+      if (
+        existing?.length &&
+        dims &&
+        dims.N === granularity &&
+        dims.M === gridHeight &&
+        lock.remapTrigger === remapTrigger
+      ) {
+        draftPixelateLockRef.current = {
+          locked: true,
+          granularity,
+          gridHeight,
+          similarityThreshold,
+          maxColorCount,
+          autoRemoveWhiteBg,
+          pixelationMode,
+          ditheringEnabled,
+          imageContrast,
+          imageSaturation,
+          remapTrigger,
+        };
+        return;
+      }
       draftPixelateLockRef.current = null;
     }
     if (Date.now() < suppressPixelateUntilRef.current) {

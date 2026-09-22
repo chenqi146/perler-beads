@@ -32,6 +32,7 @@ export function useEditorPatternActions({
   const originalImageSrc = useEditorStore((s) => s.originalImageSrc);
   const originalImageKey = useEditorStore((s) => s.originalImageKey);
   const selectedColorSystem = useEditorStore((s) => s.selectedColorSystem);
+  const gridManuallyEdited = useEditorStore((s) => s.gridManuallyEdited);
 
   const buildInput = useCallback(
     () => ({
@@ -47,6 +48,7 @@ export function useEditorPatternActions({
         originalImageSrc,
         originalImageKey,
         selectedColorSystem,
+        gridManuallyEdited,
       },
     }),
     [
@@ -60,6 +62,7 @@ export function useEditorPatternActions({
       originalImageSrc,
       originalImageKey,
       selectedColorSystem,
+      gridManuallyEdited,
     ],
   );
 

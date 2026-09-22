@@ -1,11 +1,32 @@
 import { MappedPixel } from './pixelation';
 
-// 洪水填充获取连通区域
+export type RegionConnectivity = 4 | 8;
+
+const NEIGHBORS_4: ReadonlyArray<readonly [number, number]> = [
+  [-1, 0],
+  [1, 0],
+  [0, -1],
+  [0, 1],
+];
+
+const NEIGHBORS_8: ReadonlyArray<readonly [number, number]> = [
+  [-1, 0],
+  [1, 0],
+  [0, -1],
+  [0, 1],
+  [-1, -1],
+  [-1, 1],
+  [1, -1],
+  [1, 1],
+];
+
+// 洪水填充获取连通区域（默认四连通；选区扩选可用八连通含对角）
 export function getConnectedRegion(
   mappedPixelData: MappedPixel[][],
   startRow: number,
   startCol: number,
-  targetColor: string
+  targetColor: string,
+  connectivity: RegionConnectivity = 4,
 ): { row: number; col: number }[] {
   if (!mappedPixelData || !mappedPixelData[startRow] || !mappedPixelData[startRow][startCol]) {
     return [];
@@ -15,40 +36,37 @@ export function getConnectedRegion(
   const N = mappedPixelData[0].length;
   const visited = Array(M).fill(null).map(() => Array(N).fill(false));
   const region: { row: number; col: number }[] = [];
-  
+  const neighbors = connectivity === 8 ? NEIGHBORS_8 : NEIGHBORS_4;
+
   // 使用栈实现非递归洪水填充
   const stack = [{ row: startRow, col: startCol }];
-  
+
   while (stack.length > 0) {
     const { row, col } = stack.pop()!;
-    
+
     // 检查边界
     if (row < 0 || row >= M || col < 0 || col >= N || visited[row][col]) {
       continue;
     }
-    
+
     const currentCell = mappedPixelData[row][col];
-    
+
     // 检查是否是目标颜色且不是外部区域
     if (!currentCell || currentCell.isExternal || currentCell.color !== targetColor) {
       continue;
     }
-    
+
     // 标记为已访问
     visited[row][col] = true;
-    
+
     // 添加到区域
     region.push({ row, col });
-    
-    // 添加相邻像素到栈中
-    stack.push(
-      { row: row - 1, col }, // 上
-      { row: row + 1, col }, // 下
-      { row, col: col - 1 }, // 左
-      { row, col: col + 1 }  // 右
-    );
+
+    for (const [dr, dc] of neighbors) {
+      stack.push({ row: row + dr, col: col + dc });
+    }
   }
-  
+
   return region;
 }
 

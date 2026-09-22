@@ -2,6 +2,7 @@
 
 import React, { useEffect, useRef, useState, MouseEvent, TouchEvent } from 'react';
 import { MappedPixel } from '../utils/pixelation';
+import { getConnectedRegion, TRANSPARENT_KEY } from '../domain/pixelation';
 import { ColorSystem, getDisplayColorKey } from '../utils/colorSystemUtils';
 import { getContrastColor, getHighlightRenderStyle } from '../utils/color';
 
@@ -329,7 +330,15 @@ const PixelatedPreviewCanvas: React.FC<PixelatedPreviewCanvasProps> = ({
   const dragStartRef = useRef<{ row: number; col: number } | null>(null);
   const dragBaseKeysRef = useRef<Set<string>>(new Set());
   const layoutRef = useRef({ cellSize: 16, axisSize: 28 });
-  const selectClickRef = useRef<{ key: string; wasSelected: boolean; x: number; y: number } | null>(null);
+  const selectClickRef = useRef<{
+    key: string;
+    row: number;
+    col: number;
+    wasSelected: boolean;
+    shiftKey: boolean;
+    x: number;
+    y: number;
+  } | null>(null);
   const selectMovedRef = useRef(false);
   const ignoreClickRef = useRef(false);
   const spacePanRef = useRef(false);
@@ -476,10 +485,24 @@ const PixelatedPreviewCanvas: React.FC<PixelatedPreviewCanvasProps> = ({
       selectMovedRef.current = false;
       return;
     }
-    const { key, wasSelected } = selectClickRef.current;
+    const { key, row, col, wasSelected, shiftKey } = selectClickRef.current;
     const next = new Set(dragBaseKeysRef.current);
-    if (wasSelected) next.delete(key);
-    else next.add(key);
+
+    // Shift+点击：加选与该格八连通的同色区域（含对角，桌面）
+    if (shiftKey && mappedPixelData) {
+      const cell = mappedPixelData[row]?.[col];
+      if (cell && !cell.isExternal && cell.key !== TRANSPARENT_KEY) {
+        const region = getConnectedRegion(mappedPixelData, row, col, cell.color, 8);
+        region.forEach(({ row: r, col: c }) => next.add(cellKey(r, c)));
+      } else {
+        next.add(key);
+      }
+    } else if (wasSelected) {
+      next.delete(key);
+    } else {
+      next.add(key);
+    }
+
     onSelectCells?.(Array.from(next), 'set');
     ignoreClickRef.current = true;
     selectClickRef.current = null;
@@ -569,7 +592,10 @@ const PixelatedPreviewCanvas: React.FC<PixelatedPreviewCanvasProps> = ({
     selectClickRef.current = selectGesture
       ? {
           key: cellKey(cell.row, cell.col),
+          row: cell.row,
+          col: cell.col,
           wasSelected: !!selectedCells?.has(cellKey(cell.row, cell.col)),
+          shiftKey: event.shiftKey,
           x: event.clientX,
           y: event.clientY,
         }
@@ -655,7 +681,10 @@ const PixelatedPreviewCanvas: React.FC<PixelatedPreviewCanvasProps> = ({
     selectClickRef.current = selectGesture
       ? {
           key: cellKey(cell.row, cell.col),
+          row: cell.row,
+          col: cell.col,
           wasSelected: !!selectedCells?.has(cellKey(cell.row, cell.col)),
+          shiftKey: false,
           x: touch.clientX,
           y: touch.clientY,
         }

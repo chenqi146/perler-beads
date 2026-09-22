@@ -286,7 +286,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       editHistory: [],
       editRedo: [],
       bgRemovalSnapshot: null,
-      gridManuallyEdited: false,
+      // 手改标记必须恢复，否则刷新后原图回填会静默重算冲掉编辑
+      gridManuallyEdited: Boolean(data.gridManuallyEdited),
     });
   },
 
@@ -300,6 +301,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       originalImageSrc: s.originalImageSrc,
       originalImageKey: s.originalImageKey,
       selectedColorSystem: s.selectedColorSystem,
+      gridManuallyEdited: s.gridManuallyEdited,
     };
   },
 
