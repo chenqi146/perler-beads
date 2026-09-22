@@ -1,10 +1,12 @@
 import type { NextConfig } from "next";
 import { initOpenNextCloudflareForDev } from "@opennextjs/cloudflare";
 
-// 本地 next dev：注入 Cloudflare bindings，并连 wrangler [env.development] 的远端开发库
-initOpenNextCloudflareForDev({
-  environment: "development",
-});
+// 仅本地 next dev 注入 bindings；生产 build 跳过，避免非交互环境索要 API Token
+if (process.env.NODE_ENV === "development") {
+  initOpenNextCloudflareForDev({
+    environment: "development",
+  });
+}
 
 const withPWA = require("next-pwa")({
   dest: "public",

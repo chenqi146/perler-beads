@@ -38,17 +38,18 @@ function linkClass(active: boolean) {
   ].join(' ');
 }
 
-/** 顶栏：左侧品牌在条外；右侧短 nav + 用户菜单。 */
+/** 顶栏：左侧品牌在条外；右侧短 nav + 用户菜单。
+ *  移动端上下分行，避免品牌与胶囊导航互相遮挡。 */
 export function AppNavBar() {
   const pathname = usePathname() || '/';
   const { subtitle } = useContext(NavSubtitleStateContext);
 
   return (
-    <header className="app-nav mb-3 flex shrink-0 items-center justify-between gap-3 sm:mb-4">
+    <header className="app-nav mb-3 flex shrink-0 flex-col gap-2 sm:mb-4 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
       <div className="flex min-w-0 items-center gap-2 sm:gap-3">
         <Link
           href="/dashboard"
-          className="shrink-0 rounded-lg px-0.5 py-1 text-base font-semibold tracking-tight text-[#3a2416] transition-[color,opacity] duration-150 hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e8b86a] sm:text-lg"
+          className="min-w-0 truncate rounded-lg px-0.5 py-1 text-base font-semibold tracking-tight text-[#3a2416] transition-[color,opacity] duration-150 hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e8b86a] sm:shrink-0 sm:text-lg"
         >
           喵喵的拼豆小屋
         </Link>
@@ -62,8 +63,8 @@ export function AppNavBar() {
         ) : null}
       </div>
 
-      <div className="flex w-fit max-w-full shrink-0 items-center gap-1 overflow-x-auto rounded-2xl border border-[#eadfce] bg-[#fffaf3] px-1.5 py-1 shadow-[0_1px_0_rgba(90,52,24,0.04)] sm:gap-1.5 sm:px-2">
-        <nav className="flex items-center gap-0.5 sm:gap-1" aria-label="主导航">
+      <div className="flex w-full items-center justify-between gap-1 rounded-2xl border border-[#eadfce] bg-[#fffaf3] px-1.5 py-1 shadow-[0_1px_0_rgba(90,52,24,0.04)] sm:w-fit sm:max-w-full sm:shrink-0 sm:justify-start sm:gap-1.5 sm:overflow-x-auto sm:px-2">
+        <nav className="flex min-w-0 flex-1 items-center justify-around gap-0.5 sm:flex-none sm:justify-start sm:gap-1" aria-label="主导航">
           {NAV_LINKS.map((item) => (
             <Link key={item.href} href={item.href} className={linkClass(item.match(pathname))}>
               {item.label}

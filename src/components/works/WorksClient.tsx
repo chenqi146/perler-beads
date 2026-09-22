@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   listWorks,
   saveWork,
@@ -12,6 +12,7 @@ import {
 import type { Work } from '@/types/platform';
 import { apiFetch } from '@/utils/apiClient';
 import { useToast } from '@/components/ui/ToastProvider';
+import { Overlay } from '@/components/ui/Overlay';
 
 type Props = {
   initialWorks: Work[];
@@ -20,6 +21,7 @@ type Props = {
 
 export function WorksClient({ initialWorks, cloudAvailable }: Props) {
   const toast = useToast();
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [works, setWorks] = useState<Work[]>(initialWorks);
   const [hydrated, setHydrated] = useState(false);
   const [open, setOpen] = useState(false);
@@ -28,6 +30,7 @@ export function WorksClient({ initialWorks, cloudAvailable }: Props) {
   const [imagePreview, setImagePreview] = useState('');
   const [imageKey, setImageKey] = useState('');
   const [imageUrl, setImageUrl] = useState('');
+  const [fileName, setFileName] = useState('');
   const [publicWork, setPublicWork] = useState(false);
   const [uploading, setUploading] = useState(false);
 
@@ -37,7 +40,9 @@ export function WorksClient({ initialWorks, cloudAvailable }: Props) {
     setImagePreview('');
     setImageKey('');
     setImageUrl('');
+    setFileName('');
     setPublicWork(false);
+    if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   const closeModal = () => {
@@ -82,6 +87,7 @@ export function WorksClient({ initialWorks, cloudAvailable }: Props) {
 
   const upload = async (file: File) => {
     setUploading(true);
+    setFileName(file.name);
     const reader = new FileReader();
     reader.onload = () => setImagePreview(String(reader.result));
     reader.readAsDataURL(file);
@@ -181,51 +187,107 @@ export function WorksClient({ initialWorks, cloudAvailable }: Props) {
       </header>
 
       {open ? (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-[#3a2416]/40 p-4 overscroll-contain">
-          <div className="w-full max-w-md rounded-2xl border border-[#eadfce] bg-[#fffaf3] p-6 shadow-[0_24px_60px_rgba(90,52,24,0.18)]">
-            <h2 className="text-xl font-semibold text-[#3a2416]">上传作品</h2>
-            <div className="mt-5 space-y-3">
+        <Overlay
+          labelledBy="upload-work-title"
+          placement="center"
+          onClose={closeModal}
+          panelClassName="max-w-md border border-[#eadfce] bg-[#fffaf3] shadow-[0_24px_60px_rgba(90,52,24,0.18)]"
+        >
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+            <div className="flex shrink-0 items-center justify-between border-b border-[#eadfce] px-5 py-4">
+              <h2 id="upload-work-title" className="text-lg font-semibold text-[#3a2416]">
+                上传作品
+              </h2>
+              <button
+                type="button"
+                onClick={closeModal}
+                className="rounded-lg px-2 py-1 text-sm text-[#8a6a4a] transition-colors hover:bg-[#f3e6d4] hover:text-[#3a2416]"
+              >
+                关闭
+              </button>
+            </div>
+
+            <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain px-5 py-4">
               <input
+                ref={fileInputRef}
                 type="file"
                 accept="image/*"
                 capture="environment"
+                className="sr-only"
                 onChange={(event) => {
                   const file = event.target.files?.[0];
                   if (file) void upload(file);
                 }}
               />
-              {imagePreview ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={imagePreview}
-                  alt="预览"
-                  className="max-h-40 rounded-lg object-contain"
+
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploading}
+                className={[
+                  'group flex w-full flex-col items-center justify-center gap-2 rounded-2xl border border-dashed px-4 py-6 text-center transition-colors',
+                  imagePreview
+                    ? 'border-[#eadfce] bg-white'
+                    : 'border-[#e0d0bc] bg-[#fff8f0] hover:border-[#c47a2c] hover:bg-[#fff4e6]',
+                ].join(' ')}
+              >
+                {imagePreview ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={imagePreview}
+                    alt="预览"
+                    className="max-h-44 w-full rounded-xl object-contain"
+                  />
+                ) : (
+                  <>
+                    <span className="flex h-11 w-11 items-center justify-center rounded-full bg-[#f3e6d4] text-lg text-[#c47a2c]">
+                      +
+                    </span>
+                    <span className="text-sm font-medium text-[#3a2416]">点击选择或拍照</span>
+                    <span className="text-xs text-[#a08060]">支持 JPG / PNG</span>
+                  </>
+                )}
+                {imagePreview ? (
+                  <span className="text-xs text-[#a08060]">
+                    {uploading ? '上传中…' : fileName || '点击可更换图片'}
+                  </span>
+                ) : null}
+              </button>
+
+              <label className="block text-sm font-medium text-[#5c4030]">
+                标题
+                <input
+                  className="mt-1.5 h-11 w-full rounded-xl border border-[#e0d0bc] bg-white px-3 text-[#3a2416] placeholder:text-[#c4b09a] focus-visible:border-[#c47a2c] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e8b86a]"
+                  value={title}
+                  onChange={(event) => setTitle(event.target.value)}
+                  placeholder="作品标题…"
+                  autoComplete="off"
                 />
-              ) : null}
-              <input
-                className="h-11 w-full rounded-xl border border-[#e0d0bc] bg-white px-3"
-                value={title}
-                onChange={(event) => setTitle(event.target.value)}
-                placeholder="作品标题…"
-                autoComplete="off"
-              />
-              <textarea
-                className="min-h-20 w-full rounded-xl border border-[#e0d0bc] bg-white px-3 py-2"
-                value={description}
-                onChange={(event) => setDescription(event.target.value)}
-                placeholder="作品描述…"
-                autoComplete="off"
-              />
-              <label className="flex items-center gap-2 text-sm text-[#5c4030]">
+              </label>
+
+              <label className="block text-sm font-medium text-[#5c4030]">
+                描述
+                <textarea
+                  className="mt-1.5 min-h-20 w-full rounded-xl border border-[#e0d0bc] bg-white px-3 py-2 text-[#3a2416] placeholder:text-[#c4b09a] focus-visible:border-[#c47a2c] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e8b86a]"
+                  value={description}
+                  onChange={(event) => setDescription(event.target.value)}
+                  placeholder="可选描述…"
+                  autoComplete="off"
+                />
+              </label>
+
+              <label className="flex min-h-11 cursor-pointer items-center gap-2.5 text-sm text-[#5c4030]">
                 <input
                   type="checkbox"
                   checked={publicWork}
                   onChange={(event) => setPublicWork(event.target.checked)}
+                  className="h-5 w-5 rounded border-[#e0d0bc] accent-[#c47a2c]"
                 />
                 公开作品
               </label>
             </div>
-            <div className="mt-6 flex justify-end gap-3">
+
+            <div className="flex shrink-0 justify-end gap-3 border-t border-[#eadfce] px-5 py-4">
               <button type="button" className="secondary-button" onClick={closeModal}>
                 取消
               </button>
@@ -239,7 +301,7 @@ export function WorksClient({ initialWorks, cloudAvailable }: Props) {
               </button>
             </div>
           </div>
-        </div>
+        </Overlay>
       ) : null}
 
       <section className="pattern-grid">
