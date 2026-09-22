@@ -1,11 +1,10 @@
 import { NextResponse } from 'next/server';
-import type { NextRequest } from 'next/server';
 
 /**
  * 创作与个人页不再强制跳登录：身份由 /api/auth/anonymous Cookie 绑定浏览器。
  * 保留 middleware 入口便于后续加安全头等。
  */
-export function middleware(_request: NextRequest) {
+export function middleware() {
   return NextResponse.next();
 }
 
