@@ -34,8 +34,21 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'R2 未绑定' }, { status: 503 });
   }
 
+  const purpose = String(form.get('purpose') || 'work');
+  const patternIdRaw = String(form.get('patternId') || '').trim();
   const ext = extForType(file.type);
-  const key = `works/${userId}/${crypto.randomUUID()}.${ext}`;
+
+  let key: string;
+  if (purpose === 'pattern') {
+    const patternId = patternIdRaw.replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 120);
+    if (!patternId) {
+      return NextResponse.json({ error: '缺少 patternId' }, { status: 400 });
+    }
+    key = `patterns/${userId}/${patternId}.${ext}`;
+  } else {
+    key = `works/${userId}/${crypto.randomUUID()}.${ext}`;
+  }
+
   const buffer = await file.arrayBuffer();
   await r2.put(key, buffer, { httpMetadata: { contentType: file.type } });
 

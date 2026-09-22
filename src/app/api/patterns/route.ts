@@ -46,13 +46,23 @@ export async function POST(request: Request) {
   const description = String(body.description || '');
   const tags = Array.isArray(body.tags) ? body.tags.map(String) : [];
   const visibility: Visibility = body.visibility === 'public' ? 'public' : 'private';
-  const data = body.data ?? {
+  const rawData = body.data ?? {
     mappedPixelData: [],
     gridDimensions: { N: 0, M: 0 },
     colorCounts: null,
     totalBeadCount: 0,
     originalImageSrc: null,
+    originalImageKey: null,
     selectedColorSystem: 'MARD',
+  };
+  // D1 禁止存 base64 原图；只保留 R2 key
+  const data = {
+    ...rawData,
+    originalImageSrc: null,
+    originalImageKey:
+      typeof rawData.originalImageKey === 'string' && rawData.originalImageKey.length > 0
+        ? rawData.originalImageKey
+        : null,
   };
   const now = Date.now();
 

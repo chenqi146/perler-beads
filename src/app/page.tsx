@@ -162,6 +162,28 @@ function Editor() {
       remapTrigger: 0,
     };
     draftReadyToSaveRef.current = true;
+
+    let cancelled = false;
+    void (async () => {
+      const { getOriginalImage, putOriginalImage } = await import('../infrastructure/storage');
+      let src = await getOriginalImage(currentPatternId);
+      if (!src) {
+        const key = pattern.data.originalImageKey;
+        if (key) {
+          const { fetchOriginalImageAsDataUrl } = await import('../utils/patternOriginalUpload');
+          src = await fetchOriginalImageAsDataUrl(key);
+          if (src) await putOriginalImage(currentPatternId, src);
+        }
+      }
+      if (cancelled || !src) return;
+      useEditorStore.getState().setOriginalImageSrc(src);
+      if (pattern.data.originalImageKey) {
+        useEditorStore.getState().setOriginalImageKey(pattern.data.originalImageKey);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [currentPatternId, draftPixelateLockRef, draftReadyToSaveRef]);
 
   // 编辑页锁定整页滚动，保证一屏展示
@@ -544,6 +566,7 @@ function Editor() {
               pendingPrepImageSrc={pendingPrepImageSrc}
               isImagePrepOpen={isImagePrepOpen}
               isMounted={isMounted}
+              hasPatternGrid={Boolean(mappedPixelData?.length && gridDimensions && gridDimensions.N > 0)}
               fileInputRef={fileInputRef}
               onOpenImagePrep={openImagePrep}
               onUndoAiMatting={handleUndoAiMatting}

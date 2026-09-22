@@ -9,7 +9,10 @@ export interface PatternData {
   gridDimensions: { N: number; M: number };
   colorCounts: Record<string, { count: number; color: string }> | null;
   totalBeadCount: number;
+  /** 运行时原图 dataURL；本地/云端持久化时应为 null，改走 originalImageKey */
   originalImageSrc: string | null;
+  /** R2 对象 key，如 patterns/{userId}/{patternId}.jpg */
+  originalImageKey?: string | null;
   selectedColorSystem: string;
 }
 

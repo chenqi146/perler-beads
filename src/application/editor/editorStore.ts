@@ -11,7 +11,6 @@ import { convertPaletteToColorSystem } from '../../domain/palette/colorSystemUti
 import type { CanvasToolMode, CropRect } from '../../components/PixelatedPreviewCanvas';
 import type { PaletteSelections } from '../../domain/palette';
 import type { PatternData } from '../../domain/pattern';
-import { resolvePatternImageSrc } from '../../domain/pattern/previewImage';
 import { resolvePaletteSelections } from '../../infrastructure/storage/paletteSelectionsRepository';
 import { CREATIVE_PRESETS, matchCreativePreset } from '../../domain/pixelation/creativePreset';
 
@@ -32,6 +31,8 @@ type EditorState = {
   colorCounts: ColorCounts;
   totalBeadCount: number;
   originalImageSrc: string | null;
+  /** R2 key；与 originalImageSrc 互补 */
+  originalImageKey: string | null;
   preAiImageSrc: string | null;
 
   granularity: number;
@@ -78,6 +79,7 @@ type EditorState = {
   setColorCounts: (counts: ColorCounts) => void;
   setTotalBeadCount: (n: number) => void;
   setOriginalImageSrc: (src: string | null) => void;
+  setOriginalImageKey: (key: string | null) => void;
   setPreAiImageSrc: (src: string | null) => void;
 
   setGranularity: (n: number) => void;
@@ -131,6 +133,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   colorCounts: null,
   totalBeadCount: 0,
   originalImageSrc: null,
+  originalImageKey: null,
   preAiImageSrc: null,
 
   granularity: 50,
@@ -171,6 +174,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   setColorCounts: (counts) => set({ colorCounts: counts }),
   setTotalBeadCount: (n) => set({ totalBeadCount: n }),
   setOriginalImageSrc: (src) => set({ originalImageSrc: src }),
+  setOriginalImageKey: (key) => set({ originalImageKey: key }),
   setPreAiImageSrc: (src) => set({ preAiImageSrc: src }),
 
   setGranularity: (n) => set({ granularity: n }),
@@ -270,7 +274,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       gridDimensions: data.gridDimensions,
       colorCounts: data.colorCounts,
       totalBeadCount: data.totalBeadCount,
-      originalImageSrc: resolvePatternImageSrc(data),
+      originalImageSrc: data.originalImageSrc,
+      originalImageKey: data.originalImageKey ?? null,
       selectedColorSystem: (data.selectedColorSystem as ColorSystem) || 'MARD',
       granularity: data.gridDimensions.N || 50,
       granularityInput: String(data.gridDimensions.N || 50),
@@ -293,6 +298,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       colorCounts: s.colorCounts,
       totalBeadCount: s.totalBeadCount,
       originalImageSrc: s.originalImageSrc,
+      originalImageKey: s.originalImageKey,
       selectedColorSystem: s.selectedColorSystem,
     };
   },
@@ -304,6 +310,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       colorCounts: null,
       totalBeadCount: 0,
       originalImageSrc: null,
+      originalImageKey: null,
       preAiImageSrc: null,
       selectedCells: new Set(),
       cropRect: null,

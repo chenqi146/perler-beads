@@ -39,6 +39,7 @@ export function usePatternAutosave({
   const colorCounts = useEditorStore((s) => s.colorCounts);
   const totalBeadCount = useEditorStore((s) => s.totalBeadCount);
   const originalImageSrc = useEditorStore((s) => s.originalImageSrc);
+  const originalImageKey = useEditorStore((s) => s.originalImageKey);
   const selectedColorSystem = useEditorStore((s) => s.selectedColorSystem);
 
   // pattern 切换 / 首次挂载：重置指纹并进入水合保护期
@@ -101,6 +102,7 @@ export function usePatternAutosave({
               colorCounts,
               totalBeadCount,
               originalImageSrc,
+              originalImageKey,
               selectedColorSystem,
             },
           },
@@ -127,6 +129,7 @@ export function usePatternAutosave({
     colorCounts,
     totalBeadCount,
     originalImageSrc,
+    originalImageKey,
     selectedColorSystem,
     patternName,
     patternDescription,

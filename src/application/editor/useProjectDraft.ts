@@ -1,11 +1,14 @@
 'use client';
 
 import { useEffect, useRef, useState, type MutableRefObject } from 'react';
-import { PixelationMode, type MappedPixel } from '../../domain/pixelation';
+import { PixelationMode } from '../../domain/pixelation';
 import {
   saveProjectDraft,
   loadProjectDraft,
-} from '../../infrastructure/storage/projectDraftRepository';
+  putOriginalImage,
+  getOriginalImage,
+  DRAFT_ORIGINAL_KEY,
+} from '../../infrastructure/storage';
 import { useEditorStore } from './editorStore';
 import type { DraftPixelateLock } from './usePixelationPipeline';
 
@@ -14,36 +17,6 @@ export type UseProjectDraftOptions = {
   suppressPixelateUntilRef: MutableRefObject<number>;
   showToast?: (msg: string) => void;
 };
-
-/** 根据格子数据生成合成原图（草稿无原图时兜底） */
-function generateSyntheticImageFromPixelData(
-  pixelData: MappedPixel[][],
-  dimensions: { N: number; M: number },
-): string {
-  const canvas = document.createElement('canvas');
-  const ctx = canvas.getContext('2d');
-
-  if (!ctx) {
-    console.error('无法创建canvas上下文');
-    return '';
-  }
-
-  const pixelSize = 8;
-  canvas.width = dimensions.N * pixelSize;
-  canvas.height = dimensions.M * pixelSize;
-
-  pixelData.forEach((row, rowIndex) => {
-    row.forEach((cell, colIndex) => {
-      if (cell) {
-        const color = cell.isExternal ? '#FFFFFF' : cell.color;
-        ctx.fillStyle = color;
-        ctx.fillRect(colIndex * pixelSize, rowIndex * pixelSize, pixelSize, pixelSize);
-      }
-    });
-  });
-
-  return canvas.toDataURL('image/png');
-}
 
 /**
  * 项目草稿：挂载恢复（无 patternId）+ 改动自动保存。
@@ -143,11 +116,15 @@ export function useProjectDraft({
       setSelectedColorSystem(draft.selectedColorSystem);
     }
     // 旧草稿中的 excludedColorKeys / initialGridColorKeys 已废弃，忽略
-
-    const src =
-      draft.originalImageSrc ||
-      generateSyntheticImageFromPixelData(draft.mappedPixelData, draft.gridDimensions);
-    setOriginalImageSrc(src);
+    // 不要用格子合成图冒充原图（否则「重新裁剪」会打开图纸）
+    if (draft.originalImageSrc) {
+      setOriginalImageSrc(draft.originalImageSrc);
+    } else {
+      setOriginalImageSrc(null);
+      void getOriginalImage(DRAFT_ORIGINAL_KEY).then((src) => {
+        if (src) useEditorStore.getState().setOriginalImageSrc(src);
+      });
+    }
 
     setDraftSaveHint('已恢复上次图纸');
     const t = window.setTimeout(() => setDraftSaveHint(null), 2500);
@@ -177,6 +154,12 @@ export function useProjectDraft({
         pixelationMode,
         selectedColorSystem,
       });
+      if (originalImageSrc?.startsWith('data:')) {
+        void putOriginalImage(
+          currentPatternId || DRAFT_ORIGINAL_KEY,
+          originalImageSrc,
+        );
+      }
       if (!result.ok) {
         setDraftSaveHint(result.reason);
         window.setTimeout(() => setDraftSaveHint(null), 3000);
@@ -185,6 +168,7 @@ export function useProjectDraft({
 
     return () => window.clearTimeout(timer);
   }, [
+    currentPatternId,
     mappedPixelData,
     gridDimensions,
     colorCounts,

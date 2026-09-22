@@ -13,3 +13,9 @@ export type {
   ProjectDraftV1,
   SaveProjectDraftResult,
 } from './projectDraftRepository';
+export {
+  putOriginalImage,
+  getOriginalImage,
+  deleteOriginalImage,
+  DRAFT_ORIGINAL_KEY,
+} from './originalImageRepository';

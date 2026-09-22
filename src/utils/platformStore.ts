@@ -17,9 +17,13 @@ function isQuotaExceeded(err: unknown): boolean {
   );
 }
 
-/** 本地缓存不存原图 base64，避免撑爆 5MB 配额（格子数据足够编辑/拼豆） */
+/** 本地缓存不存原图 base64，避免撑爆 5MB 配额（格子数据足够编辑/拼豆）；保留 R2 key */
 function stripHeavyPatternData(data: PatternData): PatternData {
-  return { ...data, originalImageSrc: null };
+  return {
+    ...data,
+    originalImageSrc: null,
+    originalImageKey: data.originalImageKey ?? null,
+  };
 }
 
 function slimStore(store: Store): Store {

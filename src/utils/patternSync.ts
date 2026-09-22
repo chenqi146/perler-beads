@@ -2,6 +2,8 @@ import type { Pattern } from '../domain/pattern';
 import { getPattern, writePlatformStore } from './platformStore';
 import { apiFetch } from './apiClient';
 import { toast } from '@/components/ui/ToastProvider';
+import { getOriginalImage, putOriginalImage } from '../infrastructure/storage';
+import { uploadPatternOriginal } from './patternOriginalUpload';
 
 export type SyncResult =
   | { ok: true; patterns?: Pattern[]; pattern?: Pattern }
@@ -30,10 +32,14 @@ function writeStore(store: { patterns: Pattern[]; sessions: unknown[]; works: un
 
 function mergeRemotePattern(remote: Pattern) {
   const store = readStore();
-  // 云端原图也别塞进本地，防止再次撑爆配额
+  // 不把 base64 原图塞进本地；保留 R2 key
   const slimRemote: Pattern = {
     ...remote,
-    data: { ...remote.data, originalImageSrc: null },
+    data: {
+      ...remote.data,
+      originalImageSrc: null,
+      originalImageKey: remote.data.originalImageKey ?? null,
+    },
   };
   const idx = store.patterns.findIndex((p) => p.id === remote.id);
   if (idx < 0) {
@@ -43,9 +49,32 @@ function mergeRemotePattern(remote: Pattern) {
   }
   const local = store.patterns[idx];
   if ((remote.updatedAt || 0) >= (local.updatedAt || 0)) {
-    store.patterns[idx] = slimRemote;
+    store.patterns[idx] = {
+      ...slimRemote,
+      data: {
+        ...slimRemote.data,
+        // 本地若已有 key 且远端暂时没有，别冲掉
+        originalImageKey:
+          slimRemote.data.originalImageKey || local.data.originalImageKey || null,
+      },
+    };
     writeStore(store);
   }
+}
+
+function patchLocalOriginalKey(patternId: string, key: string) {
+  const store = readStore();
+  const idx = store.patterns.findIndex((p) => p.id === patternId);
+  if (idx < 0) return;
+  store.patterns[idx] = {
+    ...store.patterns[idx],
+    data: {
+      ...store.patterns[idx].data,
+      originalImageKey: key,
+      originalImageSrc: null,
+    },
+  };
+  writeStore(store);
 }
 
 export async function pullPatternsFromCloud(): Promise<SyncResult> {
@@ -76,29 +105,51 @@ export async function pullPatternsFromCloud(): Promise<SyncResult> {
 
 export async function pushPatternToCloud(pattern: Pattern): Promise<SyncResult> {
   try {
-    // 优先用调用方传入的完整对象（可含原图）；本地 get 可能已剥掉原图
     const local = getPattern(pattern.id);
     const latest: Pattern =
-      local && (local.updatedAt || 0) > (pattern.updatedAt || 0)
-        ? {
-            ...local,
-            data: {
-              ...local.data,
-              originalImageSrc: local.data.originalImageSrc || pattern.data.originalImageSrc,
-            },
-          }
-        : pattern;
+      local && (local.updatedAt || 0) > (pattern.updatedAt || 0) ? local : pattern;
 
-    // 云端也不存超大 dataURL，避免 D1 行过大；格子数据足够
+    // 原图：优先内存/入参 dataURL，其次 IndexedDB
+    let dataUrl =
+      (typeof pattern.data.originalImageSrc === 'string' &&
+      pattern.data.originalImageSrc.startsWith('data:')
+        ? pattern.data.originalImageSrc
+        : null) ||
+      (typeof latest.data.originalImageSrc === 'string' &&
+      latest.data.originalImageSrc.startsWith('data:')
+        ? latest.data.originalImageSrc
+        : null);
+
+    if (!dataUrl) {
+      dataUrl = await getOriginalImage(pattern.id);
+    }
+
+    let originalImageKey =
+      latest.data.originalImageKey || pattern.data.originalImageKey || null;
+
+    if (dataUrl) {
+      void putOriginalImage(pattern.id, dataUrl);
+      const uploaded = await uploadPatternOriginal(pattern.id, dataUrl);
+      if (uploaded) {
+        originalImageKey = uploaded.key;
+        patchLocalOriginalKey(pattern.id, uploaded.key);
+      }
+    }
+
+    // D1 只存格子 + R2 key，绝不存 base64
     const forCloud: Pattern = {
       ...latest,
+      id: pattern.id,
+      name: pattern.name || latest.name,
+      description: pattern.description ?? latest.description,
+      tags: pattern.tags ?? latest.tags,
+      visibility: pattern.visibility ?? latest.visibility,
+      updatedAt: pattern.updatedAt || latest.updatedAt || Date.now(),
       data: {
         ...latest.data,
-        originalImageSrc:
-          typeof latest.data.originalImageSrc === 'string' &&
-          latest.data.originalImageSrc.length > 400_000
-            ? null
-            : latest.data.originalImageSrc,
+        ...pattern.data,
+        originalImageSrc: null,
+        originalImageKey,
       },
     };
 

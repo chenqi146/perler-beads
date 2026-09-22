@@ -30,6 +30,7 @@ export function useEditorPatternActions({
   const colorCounts = useEditorStore((s) => s.colorCounts);
   const totalBeadCount = useEditorStore((s) => s.totalBeadCount);
   const originalImageSrc = useEditorStore((s) => s.originalImageSrc);
+  const originalImageKey = useEditorStore((s) => s.originalImageKey);
   const selectedColorSystem = useEditorStore((s) => s.selectedColorSystem);
 
   const buildInput = useCallback(
@@ -44,6 +45,7 @@ export function useEditorPatternActions({
         colorCounts,
         totalBeadCount,
         originalImageSrc,
+        originalImageKey,
         selectedColorSystem,
       },
     }),
@@ -56,6 +58,7 @@ export function useEditorPatternActions({
       colorCounts,
       totalBeadCount,
       originalImageSrc,
+      originalImageKey,
       selectedColorSystem,
     ],
   );

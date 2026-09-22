@@ -8,6 +8,8 @@ export type EditorUploadPanelProps = {
   pendingPrepImageSrc: string | null;
   isImagePrepOpen: boolean;
   isMounted: boolean;
+  /** 已有格子图纸但原图尚未恢复时，避免误当成「无内容」 */
+  hasPatternGrid?: boolean;
   fileInputRef: RefObject<HTMLInputElement | null>;
   onOpenImagePrep: (src: string) => void;
   onUndoAiMatting: () => void;
@@ -24,6 +26,7 @@ export function EditorUploadPanel({
   pendingPrepImageSrc,
   isImagePrepOpen,
   isMounted,
+  hasPatternGrid = false,
   fileInputRef,
   onOpenImagePrep,
   onUndoAiMatting,
@@ -63,6 +66,19 @@ export function EditorUploadPanel({
             className="app-btn app-btn--secondary app-btn--block app-btn--sm"
           >
             更换图片
+          </button>
+        </div>
+      ) : hasPatternGrid ? (
+        <div className="space-y-3">
+          <p className="rounded-lg bg-[#fff4e6] px-3 py-2 text-[11px] leading-relaxed text-[#8a4e18]">
+            当前仅有图纸数据，原图未找到。请重新上传后再裁剪；保存后原图会同步到云端，换设备也可恢复。
+          </p>
+          <button
+            type="button"
+            onClick={isMounted ? onTriggerFileInput : undefined}
+            className="app-btn app-btn--secondary app-btn--block app-btn--sm"
+          >
+            重新上传原图
           </button>
         </div>
       ) : pendingPrepImageSrc && isImagePrepOpen ? (

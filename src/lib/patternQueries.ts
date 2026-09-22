@@ -19,6 +19,7 @@ const EMPTY_DATA: PatternData = {
   colorCounts: null,
   totalBeadCount: 0,
   originalImageSrc: null,
+  originalImageKey: null,
   selectedColorSystem: 'MARD',
 };
 

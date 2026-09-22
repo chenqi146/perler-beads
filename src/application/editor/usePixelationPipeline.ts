@@ -15,6 +15,7 @@ import {
   type MappedPixel,
 } from '../../domain/pixelation';
 import { useEditorStore } from './editorStore';
+import { usePatternStore } from '../pattern/patternStore';
 
 export type DraftPixelateLock = {
   locked: boolean;
@@ -437,6 +438,10 @@ export function usePixelationPipeline({
     setSelectedColor(null);
     setOriginalImageSrc(dataUrl);
     setRemapTrigger((prev) => prev + 1);
+    const patternId = usePatternStore.getState().currentPatternId;
+    void import('../../infrastructure/storage').then(({ putOriginalImage, DRAFT_ORIGINAL_KEY }) => {
+      void putOriginalImage(patternId || DRAFT_ORIGINAL_KEY, dataUrl);
+    });
   }, [
     setSelectedCells,
     setShowSelectionRecolor,

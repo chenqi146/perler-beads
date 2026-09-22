@@ -48,6 +48,7 @@ export function DashboardClient({ initialPatterns }: Props) {
         colorCounts: null,
         totalBeadCount: 0,
         originalImageSrc: null,
+        originalImageKey: null,
         selectedColorSystem: 'MARD',
       },
     });
