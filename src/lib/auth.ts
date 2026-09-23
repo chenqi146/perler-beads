@@ -2,12 +2,14 @@ import { redirect } from 'next/navigation';
 import { getDB } from './d1';
 import { getSessionUserId } from './session';
 import { isGuestEmail } from './anonymous';
+import { isAdminEmail } from './adminConfig';
 
 export type SessionUser = {
   id: string;
   email: string | null;
   name: string | null;
   isAnonymous?: boolean;
+  isAdmin?: boolean;
   offline?: boolean;
 };
 
@@ -26,7 +28,14 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
 
   const db = await getDB();
   if (!db) {
-    return { id: userId, email: null, name: '本机游客', isAnonymous: true, offline: true };
+    return {
+      id: userId,
+      email: null,
+      name: '本机游客',
+      isAnonymous: true,
+      isAdmin: false,
+      offline: true,
+    };
   }
 
   try {
@@ -37,11 +46,13 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
 
     if (!user) return null;
     const isAnonymous = user.is_anonymous === 1 || isGuestEmail(user.email);
+    const email = isAnonymous ? null : user.email;
     return {
       id: user.id,
-      email: isAnonymous ? null : user.email,
+      email,
       name: user.name || (isAnonymous ? '本机游客' : '拼豆玩家'),
       isAnonymous,
+      isAdmin: !isAnonymous && isAdminEmail(email),
     };
   } catch {
     const user = await db
@@ -51,11 +62,13 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
 
     if (!user) return null;
     const isAnonymous = isGuestEmail(user.email);
+    const email = isAnonymous ? null : user.email;
     return {
       id: user.id,
-      email: isAnonymous ? null : user.email,
+      email,
       name: user.name || (isAnonymous ? '本机游客' : '拼豆玩家'),
       isAnonymous,
+      isAdmin: !isAnonymous && isAdminEmail(email),
     };
   }
 }

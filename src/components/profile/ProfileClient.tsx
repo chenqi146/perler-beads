@@ -119,6 +119,13 @@ export function ProfileClient({
           >
             绑定账号（跨设备）
           </Link>
+        ) : me.isAdmin ? (
+          <Link
+            href="/admin"
+            className="mt-4 inline-flex text-sm font-medium text-[#c47a2c] underline-offset-2 hover:underline"
+          >
+            进入用户管理（管理员）
+          </Link>
         ) : null}
       </section>
     </main>

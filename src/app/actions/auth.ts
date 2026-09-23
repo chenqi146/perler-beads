@@ -5,9 +5,10 @@ import { getDB } from '@/lib/d1';
 import { buildSessionCookie, getSessionUserId } from '@/lib/session';
 import { hashPassword, verifyPassword } from '@/lib/password';
 import { mergeAnonymousIntoUser } from '@/lib/anonymous';
+import { ensureAdminUser, isAdminEmail } from '@/lib/admin';
 
 export type AuthActionResult =
-  | { ok: true; id: string; name: string; email: string; isAnonymous?: boolean }
+  | { ok: true; id: string; name: string; email: string; isAnonymous?: boolean; isAdmin?: boolean }
   | { ok: false; error: string; status?: number };
 
 function normalizeAccount(raw: FormDataEntryValue | null): string {
@@ -29,6 +30,8 @@ export async function loginAction(formData: FormData): Promise<AuthActionResult>
     return { ok: false, error: '请输入账号和密码' };
   }
 
+  await ensureAdminUser();
+
   const db = await getDB();
   if (!db) {
     return { ok: false, error: 'D1 未绑定', status: 503 };
@@ -48,12 +51,14 @@ export async function loginAction(formData: FormData): Promise<AuthActionResult>
   const jar = await cookies();
   jar.set(await buildSessionCookie(user.id));
 
+  const email = user.email || account;
   return {
     ok: true,
     id: user.id,
     name: user.name,
-    email: user.email || account,
+    email,
     isAnonymous: false,
+    isAdmin: isAdminEmail(email),
   };
 }
 
@@ -96,5 +101,12 @@ export async function registerAction(formData: FormData): Promise<AuthActionResu
   const jar = await cookies();
   jar.set(await buildSessionCookie(id));
 
-  return { ok: true, id, name, email: account, isAnonymous: false };
+  return {
+    ok: true,
+    id,
+    name,
+    email: account,
+    isAnonymous: false,
+    isAdmin: isAdminEmail(account),
+  };
 }

@@ -63,8 +63,8 @@ export function AppNavBar() {
         ) : null}
       </div>
 
-      <div className="flex w-full items-center justify-between gap-1 rounded-2xl border border-[#eadfce] bg-[#fffaf3] px-1.5 py-1 shadow-[0_1px_0_rgba(90,52,24,0.04)] sm:w-fit sm:max-w-full sm:shrink-0 sm:justify-start sm:gap-1.5 sm:overflow-x-auto sm:px-2">
-        <nav className="flex min-w-0 flex-1 items-center justify-around gap-0.5 sm:flex-none sm:justify-start sm:gap-1" aria-label="主导航">
+      <div className="relative z-20 flex w-full items-center justify-between gap-1 rounded-2xl border border-[#eadfce] bg-[#fffaf3] px-1.5 py-1 shadow-[0_1px_0_rgba(90,52,24,0.04)] sm:w-fit sm:max-w-full sm:shrink-0 sm:justify-start sm:gap-1.5 sm:px-2">
+        <nav className="flex min-w-0 flex-1 items-center justify-around gap-0.5 overflow-x-auto sm:flex-none sm:justify-start sm:gap-1" aria-label="主导航">
           {NAV_LINKS.map((item) => (
             <Link key={item.href} href={item.href} className={linkClass(item.match(pathname))}>
               {item.label}
@@ -72,7 +72,9 @@ export function AppNavBar() {
           ))}
         </nav>
         <span className="hidden h-4 w-px shrink-0 bg-[#e0d0bc] sm:block" aria-hidden="true" />
-        <UserMenu />
+        <div className="relative z-30 shrink-0">
+          <UserMenu />
+        </div>
       </div>
     </header>
   );

@@ -9,5 +9,11 @@ export function middleware() {
 }
 
 export const config = {
-  matcher: ['/dashboard/:path*', '/patterns/:path*', '/works/:path*', '/profile/:path*'],
+  matcher: [
+    '/dashboard/:path*',
+    '/patterns/:path*',
+    '/works/:path*',
+    '/profile/:path*',
+    '/admin/:path*',
+  ],
 };

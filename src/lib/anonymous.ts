@@ -1,6 +1,7 @@
 import { getDB } from './d1';
 import { getSessionUserId, buildSessionCookie } from './session';
 import { hashPassword } from './password';
+import { isAdminEmail } from './adminConfig';
 
 export const GUEST_EMAIL_SUFFIX = '@guest.local';
 
@@ -9,6 +10,7 @@ export type AuthIdentity = {
   name: string;
   email: string | null;
   isAnonymous: boolean;
+  isAdmin?: boolean;
   offline?: boolean;
 };
 
@@ -29,11 +31,13 @@ type UserRow = {
 
 function toIdentity(row: UserRow, offline = false): AuthIdentity {
   const isAnonymous = row.is_anonymous === 1 || isGuestEmail(row.email);
+  const email = isAnonymous ? null : row.email;
   return {
     id: row.id,
     name: row.name || (isAnonymous ? '本机游客' : '拼豆玩家'),
-    email: isAnonymous ? null : row.email,
+    email,
     isAnonymous,
+    isAdmin: !isAnonymous && isAdminEmail(email),
     offline: offline || undefined,
   };
 }

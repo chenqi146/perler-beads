@@ -1,6 +1,6 @@
 'use client';
 
-import type { ChangeEvent, DragEvent, RefObject } from 'react';
+import type { DragEvent } from 'react';
 
 export type EditorUploadPanelProps = {
   originalImageSrc: string | null;
@@ -10,11 +10,9 @@ export type EditorUploadPanelProps = {
   isMounted: boolean;
   /** 已有格子图纸但原图尚未恢复时，避免误当成「无内容」 */
   hasPatternGrid?: boolean;
-  fileInputRef: RefObject<HTMLInputElement | null>;
   onOpenImagePrep: (src: string) => void;
   onUndoAiMatting: () => void;
   onTriggerFileInput: () => void;
-  onFileChange: (event: ChangeEvent<HTMLInputElement>) => void;
   onDrop: (event: DragEvent<HTMLDivElement>) => void;
   onDragOver: (event: DragEvent<HTMLDivElement>) => void;
 };
@@ -27,11 +25,9 @@ export function EditorUploadPanel({
   isImagePrepOpen,
   isMounted,
   hasPatternGrid = false,
-  fileInputRef,
   onOpenImagePrep,
   onUndoAiMatting,
   onTriggerFileInput,
-  onFileChange,
   onDrop,
   onDragOver,
 }: EditorUploadPanelProps) {
@@ -113,13 +109,6 @@ export function EditorUploadPanel({
           <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">支持 JPG, PNG, GIF（或 CSV）</p>
         </div>
       )}
-      <input
-        type="file"
-        accept="image/jpeg, image/png, image/gif, .csv, text/csv, application/csv, text/plain"
-        onChange={onFileChange}
-        ref={fileInputRef}
-        className="hidden"
-      />
     </section>
   );
 }

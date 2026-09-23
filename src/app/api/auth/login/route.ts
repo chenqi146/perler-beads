@@ -3,6 +3,7 @@ import { getDB } from '../../../../lib/d1';
 import { buildSessionCookie, getSessionUserId } from '../../../../lib/session';
 import { verifyPassword } from '../../../../lib/password';
 import { mergeAnonymousIntoUser } from '../../../../lib/anonymous';
+import { ensureAdminUser, isAdminEmail } from '../../../../lib/admin';
 
 export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
@@ -13,6 +14,8 @@ export async function POST(request: Request) {
   if (!account || !password) {
     return NextResponse.json({ error: '请输入账号和密码' }, { status: 400 });
   }
+
+  await ensureAdminUser();
 
   const db = await getDB();
   if (!db) return NextResponse.json({ error: 'D1 未绑定' }, { status: 503 });
@@ -29,12 +32,14 @@ export async function POST(request: Request) {
   const guestId = await getSessionUserId();
   if (guestId) await mergeAnonymousIntoUser(guestId, user.id);
 
+  const email = user.email || account;
   const res = NextResponse.json({
     id: user.id,
     name: user.name,
-    email: user.email || account,
-    account: user.email || account,
+    email,
+    account: email,
     isAnonymous: false,
+    isAdmin: isAdminEmail(email),
   });
   res.cookies.set(await buildSessionCookie(user.id));
   return res;

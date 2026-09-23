@@ -47,6 +47,7 @@ export function LoginForm() {
         name: result.name || account.trim() || '拼豆玩家',
         email: result.email || account.trim(),
         isAnonymous: false,
+        isAdmin: Boolean(result.isAdmin),
       });
       toast('登录成功');
       router.push(nextPath.startsWith('/') ? nextPath : '/dashboard');

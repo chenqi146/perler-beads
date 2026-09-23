@@ -9,6 +9,7 @@ export type AuthSuccessPayload = {
   name: string;
   email: string;
   isAnonymous?: boolean;
+  isAdmin?: boolean;
 };
 
 const AUTH_CHANGED_EVENT = 'perler-auth-changed';
@@ -36,9 +37,12 @@ export function applyAuthSuccess(payload: AuthSuccessPayload) {
   if (isAnonymous) {
     localStorage.removeItem('perler-user-email');
     localStorage.setItem('perler-user-anonymous', '1');
+    localStorage.removeItem('perler-user-admin');
   } else {
     localStorage.setItem('perler-user-email', email);
     localStorage.removeItem('perler-user-anonymous');
+    if (payload.isAdmin) localStorage.setItem('perler-user-admin', '1');
+    else localStorage.removeItem('perler-user-admin');
   }
 
   if (legacyId && legacyId !== payload.id) {
@@ -73,6 +77,7 @@ export async function ensureAnonymousSession(): Promise<AuthSuccessPayload> {
       name?: string;
       email?: string | null;
       isAnonymous?: boolean;
+      isAdmin?: boolean;
     };
     const isAnonymous = Boolean(data.isAnonymous) || !data.email;
     const payload: AuthSuccessPayload = {
@@ -80,6 +85,7 @@ export async function ensureAnonymousSession(): Promise<AuthSuccessPayload> {
       name: data.name || (isAnonymous ? '本机游客' : '拼豆玩家'),
       email: data.email || '',
       isAnonymous,
+      isAdmin: Boolean(data.isAdmin),
     };
     // 已是同一用户则只补本地态，避免无谓 remap
     const previousId = getLoggedInUserId();
@@ -88,9 +94,12 @@ export async function ensureAnonymousSession(): Promise<AuthSuccessPayload> {
       if (payload.isAnonymous) {
         localStorage.removeItem('perler-user-email');
         localStorage.setItem('perler-user-anonymous', '1');
+        localStorage.removeItem('perler-user-admin');
       } else if (payload.email) {
         localStorage.setItem('perler-user-email', payload.email);
         localStorage.removeItem('perler-user-anonymous');
+        if (payload.isAdmin) localStorage.setItem('perler-user-admin', '1');
+        else localStorage.removeItem('perler-user-admin');
       }
       notifyAuthChanged();
       return payload;

@@ -148,6 +148,7 @@ export type LoggedInUser = {
   displayName: string;
   initial: string;
   isAnonymous: boolean;
+  isAdmin: boolean;
 };
 
 /** 读取本地身份展示信息（昵称优先，其次账号） */
@@ -155,13 +156,17 @@ export function getLoggedInUser(): LoggedInUser | null {
   if (typeof window === 'undefined') return null;
   const id = localStorage.getItem('perler-user-id');
   if (!id) return null;
-  const isAnonymous = localStorage.getItem('perler-user-anonymous') === '1';
-  const email = isAnonymous ? null : localStorage.getItem('perler-user-email');
+  const rawEmail = localStorage.getItem('perler-user-email')?.trim() || null;
+  // 无邮箱一律按游客：避免旧数据缺 anonymous 标记时误显示「正式账号」菜单、找不到登录入口
+  const isAnonymous =
+    localStorage.getItem('perler-user-anonymous') === '1' || !rawEmail;
+  const email = isAnonymous ? null : rawEmail;
   const name = localStorage.getItem('perler-user-name');
+  const isAdmin = !isAnonymous && localStorage.getItem('perler-user-admin') === '1';
   const fromEmail = email?.split('@')[0]?.trim() || null;
   const displayName = (name?.trim() || fromEmail || (isAnonymous ? '本机游客' : '拼豆玩家')).trim();
   const initial = Array.from(displayName)[0]?.toUpperCase() || '豆';
-  return { id, email, name, displayName, initial, isAnonymous };
+  return { id, email, name, displayName, initial, isAnonymous, isAdmin };
 }
 
 /** 清除本地登录态 */
@@ -171,6 +176,7 @@ export function clearLoggedInUser(): void {
   localStorage.removeItem('perler-user-email');
   localStorage.removeItem('perler-user-name');
   localStorage.removeItem('perler-user-anonymous');
+  localStorage.removeItem('perler-user-admin');
 }
 
 /** 将本地图纸/会话/作品的 ownerId 从旧假 id 迁到新 UUID */
@@ -214,6 +220,19 @@ export function deletePattern(patternId: string): void {
 }
 export function getPattern(patternId: string): Pattern | undefined {
   return read().patterns.find((p) => p.id === patternId);
+}
+
+/** 将图纸写入本机缓存（不改变当前登录 owner；用于管理员预览他人图纸） */
+export function upsertLocalPattern(pattern: Pattern): void {
+  const store = read();
+  const slim: Pattern = {
+    ...pattern,
+    data: stripHeavyPatternData(pattern.data),
+  };
+  const idx = store.patterns.findIndex((p) => p.id === slim.id);
+  if (idx >= 0) store.patterns[idx] = slim;
+  else store.patterns.unshift(slim);
+  write(store);
 }
 export function duplicatePattern(patternId: string): Pattern | undefined {
   const source = getPattern(patternId);

@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
+/* 产品统一暖色浅色主题：不跟随系统深色模式，避免编辑区突然变黑 */
+@custom-variant dark (&:where(.dark, .dark *));
+
 :root {
   --background: #f7f4ef;
   --foreground: #3a2416;
@@ -17,14 +20,6 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #1a1410;
-    --foreground: #f5ebe0;
-    color-scheme: dark;
-  }
 }
 
 body {

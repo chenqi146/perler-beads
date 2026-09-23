@@ -40,6 +40,8 @@ export type EditorCanvasWorkspaceProps = {
   showCellKeys?: boolean;
   /** 格子边界/坐标轴；成品预览时可关掉 */
   showGrid?: boolean;
+  /** 空画布时点击上传（移动端主入口） */
+  onEmptyUploadClick?: () => void;
   /** 底部工具条等叠加层 */
   children?: ReactNode;
 };
@@ -70,6 +72,7 @@ export function EditorCanvasWorkspace({
   onPinchZoom,
   showCellKeys,
   showGrid = true,
+  onEmptyUploadClick,
   children,
 }: EditorCanvasWorkspaceProps) {
   const canvasPanRef = useRef<{ x: number; y: number; pointerId: number } | null>(null);
@@ -119,26 +122,35 @@ export function EditorCanvasWorkspace({
   return (
     <div
       ref={viewportRef}
-      className="relative min-h-0 min-w-0 flex-1 overflow-hidden rounded-lg border border-[#eadfce] bg-[#f3ebe0] dark:border-gray-800 dark:bg-gray-950"
+      className="relative min-h-0 min-w-0 flex-1 overflow-hidden rounded-lg border border-[#eadfce] bg-[#f3ebe0]"
     >
       {!hasCanvasContent ? (
-        <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-400 dark:text-gray-500">
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            className="mb-3 h-14 w-14 opacity-50"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth={1.25}
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"
-            />
-          </svg>
-          <p className="text-sm">请先上传图片</p>
-        </div>
+        <button
+          type="button"
+          onClick={onEmptyUploadClick}
+          className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-[#f8f1e6] px-4 text-[#8a6a4a] transition-colors hover:bg-[#f3e6d4] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#c47a2c]"
+          aria-label="上传图片"
+        >
+          <span className="mb-1 flex h-14 w-14 items-center justify-center rounded-full bg-[#c47a2c] text-white shadow-sm">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className="h-7 w-7"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={1.8}
+              aria-hidden="true"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"
+              />
+            </svg>
+          </span>
+          <p className="text-sm font-semibold text-[#3a2416]">点击上传图片</p>
+          <p className="text-xs text-[#a08060]">支持 JPG / PNG / GIF，或 CSV</p>
+        </button>
       ) : (
         <div
           ref={panSurfaceRef}

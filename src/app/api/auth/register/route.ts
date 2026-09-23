@@ -3,6 +3,7 @@ import { getDB } from '../../../../lib/d1';
 import { buildSessionCookie, getSessionUserId } from '../../../../lib/session';
 import { hashPassword } from '../../../../lib/password';
 import { mergeAnonymousIntoUser } from '../../../../lib/anonymous';
+import { isAdminEmail } from '../../../../lib/admin';
 
 export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
@@ -42,7 +43,14 @@ export async function POST(request: Request) {
   const guestId = await getSessionUserId();
   if (guestId) await mergeAnonymousIntoUser(guestId, id);
 
-  const res = NextResponse.json({ id, name, email: account, account, isAnonymous: false });
+  const res = NextResponse.json({
+    id,
+    name,
+    email: account,
+    account,
+    isAnonymous: false,
+    isAdmin: isAdminEmail(account),
+  });
   res.cookies.set(await buildSessionCookie(id));
   return res;
 }

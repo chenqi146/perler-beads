@@ -594,11 +594,9 @@ function Editor() {
               isImagePrepOpen={isImagePrepOpen}
               isMounted={isMounted}
               hasPatternGrid={Boolean(mappedPixelData?.length && gridDimensions && gridDimensions.N > 0)}
-              fileInputRef={fileInputRef}
               onOpenImagePrep={openImagePrep}
               onUndoAiMatting={handleUndoAiMatting}
               onTriggerFileInput={triggerFileInput}
-              onFileChange={handleFileChange}
               onDrop={handleDrop}
               onDragOver={handleDragOver}
             />
@@ -668,7 +666,7 @@ function Editor() {
 
           {/* 右侧：图纸预览，占满剩余高度 */}
           <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-            <div className="flex min-h-0 flex-1 flex-col rounded-xl border border-[#eadfce] bg-white p-2 dark:border-gray-800 dark:bg-gray-900 sm:p-4">
+            <div className="flex min-h-0 flex-1 flex-col rounded-xl border border-[#eadfce] bg-white p-2 sm:p-4">
               <div className="mb-2 flex shrink-0 flex-col gap-2">
                 <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
                   <div className="flex min-w-0 items-center gap-2">
@@ -720,6 +718,13 @@ function Editor() {
               </div>
 
               <canvas ref={originalCanvasRef} className="hidden"></canvas>
+              <input
+                type="file"
+                accept="image/jpeg, image/png, image/gif, .csv, text/csv, application/csv, text/plain"
+                onChange={handleFileChange}
+                ref={fileInputRef}
+                className="hidden"
+              />
 
               {/* 画布 + 右侧色块统计 */}
               <div className="flex min-h-0 flex-1 flex-col gap-2 lg:flex-row lg:gap-3">
@@ -746,6 +751,7 @@ function Editor() {
                   onPinchZoom={handlePinchZoom}
                   showCellKeys={!finishedPreview}
                   showGrid={!finishedPreview}
+                  onEmptyUploadClick={isMounted ? triggerFileInput : undefined}
                 >
                   {originalImageSrc && (
                     <div
@@ -883,20 +889,33 @@ function Editor() {
                         highlightHex={highlightColorKey}
                         onSelectColor={handleSelectAllByColor}
                       />
+                    ) : !originalImageSrc && !(mappedPixelData?.length && gridDimensions && gridDimensions.N > 0) ? (
+                      <button
+                        type="button"
+                        onClick={isMounted ? triggerFileInput : undefined}
+                        className="flex h-14 w-full touch-manipulation items-center justify-center gap-2 rounded-xl bg-[#c47a2c] px-3 text-sm font-semibold text-white"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8} aria-hidden="true">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                        </svg>
+                        上传图片
+                      </button>
                     ) : (
                       <p className="flex h-14 items-center px-2 text-[11px] text-[#8a6a4a]">点格选中后可换色</p>
                     )}
                   </div>
                   <div className="flex shrink-0 flex-col gap-1">
-                    <button
-                      type="button"
-                      disabled={selectedCells.size === 0}
-                      onClick={handleOpenSelectionRecolor}
-                      className="inline-flex h-11 min-w-[2.75rem] touch-manipulation items-center justify-center rounded-xl bg-[#c47a2c] px-2 text-xs font-semibold text-white disabled:bg-[#e0d0bc] disabled:text-[#8a6a4a]"
-                      aria-label="换色"
-                    >
-                      换色{selectedCells.size > 0 ? ` ${selectedCells.size}` : ''}
-                    </button>
+                    {sortedEditorColors.length > 0 || originalImageSrc || (mappedPixelData?.length && gridDimensions && gridDimensions.N > 0) ? (
+                      <button
+                        type="button"
+                        disabled={selectedCells.size === 0}
+                        onClick={handleOpenSelectionRecolor}
+                        className="inline-flex h-11 min-w-[2.75rem] touch-manipulation items-center justify-center rounded-xl bg-[#c47a2c] px-2 text-xs font-semibold text-white disabled:bg-[#e0d0bc] disabled:text-[#8a6a4a]"
+                        aria-label="换色"
+                      >
+                        换色{selectedCells.size > 0 ? ` ${selectedCells.size}` : ''}
+                      </button>
+                    ) : null}
                     <button
                       type="button"
                       onClick={() => setMobileSettingsOpen(true)}
@@ -957,7 +976,22 @@ function Editor() {
               </button>
             </div>
             <div className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain px-3 py-3">
-              <p className="px-1 text-[11px] text-[#8a6a4a]">换图与手动裁切请用电脑端完整编辑；导出在右上角。</p>
+              <EditorUploadPanel
+                originalImageSrc={originalImageSrc}
+                preAiImageSrc={preAiImageSrc}
+                pendingPrepImageSrc={pendingPrepImageSrc}
+                isImagePrepOpen={isImagePrepOpen}
+                isMounted={isMounted}
+                hasPatternGrid={Boolean(mappedPixelData?.length && gridDimensions && gridDimensions.N > 0)}
+                onOpenImagePrep={(src) => {
+                  setMobileSettingsOpen(false);
+                  openImagePrep(src);
+                }}
+                onUndoAiMatting={handleUndoAiMatting}
+                onTriggerFileInput={triggerFileInput}
+                onDrop={handleDrop}
+                onDragOver={handleDragOver}
+              />
               <EditorSettingsPanel
                 mappedPixelData={mappedPixelData}
                 gridDimensions={gridDimensions}

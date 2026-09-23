@@ -46,6 +46,7 @@ export default function RegisterForm() {
         name: result.name || name.trim(),
         email: result.email || account.trim(),
         isAnonymous: false,
+        isAdmin: Boolean(result.isAdmin),
       });
       toast('注册成功');
       router.push('/dashboard');
