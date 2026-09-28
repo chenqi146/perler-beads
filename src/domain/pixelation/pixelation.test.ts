@@ -378,7 +378,7 @@ describe('calculatePixelGrid stroke gating', () => {
   }
 
   /** 白底粉块 + 贯穿全图的细黑网格（模拟「已是拼豆底稿」再转像素） */
-  function makeGriddedSprite(cols: number, rows: number, cell = 8, line = 1) {
+  function makeGriddedSprite(cols: number, rows: number, cell = 8) {
     const w = cols * cell;
     const h = rows * cell;
     const rgba = new Uint8ClampedArray(w * h * 4);
@@ -432,7 +432,7 @@ describe('calculatePixelGrid stroke gating', () => {
   });
 
   it('EdgeAware without dither may still keep dark strokes', () => {
-    const { w, h, rgba } = makeGriddedSprite(20, 20, 10, 2);
+    const { w, h, rgba } = makeGriddedSprite(20, 20, 10);
     const grid = calculatePixelGrid(
       mockCtx(w, h, rgba),
       w,
