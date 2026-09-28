@@ -80,6 +80,80 @@ body {
   font-weight: 700;
 }
 
+.pattern-list-query {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0 0 18px;
+}
+
+.pattern-list-query-search input {
+  width: 100%;
+  height: 42px;
+  border: 1px solid #e0d0bc;
+  border-radius: 12px;
+  background: #fffaf3;
+  padding: 0 14px;
+  color: #3a2416;
+  font: inherit;
+  font-size: 0.92rem;
+}
+
+.pattern-list-query-search input::placeholder {
+  color: #b08a68;
+}
+
+.pattern-list-query-search input:focus-visible {
+  outline: none;
+  border-color: #c47a2c;
+  box-shadow: 0 0 0 3px #e8b86a;
+}
+
+.pattern-list-query-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.pattern-list-query-filters button {
+  appearance: none;
+  min-height: 32px;
+  border: 1px solid #eadfce;
+  border-radius: 999px;
+  background: #fffaf3;
+  color: #8a6a4a;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 4px 12px;
+  cursor: pointer;
+  transition: background-color 150ms, border-color 150ms, color 150ms;
+}
+
+.pattern-list-query-filters button:hover {
+  border-color: #e0c49a;
+  color: #5c4030;
+  background: #fff4e6;
+}
+
+.pattern-list-query-filters button.is-active {
+  border-color: #c47a2c;
+  background: #c47a2c;
+  color: #fffaf3;
+}
+
+.pattern-list-query-filters button:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px #e8b86a;
+}
+
+.pattern-list-query-count {
+  margin: 0;
+  color: #8a6a4a;
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+}
+
 .pattern-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
@@ -175,6 +249,95 @@ body {
 
 .pattern-card-body--padded {
   padding-bottom: 14px;
+}
+
+.pattern-bead-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 10px 14px 0;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid #eadfce;
+  background: #fff4e6;
+  color: inherit;
+  text-decoration: none;
+  transition: border-color 150ms, background-color 150ms;
+}
+
+.pattern-bead-progress:hover {
+  border-color: #e0c49a;
+  background: #ffefd8;
+}
+
+.pattern-bead-progress:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px #e8b86a;
+}
+
+.pattern-bead-progress.is-empty {
+  margin: 8px 14px 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: #b07a3a;
+  font-size: 0.78rem;
+  pointer-events: none;
+}
+
+.pattern-bead-progress.is-active {
+  border-color: #e8b86a;
+}
+
+.pattern-bead-progress.is-completed {
+  border-color: #c6d9a8;
+  background: #f3f7ea;
+}
+
+.pattern-bead-progress-meta {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 0.75rem;
+  line-height: 1.3;
+}
+
+.pattern-bead-progress-label {
+  font-weight: 600;
+  color: #5c4030;
+}
+
+.pattern-bead-progress.is-completed .pattern-bead-progress-label {
+  color: #4a6b2a;
+}
+
+.pattern-bead-progress-counts {
+  color: #8a6a4a;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.pattern-bead-progress-track {
+  height: 4px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #eadfce;
+}
+
+.pattern-bead-progress.is-completed .pattern-bead-progress-track {
+  background: #d7e4c4;
+}
+
+.pattern-bead-progress-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: #c47a2c;
+  transition: width 200ms ease-out;
+}
+
+.pattern-bead-progress.is-completed .pattern-bead-progress-fill {
+  background: #6a9a3a;
 }
 
 .pattern-card h2 {

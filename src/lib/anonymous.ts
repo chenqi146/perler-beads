@@ -92,13 +92,24 @@ async function insertAnonymousUser(id: string, name: string): Promise<void> {
       )
       .bind(id, email, name, passwordHash, createdAt, 1)
       .run();
-  } catch {
+  } catch (err) {
+    if (isMissingUsersTableError(err)) {
+      throw new Error(
+        'D1 缺少 users 表。请先执行 npm run db:migrate:local（或 db:migrate:dev / db:migrate:prod）',
+        { cause: err },
+      );
+    }
     // 未跑迁移时回退：仅写旧列，靠 @guest.local 识别
     await db
       .prepare('INSERT INTO users (id, email, name, password_hash, created_at) VALUES (?,?,?,?,?)')
       .bind(id, email, name, passwordHash, createdAt)
       .run();
   }
+}
+
+function isMissingUsersTableError(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : String(err);
+  return /no such table:\s*users/i.test(msg);
 }
 
 async function loadUserRow(userId: string): Promise<UserRow | null> {
@@ -109,7 +120,14 @@ async function loadUserRow(userId: string): Promise<UserRow | null> {
       .prepare('SELECT id, email, name, is_anonymous FROM users WHERE id = ?')
       .bind(userId)
       .first<UserRow>();
-  } catch {
+  } catch (err) {
+    if (isMissingUsersTableError(err)) {
+      throw new Error(
+        'D1 缺少 users 表。请先执行 npm run db:migrate:local（或 db:migrate:dev / db:migrate:prod）',
+        { cause: err },
+      );
+    }
+    // 未跑 is_anonymous 迁移时回退旧列
     return await db
       .prepare('SELECT id, email, name FROM users WHERE id = ?')
       .bind(userId)
@@ -117,29 +135,94 @@ async function loadUserRow(userId: string): Promise<UserRow | null> {
   }
 }
 
+async function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms);
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (err) => {
+        clearTimeout(timer);
+        reject(err);
+      },
+    );
+  });
+}
+
+async function offlineAnonymousIdentity(
+  existingId?: string | null,
+): Promise<{
+  identity: AuthIdentity;
+  setCookie?: Awaited<ReturnType<typeof buildSessionCookie>>;
+}> {
+  const id = existingId || crypto.randomUUID();
+  return {
+    identity: {
+      id,
+      name: '本机游客',
+      email: null,
+      isAnonymous: true,
+      offline: true,
+    },
+    setCookie: existingId ? undefined : await buildSessionCookie(id),
+  };
+}
+
 /**
  * 确保当前请求有可用身份：
  * - 已有有效 session → 返回对应用户
  * - 否则创建匿名用户并签发 Cookie 配置
+ * - 本地 D1/remote binding 卡住时回退离线游客，避免 /api/auth/anonymous 一直 pending
  */
 export async function ensureAnonymousIdentity(): Promise<{
   identity: AuthIdentity;
   setCookie?: Awaited<ReturnType<typeof buildSessionCookie>>;
 }> {
+  const budgetMs = process.env.NODE_ENV === 'development' ? 2500 : 20_000;
+  try {
+    return await withTimeout(ensureAnonymousIdentityInner(), budgetMs, 'ensureAnonymousIdentity');
+  } catch (err) {
+    // 开发态 remote D1/代理卡住时常见；回退离线游客，避免接口挂死
+    if (process.env.NODE_ENV === 'development') {
+      console.warn(
+        '[anonymous] falling back to offline guest（请确认 wrangler D1 remote=false 且已 npm run db:migrate:local，并重启 next dev）',
+        err,
+      );
+    } else {
+      console.warn('[anonymous] falling back to offline guest', err);
+    }
+    const existingId = await getSessionUserId().catch(() => null);
+    return offlineAnonymousIdentity(existingId);
+  }
+}
+
+async function probeDb(db: NonNullable<Awaited<ReturnType<typeof getDB>>>): Promise<boolean> {
+  try {
+    await withTimeout(
+      db.prepare('SELECT 1 AS ok').bind().first<{ ok: number }>(),
+      process.env.NODE_ENV === 'development' ? 800 : 5000,
+      'd1.probe',
+    );
+    return true;
+  } catch (err) {
+    console.warn('[anonymous] D1 probe failed', err);
+    return false;
+  }
+}
+
+async function ensureAnonymousIdentityInner(): Promise<{
+  identity: AuthIdentity;
+  setCookie?: Awaited<ReturnType<typeof buildSessionCookie>>;
+}> {
   const existingId = await getSessionUserId();
-  const db = await getDB();
+  const rawDb = await getDB();
+  const db = rawDb && (await probeDb(rawDb)) ? rawDb : null;
 
   if (existingId) {
     if (!db) {
-      return {
-        identity: {
-          id: existingId,
-          name: '本机游客',
-          email: null,
-          isAnonymous: true,
-          offline: true,
-        },
-      };
+      return offlineAnonymousIdentity(existingId);
     }
     const row = await loadUserRow(existingId);
     if (row) {

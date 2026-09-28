@@ -2,28 +2,45 @@
 
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
-import { usePatternStore } from '../../../stores';
+import { useEffect, useMemo, useState } from 'react';
+import {
+  usePatternStore,
+  useBeadProgressStore,
+  summarizeBeadProgress,
+  beadCraftCtaLabel,
+} from '../../../stores';
 import type { Pattern } from '../../../types/platform';
+import { PatternBeadProgress } from '../../../components/patterns/PatternBeadProgress';
+import { PatternPreviewImage } from '../../../components/patterns/PatternPreviewImage';
 
 export default function PatternDetail() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
   const loadPattern = usePatternStore((s) => s.loadPattern);
   const duplicatePattern = usePatternStore((s) => s.duplicatePattern);
+  const completedCells = useBeadProgressStore(
+    (s) => s.byPattern[params.id]?.completedCells,
+  );
   const [pattern, setPattern] = useState<Pattern | null | undefined>(undefined);
 
   useEffect(() => {
     setPattern(loadPattern(params.id));
   }, [params.id, loadPattern]);
 
-  if (!pattern) {
+  const summary = useMemo(
+    () => (pattern ? summarizeBeadProgress(pattern, completedCells) : null),
+    [pattern, completedCells],
+  );
+
+  if (!pattern || !summary) {
     return (
       <main className="platform-page">
         <p className="empty-state">图纸不存在。</p>
       </main>
     );
   }
+
+  const emptyGrid = pattern.data.gridDimensions.N <= 0;
 
   return (
     <main className="platform-page">
@@ -34,20 +51,41 @@ export default function PatternDetail() {
         </div>
       </header>
       <p style={{ color: '#8a6a4a', marginTop: 0 }}>{pattern.description || '暂无描述'}</p>
-      <div className="detail-actions">
-        <button
-          type="button"
-          className="primary-button"
-          onClick={() => {
-            const copy = duplicatePattern(pattern.id);
-            if (copy) router.push(`/editor/${copy.id}`);
-          }}
-        >
-          复制并编辑
-        </button>
-        <Link href="/explore" className="secondary-button">
-          返回公开图纸
-        </Link>
+
+      <div className="mx-auto mt-4 max-w-lg overflow-hidden rounded-2xl border border-[#eadfce] bg-[#fffaf3]">
+        <div className="aspect-square bg-[#f3e6d4]">
+          <PatternPreviewImage
+            data={pattern.data}
+            cacheKey={`${pattern.id}:${pattern.updatedAt}`}
+          />
+        </div>
+        <PatternBeadProgress
+          patternId={pattern.id}
+          summary={summary}
+          disabled={emptyGrid}
+        />
+        <div className="detail-actions px-4 pb-4">
+          <Link
+            href={`/bead/${pattern.id}`}
+            className={`primary-button ${emptyGrid ? 'pointer-events-none opacity-40' : ''}`}
+            aria-disabled={emptyGrid}
+          >
+            {beadCraftCtaLabel(summary.status)}
+          </Link>
+          <button
+            type="button"
+            className="secondary-button"
+            onClick={() => {
+              const copy = duplicatePattern(pattern.id);
+              if (copy) router.push(`/editor/${copy.id}`);
+            }}
+          >
+            复制并编辑
+          </button>
+          <Link href="/explore" className="secondary-button">
+            返回公开图纸
+          </Link>
+        </div>
       </div>
     </main>
   );

@@ -1,12 +1,22 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { usePatternStore } from '@/stores';
+import {
+  usePatternStore,
+  useBeadProgressStore,
+  summarizeBeadProgress,
+  beadCraftCtaLabel,
+} from '@/stores';
 import { useToast } from '@/components/ui/ToastProvider';
 import type { Pattern } from '@/types/platform';
 import { PatternPreviewImage } from '@/components/patterns/PatternPreviewImage';
+import { PatternBeadProgress } from '@/components/patterns/PatternBeadProgress';
+import {
+  PatternListQueryBar,
+  type PatternProgressFilter,
+} from '@/components/patterns/PatternListQueryBar';
 
 type Props = {
   initialPatterns: Pattern[];
@@ -19,10 +29,13 @@ export function DashboardClient({ initialPatterns }: Props) {
   const refreshPatterns = usePatternStore((s) => s.refreshPatterns);
   const savePattern = usePatternStore((s) => s.savePattern);
   const deletePattern = usePatternStore((s) => s.deletePattern);
+  const byPatternProgress = useBeadProgressStore((s) => s.byPattern);
   const [hydrated, setHydrated] = useState(false);
   const [open, setOpen] = useState(false);
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
+  const [query, setQuery] = useState('');
+  const [progressFilter, setProgressFilter] = useState<PatternProgressFilter>('all');
 
   useEffect(() => {
     refreshPatterns();
@@ -34,6 +47,28 @@ export function DashboardClient({ initialPatterns }: Props) {
 
   const patterns =
     hydrated || storePatterns.length > 0 ? storePatterns : initialPatterns;
+
+  const progressById = useMemo(() => {
+    const map: Record<string, ReturnType<typeof summarizeBeadProgress>> = {};
+    for (const pattern of patterns) {
+      map[pattern.id] = summarizeBeadProgress(
+        pattern,
+        byPatternProgress[pattern.id]?.completedCells,
+      );
+    }
+    return map;
+  }, [patterns, byPatternProgress]);
+
+  const filteredPatterns = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return patterns.filter((pattern) => {
+      const summary = progressById[pattern.id];
+      if (progressFilter !== 'all' && summary.status !== progressFilter) return false;
+      if (!q) return true;
+      const haystack = `${pattern.name} ${pattern.description || ''}`.toLowerCase();
+      return haystack.includes(q);
+    });
+  }, [patterns, progressById, progressFilter, query]);
 
   const create = () => {
     if (!name.trim()) return;
@@ -122,65 +157,87 @@ export function DashboardClient({ initialPatterns }: Props) {
         </div>
       )}
 
+      {patterns.length > 0 ? (
+        <PatternListQueryBar
+          query={query}
+          onQueryChange={setQuery}
+          progressFilter={progressFilter}
+          onProgressFilterChange={setProgressFilter}
+          resultCount={filteredPatterns.length}
+          totalCount={patterns.length}
+        />
+      ) : null}
+
       <section className="pattern-grid">
-        {patterns.length ? (
-          patterns.map((pattern) => (
-            <article className="pattern-card" key={pattern.id}>
-              <div className="pattern-card-media">
-                <Link href={`/editor/${pattern.id}`} className="pattern-preview">
-                  <PatternPreviewImage
-                    data={pattern.data}
-                    cacheKey={`${pattern.id}:${pattern.updatedAt}`}
-                  />
-                </Link>
-                <span
-                  className={`pattern-badge ${pattern.visibility === 'public' ? 'is-public' : 'is-private'}`}
-                >
-                  {pattern.visibility === 'public' ? '公开' : '私有'}
-                </span>
-              </div>
-              <div className="pattern-card-body">
-                <h2>{pattern.name}</h2>
-                {pattern.description ? <p>{pattern.description}</p> : null}
-                <small>
-                  {pattern.data.gridDimensions.N} × {pattern.data.gridDimensions.M}
-                </small>
-              </div>
-              <div className="pattern-card-actions">
-                <Link
-                  href={`/editor/${pattern.id}`}
-                  className="secondary-button touch-manipulation"
-                >
-                  编辑
-                </Link>
-                <Link
-                  href={`/bead/${pattern.id}`}
-                  className={`primary-button touch-manipulation ${pattern.data.gridDimensions.N <= 0 ? 'pointer-events-none opacity-40' : ''}`}
-                  aria-disabled={pattern.data.gridDimensions.N <= 0}
-                >
-                  开始拼豆
-                </Link>
-              </div>
-              <div className="pattern-card-tools">
-                <button type="button" onClick={() => toggleVisibility(pattern)}>
-                  {pattern.visibility === 'public' ? '取消公开' : '设为公开'}
-                </button>
-                <span aria-hidden="true">·</span>
-                <button
-                  type="button"
-                  className="danger"
-                  onClick={() => {
-                    deletePattern(pattern.id);
-                    toast('已删除');
-                  }}
-                >
-                  删除
-                </button>
-              </div>
-            </article>
-          ))
-        ) : (
+        {patterns.length === 0 ? (
           <p className="empty-state">还没有图纸，先新建一张吧。</p>
+        ) : filteredPatterns.length === 0 ? (
+          <p className="empty-state">没有符合条件的图纸，试试其他关键词或进度筛选。</p>
+        ) : (
+          filteredPatterns.map((pattern) => {
+            const summary = progressById[pattern.id];
+            const emptyGrid = pattern.data.gridDimensions.N <= 0;
+            return (
+              <article className="pattern-card" key={pattern.id}>
+                <div className="pattern-card-media">
+                  <Link href={`/editor/${pattern.id}`} className="pattern-preview">
+                    <PatternPreviewImage
+                      data={pattern.data}
+                      cacheKey={`${pattern.id}:${pattern.updatedAt}`}
+                    />
+                  </Link>
+                  <span
+                    className={`pattern-badge ${pattern.visibility === 'public' ? 'is-public' : 'is-private'}`}
+                  >
+                    {pattern.visibility === 'public' ? '公开' : '私有'}
+                  </span>
+                </div>
+                <div className="pattern-card-body">
+                  <h2>{pattern.name}</h2>
+                  {pattern.description ? <p>{pattern.description}</p> : null}
+                  <small>
+                    {pattern.data.gridDimensions.N} × {pattern.data.gridDimensions.M}
+                  </small>
+                </div>
+                <PatternBeadProgress
+                  patternId={pattern.id}
+                  summary={summary}
+                  disabled={emptyGrid}
+                />
+                <div className="pattern-card-actions">
+                  <Link
+                    href={`/editor/${pattern.id}`}
+                    className="secondary-button touch-manipulation"
+                  >
+                    编辑
+                  </Link>
+                  <Link
+                    href={`/bead/${pattern.id}`}
+                    className={`primary-button touch-manipulation ${emptyGrid ? 'pointer-events-none opacity-40' : ''}`}
+                    aria-disabled={emptyGrid}
+                  >
+                    {beadCraftCtaLabel(summary.status)}
+                  </Link>
+                </div>
+                <div className="pattern-card-tools">
+                  <button type="button" onClick={() => toggleVisibility(pattern)}>
+                    {pattern.visibility === 'public' ? '取消公开' : '设为公开'}
+                  </button>
+                  <span aria-hidden="true">·</span>
+                  <button
+                    type="button"
+                    className="danger"
+                    onClick={() => {
+                      deletePattern(pattern.id);
+                      toast('已删除');
+                    }}
+                  >
+                    删除
+                  </button>
+                </div>
+              </article>
+            );
+          })
         )}
       </section>
     </main>

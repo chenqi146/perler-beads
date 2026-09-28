@@ -3,6 +3,7 @@ export type { PatternInput, PatternData, Visibility } from './pattern/patternSto
 export { useEditorStore } from './editor/editorStore';
 export type { EditSnapshot } from './editor/editorStore';
 export { useEditorUiStore } from './editor/editorUiStore';
+export type { UploadMode } from './editor/editorUiStore';
 export {
   useEditorDocument,
   useEditorGenerationParams,
@@ -18,6 +19,14 @@ export {
   useBeadProgressActions,
   usePatternLoadActions,
 } from './bead/beadSelectors';
+export {
+  summarizeBeadProgress,
+  beadCraftCtaLabel,
+} from './bead/beadProgressSummary';
+export type {
+  BeadProgressSummary,
+  BeadProgressStatus,
+} from './bead/beadProgressSummary';
 export { useEditorHistory } from './editor/useEditorHistory';
 export { useEditorPatternActions } from './editor/useEditorPatternActions';
 export { usePatternAutosave } from './editor/usePatternAutosave';

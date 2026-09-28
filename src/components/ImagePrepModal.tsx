@@ -1,10 +1,23 @@
 'use client';
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import type { UploadMode } from '../application/editor/editorUiStore';
 import { detectSubjectBounds } from '../domain/pixelation';
 import { removeImageBackground } from '../utils/aiMatting';
+import {
+  colorSystemOptions,
+  type ColorSystem,
+} from '../utils/colorSystemUtils';
 import { CloseIcon, IconButton } from './ui/IconButton';
 import { Overlay } from './ui/Overlay';
+
+function clampGridSize(n: number): number {
+  return Math.max(10, Math.min(300, Math.round(n) || 10));
+}
+
+function heightFromWidth(width: number, aspectRatio: number): number {
+  return clampGridSize(width * Math.max(0.05, aspectRatio));
+}
 
 type CropBox = { x: number; y: number; w: number; h: number };
 type Corner = 'nw' | 'ne' | 'sw' | 'se';
@@ -91,10 +104,33 @@ function cursorForHover(crop: CropBox | null, x: number, y: number): string {
   return 'crosshair';
 }
 
+export type ImagePrepInitialSettings = {
+  gridWidth: number;
+  gridHeight: number;
+  keepAspectRatio: boolean;
+  maxColorCount: number;
+  selectedColorSystem: ColorSystem;
+};
+
+export type ImagePrepConfirmMeta = {
+  usedAiMatting: boolean;
+  mode: UploadMode;
+  gridWidth: number;
+  gridHeight: number;
+  keepAspectRatio: boolean;
+  maxColorCount: number;
+  selectedColorSystem: ColorSystem;
+  /** 图纸识别：为 true 时自动检网格（忽略下方尺寸，仅作失败回退） */
+  preferAutoGrid: boolean;
+};
+
 interface ImagePrepModalProps {
   imageSrc: string;
+  uploadMode: UploadMode;
+  onUploadModeChange: (mode: UploadMode) => void;
+  initialSettings: ImagePrepInitialSettings;
   onCancel: () => void;
-  onConfirm: (preparedDataUrl: string, meta: { usedAiMatting: boolean }) => void;
+  onConfirm: (preparedDataUrl: string, meta: ImagePrepConfirmMeta) => void | Promise<void>;
 }
 
 function readNaturalImageData(img: HTMLImageElement): ImageData | null {
@@ -112,9 +148,16 @@ function readNaturalImageData(img: HTMLImageElement): ImageData | null {
 }
 
 /**
- * 上传后预处理弹窗：优先自动框选主体，可拖拽调整；可选 AI 抠图；确认后输出最终原图
+ * 上传后处理弹窗：内含「图片转像素 / 图纸识别」切换；框选裁剪后按模式生成或识别
  */
-const ImagePrepModal: React.FC<ImagePrepModalProps> = ({ imageSrc, onCancel, onConfirm }) => {
+const ImagePrepModal: React.FC<ImagePrepModalProps> = ({
+  imageSrc,
+  uploadMode,
+  onUploadModeChange,
+  initialSettings,
+  onCancel,
+  onConfirm,
+}) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const imgRef = useRef<HTMLImageElement | null>(null);
   const [naturalSize, setNaturalSize] = useState({ w: 0, h: 0 });
@@ -124,6 +167,16 @@ const ImagePrepModal: React.FC<ImagePrepModalProps> = ({ imageSrc, onCancel, onC
   const [busy, setBusy] = useState(false);
   const [progressText, setProgressText] = useState('');
   const [subjectHint, setSubjectHint] = useState<string | null>(null);
+  const [gridWidthInput, setGridWidthInput] = useState(String(initialSettings.gridWidth));
+  const [gridHeightInput, setGridHeightInput] = useState(String(initialSettings.gridHeight));
+  const [keepAspectRatio, setKeepAspectRatio] = useState(initialSettings.keepAspectRatio);
+  const [maxColorCount, setMaxColorCount] = useState(initialSettings.maxColorCount);
+  const [selectedColorSystem, setSelectedColorSystem] = useState<ColorSystem>(
+    initialSettings.selectedColorSystem,
+  );
+  /** 识别默认按设定尺寸，避免自动检出覆盖用户输入（如 85→43） */
+  const [preferAutoGrid, setPreferAutoGrid] = useState(false);
+  const cropAspectRef = useRef(1);
   const [cursor, setCursor] = useState('crosshair');
   const dragRef = useRef<DragMode | null>(null);
   const cropRef = useRef<CropBox | null>(null);
@@ -131,6 +184,29 @@ const ImagePrepModal: React.FC<ImagePrepModalProps> = ({ imageSrc, onCancel, onC
   useEffect(() => {
     cropRef.current = crop;
   }, [crop]);
+
+  useEffect(() => {
+    if (!crop || crop.w < 2 || crop.h < 2) return;
+    const ratio = crop.h / crop.w;
+    cropAspectRef.current = ratio;
+    if (!keepAspectRatio) return;
+    const width = clampGridSize(Number(gridWidthInput) || initialSettings.gridWidth);
+    setGridHeightInput(String(heightFromWidth(width, ratio)));
+  }, [crop, keepAspectRatio, gridWidthInput, initialSettings.gridWidth]);
+
+  const applyGridWidth = (raw: string) => {
+    const width = clampGridSize(Number(raw) || initialSettings.gridWidth);
+    setGridWidthInput(String(width));
+    if (keepAspectRatio) {
+      setGridHeightInput(String(heightFromWidth(width, cropAspectRef.current)));
+    }
+  };
+
+  const applyGridHeight = (raw: string) => {
+    if (keepAspectRatio) return;
+    const height = clampGridSize(Number(raw) || initialSettings.gridHeight);
+    setGridHeightInput(String(height));
+  };
 
   const draw = useCallback(() => {
     const canvas = canvasRef.current;
@@ -213,6 +289,13 @@ const ImagePrepModal: React.FC<ImagePrepModalProps> = ({ imageSrc, onCancel, onC
       setNaturalSize({ w: img.naturalWidth, h: img.naturalHeight });
       setDisplaySize({ w: dw, h: dh });
 
+      if (uploadMode === 'recognize') {
+        setCrop({ x: 0, y: 0, w: dw, h: dh });
+        setEnableAiMatting(false);
+        setSubjectHint('默认选中整图；拖动框角可调整，确认后识别网格与色号');
+        return;
+      }
+
       const found = applySubjectCrop(img, dw, dh);
       if (found) {
         setSubjectHint('已自动框选主体：框内拖移，角点缩放，框外拖拽可重画');
@@ -222,6 +305,8 @@ const ImagePrepModal: React.FC<ImagePrepModalProps> = ({ imageSrc, onCancel, onC
       }
     };
     img.src = imageSrc;
+    // 仅随图片变化初始化；模式切换由 handleModeChange 处理框选
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- uploadMode 仅作首帧默认
   }, [imageSrc, applySubjectCrop]);
 
   useEffect(() => {
@@ -371,20 +456,52 @@ const ImagePrepModal: React.FC<ImagePrepModalProps> = ({ imageSrc, onCancel, onC
     return out.toDataURL('image/png');
   };
 
+  const handleModeChange = (mode: UploadMode) => {
+    if (busy || mode === uploadMode) return;
+    onUploadModeChange(mode);
+    if (mode === 'recognize') {
+      if (displaySize.w) {
+        setCrop({ x: 0, y: 0, w: displaySize.w, h: displaySize.h });
+      }
+      setEnableAiMatting(false);
+      setSubjectHint('默认选中整图；拖动框角可调整，确认后识别网格与色号');
+    } else {
+      handleAutoSubjectCrop();
+    }
+  };
+
   const handleConfirm = async () => {
     if (busy) return;
+    const isRecognize = uploadMode === 'recognize';
+    const useMatting = !isRecognize && enableAiMatting;
     setBusy(true);
-    setProgressText(enableAiMatting ? '正在裁剪…' : '正在应用…');
+    setProgressText(useMatting ? '正在裁剪…' : isRecognize ? '正在裁剪识别区域…' : '正在应用…');
     try {
       let dataUrl = await exportCroppedDataUrl();
-      if (enableAiMatting) {
+      if (useMatting) {
         setProgressText('AI 抠图中（首次需下载模型）…');
         dataUrl = await removeImageBackground(dataUrl, ({ key, current, total }) => {
           const pct = total > 0 ? Math.round((current / total) * 100) : 0;
           setProgressText(`AI 抠图 · ${key} ${pct}%`);
         });
       }
-      onConfirm(dataUrl, { usedAiMatting: enableAiMatting });
+      if (isRecognize) {
+        setProgressText('正在识别图纸…');
+      }
+      const gridWidth = clampGridSize(Number(gridWidthInput) || initialSettings.gridWidth);
+      const gridHeight = keepAspectRatio
+        ? heightFromWidth(gridWidth, cropAspectRef.current)
+        : clampGridSize(Number(gridHeightInput) || initialSettings.gridHeight);
+      await onConfirm(dataUrl, {
+        usedAiMatting: useMatting,
+        mode: uploadMode,
+        gridWidth,
+        gridHeight,
+        keepAspectRatio,
+        maxColorCount: Math.max(0, Math.min(50, Math.round(maxColorCount) || 0)),
+        selectedColorSystem,
+        preferAutoGrid: uploadMode === 'recognize' ? preferAutoGrid : false,
+      });
     } catch (err) {
       console.error(err);
       alert(err instanceof Error ? err.message : '处理失败，请重试');
@@ -394,6 +511,21 @@ const ImagePrepModal: React.FC<ImagePrepModalProps> = ({ imageSrc, onCancel, onC
     }
   };
 
+  const title = uploadMode === 'recognize' ? '图纸识别' : '图片转像素';
+  const hint =
+    subjectHint ??
+    (uploadMode === 'recognize'
+      ? '默认选中整图；拖动框角可调整，确认后识别网格与色号'
+      : '可拖拽框选裁剪区域；需要去背景时勾选 AI 抠图，再确认生成');
+  const confirmLabel =
+    busy
+      ? uploadMode === 'recognize'
+        ? '识别中…'
+        : '处理中…'
+      : uploadMode === 'recognize'
+        ? '确认识别'
+        : '确认并生成';
+
   return (
     <Overlay
       labelledBy="image-prep-title"
@@ -402,19 +534,52 @@ const ImagePrepModal: React.FC<ImagePrepModalProps> = ({ imageSrc, onCancel, onC
       onClose={onCancel}
       panelClassName="max-w-[960px] rounded-2xl border border-gray-200 dark:border-gray-700"
     >
-        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-700">
-          <div>
-            <h3 id="image-prep-title" className="text-sm font-semibold text-gray-900 dark:text-gray-100">图片预处理</h3>
-            <p className="text-[11px] text-gray-500 mt-0.5">
-              {subjectHint ?? '可拖拽框选裁剪区域；需要去背景时勾选 AI 抠图，再确认生成'}
-            </p>
+        <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-gray-200 dark:border-gray-700">
+          <div className="min-w-0">
+            <h3 id="image-prep-title" className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+              {title}
+            </h3>
+            <p className="text-[11px] text-gray-500 mt-0.5">{hint}</p>
           </div>
           <IconButton aria-label="关闭" onClick={onCancel} disabled={busy}>
             <CloseIcon />
           </IconButton>
         </div>
 
-        <div className="p-3 flex justify-center bg-gray-100 dark:bg-gray-900/50 overflow-auto max-h-[58vh] relative">
+        <div className="px-4 pt-3">
+          <div
+            className="grid grid-cols-2 gap-1 rounded-lg bg-[#f6efe4] p-1 dark:bg-gray-800"
+            role="group"
+            aria-label="处理模式"
+          >
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => handleModeChange('generate')}
+              className={`rounded-md px-2 py-1.5 text-xs font-medium transition-colors disabled:opacity-50 ${
+                uploadMode === 'generate'
+                  ? 'bg-white text-[#3a2416] shadow-sm dark:bg-gray-700 dark:text-gray-100'
+                  : 'text-[#8a6a4a] hover:text-[#3a2416] dark:text-gray-400 dark:hover:text-gray-200'
+              }`}
+            >
+              图片转像素
+            </button>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => handleModeChange('recognize')}
+              className={`rounded-md px-2 py-1.5 text-xs font-medium transition-colors disabled:opacity-50 ${
+                uploadMode === 'recognize'
+                  ? 'bg-white text-[#3a2416] shadow-sm dark:bg-gray-700 dark:text-gray-100'
+                  : 'text-[#8a6a4a] hover:text-[#3a2416] dark:text-gray-400 dark:hover:text-gray-200'
+              }`}
+            >
+              图纸识别
+            </button>
+          </div>
+        </div>
+
+        <div className="relative flex max-h-[46vh] justify-center overflow-auto bg-gray-100 p-3 dark:bg-gray-900/50">
           <canvas
             ref={canvasRef}
             className={`max-w-full touch-none rounded shadow-sm bg-white ${busy ? 'cursor-wait opacity-70' : ''}`}
@@ -438,14 +603,16 @@ const ImagePrepModal: React.FC<ImagePrepModalProps> = ({ imageSrc, onCancel, onC
 
         <div className="px-4 py-3 border-t border-gray-200 dark:border-gray-700 space-y-3">
           <div className="flex flex-wrap items-center gap-3">
-            <button
-              type="button"
-              onClick={handleAutoSubjectCrop}
-              disabled={busy || !displaySize.w}
-              className="h-8 px-3 rounded-lg border border-amber-300 bg-amber-50 text-xs text-amber-800 disabled:opacity-40 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200"
-            >
-              自动框选主体
-            </button>
+            {uploadMode === 'generate' ? (
+              <button
+                type="button"
+                onClick={handleAutoSubjectCrop}
+                disabled={busy || !displaySize.w}
+                className="h-8 px-3 rounded-lg border border-amber-300 bg-amber-50 text-xs text-amber-800 disabled:opacity-40 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200"
+              >
+                自动框选主体
+              </button>
+            ) : null}
             <button
               type="button"
               onClick={resetFullCrop}
@@ -454,19 +621,159 @@ const ImagePrepModal: React.FC<ImagePrepModalProps> = ({ imageSrc, onCancel, onC
             >
               恢复全选
             </button>
-            <label className="inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200 select-none cursor-pointer">
-              <input
-                type="checkbox"
-                checked={enableAiMatting}
-                disabled={busy}
-                onChange={(e) => setEnableAiMatting(e.target.checked)}
-                className="h-4 w-4 rounded border-gray-300 text-violet-500 focus:ring-violet-400"
-              />
-              <span>AI 抠图去背景</span>
-            </label>
-            <span className="text-[11px] text-gray-400">
-              {enableAiMatting ? '确认时先裁剪再抠图' : '仅裁剪后生成图纸'}
-            </span>
+            {uploadMode === 'generate' ? (
+              <>
+                <label className="inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200 select-none cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={enableAiMatting}
+                    disabled={busy}
+                    onChange={(e) => setEnableAiMatting(e.target.checked)}
+                    className="h-4 w-4 rounded border-gray-300 text-violet-500 focus:ring-violet-400"
+                  />
+                  <span>AI 抠图去背景</span>
+                </label>
+                <span className="text-[11px] text-gray-400">
+                  {enableAiMatting ? '确认时先裁剪再抠图' : '仅裁剪后生成图纸'}
+                </span>
+              </>
+            ) : (
+              <label className="inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200 select-none cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={preferAutoGrid}
+                  disabled={busy}
+                  onChange={(e) => setPreferAutoGrid(e.target.checked)}
+                  className="h-4 w-4 rounded border-gray-300 text-amber-500 focus:ring-amber-400"
+                />
+                <span>自动检测网格</span>
+                <span className="text-[11px] text-gray-400">
+                  {preferAutoGrid
+                    ? '开启后将忽略下方尺寸（失败才回退）'
+                    : '请框选纯格子区域（去掉图例/坐标），尺寸填图纸标注值'}
+                </span>
+              </label>
+            )}
+          </div>
+
+          <div className="grid gap-3 rounded-xl bg-[#faf6f0] p-3 dark:bg-gray-800/60 sm:grid-cols-2">
+            <div>
+              <div className="mb-1.5 flex items-center justify-between gap-2">
+                <label className="text-xs font-medium text-gray-600 dark:text-gray-300">
+                  图纸尺寸 (宽 × 高)
+                </label>
+                {uploadMode === 'generate' || !preferAutoGrid ? (
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => {
+                      const next = !keepAspectRatio;
+                      setKeepAspectRatio(next);
+                      if (next) {
+                        const width = clampGridSize(Number(gridWidthInput) || initialSettings.gridWidth);
+                        setGridHeightInput(String(heightFromWidth(width, cropAspectRef.current)));
+                      }
+                    }}
+                    className={`app-btn app-btn--chip ${keepAspectRatio ? 'is-on' : ''}`}
+                    aria-pressed={keepAspectRatio}
+                  >
+                    保持比例
+                  </button>
+                ) : null}
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  min={10}
+                  max={300}
+                  disabled={busy || (uploadMode === 'recognize' && preferAutoGrid)}
+                  value={gridWidthInput}
+                  onChange={(e) => setGridWidthInput(e.target.value)}
+                  onBlur={(e) => applyGridWidth(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') e.currentTarget.blur();
+                  }}
+                  className="h-9 w-full rounded-lg border border-[#e0d0bc] bg-white px-2 text-center text-sm disabled:opacity-50 dark:border-gray-600 dark:bg-gray-700"
+                  aria-label="网格宽度"
+                />
+                <span className="text-gray-400">×</span>
+                <input
+                  type="number"
+                  min={10}
+                  max={300}
+                  disabled={
+                    busy ||
+                    (uploadMode === 'recognize' && preferAutoGrid) ||
+                    (uploadMode === 'generate' && keepAspectRatio) ||
+                    (uploadMode === 'recognize' && !preferAutoGrid && keepAspectRatio)
+                  }
+                  value={gridHeightInput}
+                  onChange={(e) => setGridHeightInput(e.target.value)}
+                  onBlur={(e) => applyGridHeight(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') e.currentTarget.blur();
+                  }}
+                  readOnly={keepAspectRatio && !(uploadMode === 'recognize' && preferAutoGrid)}
+                  className={`h-9 w-full rounded-lg border border-[#e0d0bc] px-2 text-center text-sm disabled:opacity-50 dark:border-gray-600 ${
+                    keepAspectRatio && !(uploadMode === 'recognize' && preferAutoGrid)
+                      ? 'cursor-not-allowed bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400'
+                      : 'bg-white dark:bg-gray-700'
+                  }`}
+                  aria-label="网格高度"
+                />
+              </div>
+              <p className="mt-1.5 text-[11px] tabular-nums text-[#a08060]">
+                {uploadMode === 'recognize' && preferAutoGrid
+                  ? '将自动检测网格尺寸'
+                  : `将使用 ${clampGridSize(Number(gridWidthInput) || initialSettings.gridWidth)}×${
+                      keepAspectRatio
+                        ? heightFromWidth(
+                            clampGridSize(Number(gridWidthInput) || initialSettings.gridWidth),
+                            cropAspectRef.current,
+                          )
+                        : clampGridSize(Number(gridHeightInput) || initialSettings.gridHeight)
+                    }，${maxColorCount === 0 ? '不限色' : `限 ${maxColorCount} 色`}`}
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <div>
+                <label className="mb-1.5 block text-xs font-medium text-gray-600 dark:text-gray-300">
+                  色板品牌
+                </label>
+                <select
+                  disabled={busy}
+                  value={selectedColorSystem}
+                  onChange={(e) => setSelectedColorSystem(e.target.value as ColorSystem)}
+                  className="h-9 w-full rounded-lg border border-[#e0d0bc] bg-white px-2 text-sm disabled:opacity-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
+                >
+                  {colorSystemOptions.map((option) => (
+                    <option key={option.key} value={option.key}>
+                      {option.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <div className="mb-1 flex items-center justify-between gap-2">
+                  <label className="text-xs font-medium text-gray-600 dark:text-gray-300">限制用色</label>
+                  <span className="text-[11px] font-medium text-amber-600 dark:text-amber-400">
+                    {maxColorCount === 0 ? '无限制' : `${maxColorCount} 色`}
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min={0}
+                  max={50}
+                  step={1}
+                  disabled={busy}
+                  value={maxColorCount}
+                  onChange={(e) => setMaxColorCount(Number(e.target.value))}
+                  className="w-full accent-amber-500 disabled:opacity-50"
+                  aria-label="限制拼豆颜色数量"
+                />
+              </div>
+            </div>
           </div>
 
           <div className="flex items-center justify-end gap-2">
@@ -480,11 +787,11 @@ const ImagePrepModal: React.FC<ImagePrepModalProps> = ({ imageSrc, onCancel, onC
             </button>
             <button
               type="button"
-              onClick={handleConfirm}
+              onClick={() => void handleConfirm()}
               disabled={busy}
               className="h-9 px-4 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-sm font-medium disabled:opacity-50"
             >
-              {busy ? '处理中…' : '确认并生成'}
+              {confirmLabel}
             </button>
           </div>
         </div>

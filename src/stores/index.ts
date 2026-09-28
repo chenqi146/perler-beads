@@ -28,6 +28,8 @@ export {
   useBeadCompletedCells,
   useBeadProgressActions,
   usePatternLoadActions,
+  summarizeBeadProgress,
+  beadCraftCtaLabel,
 } from '../application';
 export type { EditSnapshot } from '../application';
 export type { PatternInput, PatternData, Visibility } from '../application';
@@ -40,4 +42,6 @@ export type {
   UseCanvasInteractionOptions,
   UseImageUploadOptions,
   AutosaveStatus,
+  BeadProgressSummary,
+  BeadProgressStatus,
 } from '../application';

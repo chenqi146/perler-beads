@@ -80,3 +80,19 @@ export {
 } from './strokeExtract';
 
 export { generateSyntheticImageFromPixelData } from './syntheticImage';
+
+export {
+  recognizePatternFromImageData,
+  recognizePatternFromSrc,
+  loadImageDataFromSrc,
+  detectGrid,
+  buildEvenGrid,
+  cropImageDataToContent,
+  downscaleImageDataForRecognition,
+} from './patternRecognition';
+export type {
+  PatternGridSource,
+  PatternGrid,
+  RecognizePatternOptions,
+  RecognizePatternResult,
+} from './patternRecognition';

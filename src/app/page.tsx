@@ -122,6 +122,9 @@ function Editor() {
     setCanvasOffset,
     panBy,
     highlightColorKey,
+    uploadMode,
+    setUploadMode,
+    isRecognizingPattern,
   } = useEditorUiViewport();
 
   const originalCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -247,11 +250,17 @@ function Editor() {
   const {
     keepAspectRatio,
     setKeepAspectRatio,
+    granularity,
     granularityInput,
+    gridHeight,
     gridHeightInput,
     similarityThresholdInput,
     maxColorCount,
     setMaxColorCount,
+    setGranularity,
+    setGranularityInput,
+    setGridHeight,
+    setGridHeightInput,
     autoRemoveWhiteBg,
     setAutoRemoveWhiteBg,
     pixelationMode,
@@ -327,6 +336,10 @@ function Editor() {
     handleFileChange,
     handleDrop,
     handleDragOver,
+    stagedUploadSrc,
+    clearStagedUpload,
+    startUploadModeProcess,
+    handleRecognizeRegionConfirm,
   } = useImageUpload({
     openImagePrep,
     showToast,
@@ -590,11 +603,13 @@ function Editor() {
             <EditorUploadPanel
               originalImageSrc={originalImageSrc}
               preAiImageSrc={preAiImageSrc}
+              stagedUploadSrc={stagedUploadSrc}
               pendingPrepImageSrc={pendingPrepImageSrc}
               isImagePrepOpen={isImagePrepOpen}
               isMounted={isMounted}
               hasPatternGrid={Boolean(mappedPixelData?.length && gridDimensions && gridDimensions.N > 0)}
-              onOpenImagePrep={openImagePrep}
+              onStartUploadModeProcess={startUploadModeProcess}
+              isRecognizingPattern={isRecognizingPattern}
               onUndoAiMatting={handleUndoAiMatting}
               onTriggerFileInput={triggerFileInput}
               onDrop={handleDrop}
@@ -889,16 +904,34 @@ function Editor() {
                         highlightHex={highlightColorKey}
                         onSelectColor={handleSelectAllByColor}
                       />
-                    ) : !originalImageSrc && !(mappedPixelData?.length && gridDimensions && gridDimensions.N > 0) ? (
+                    ) : !originalImageSrc && !stagedUploadSrc && !(mappedPixelData?.length && gridDimensions && gridDimensions.N > 0) ? (
                       <button
                         type="button"
-                        onClick={isMounted ? triggerFileInput : undefined}
-                        className="flex h-14 w-full touch-manipulation items-center justify-center gap-2 rounded-xl bg-[#c47a2c] px-3 text-sm font-semibold text-white"
+                        onClick={isMounted && !isRecognizingPattern ? triggerFileInput : undefined}
+                        disabled={isRecognizingPattern}
+                        className="flex h-12 w-full touch-manipulation items-center justify-center gap-2 rounded-xl bg-[#c47a2c] px-3 text-sm font-semibold text-white disabled:opacity-60"
                       >
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8} aria-hidden="true">
                           <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
                         </svg>
-                        上传图片
+                        {isRecognizingPattern
+                          ? '识别中…'
+                          : isImagePrepOpen
+                            ? '处理中…'
+                            : '上传图片'}
+                      </button>
+                    ) : stagedUploadSrc && !originalImageSrc ? (
+                      <button
+                        type="button"
+                        onClick={isMounted && !isRecognizingPattern && !isImagePrepOpen ? startUploadModeProcess : undefined}
+                        disabled={isRecognizingPattern || isImagePrepOpen}
+                        className="flex h-12 w-full touch-manipulation items-center justify-center gap-2 rounded-xl bg-[#c47a2c] px-3 text-sm font-semibold text-white disabled:opacity-60"
+                      >
+                        {isRecognizingPattern
+                          ? '识别中…'
+                          : isImagePrepOpen
+                            ? '处理中…'
+                            : '继续处理图片'}
                       </button>
                     ) : (
                       <p className="flex h-14 items-center px-2 text-[11px] text-[#8a6a4a]">点格选中后可换色</p>
@@ -979,14 +1012,16 @@ function Editor() {
               <EditorUploadPanel
                 originalImageSrc={originalImageSrc}
                 preAiImageSrc={preAiImageSrc}
+                stagedUploadSrc={stagedUploadSrc}
                 pendingPrepImageSrc={pendingPrepImageSrc}
                 isImagePrepOpen={isImagePrepOpen}
                 isMounted={isMounted}
                 hasPatternGrid={Boolean(mappedPixelData?.length && gridDimensions && gridDimensions.N > 0)}
-                onOpenImagePrep={(src) => {
+                onStartUploadModeProcess={() => {
                   setMobileSettingsOpen(false);
-                  openImagePrep(src);
+                  startUploadModeProcess();
                 }}
+                isRecognizingPattern={isRecognizingPattern}
                 onUndoAiMatting={handleUndoAiMatting}
                 onTriggerFileInput={triggerFileInput}
                 onDrop={handleDrop}
@@ -1048,12 +1083,41 @@ function Editor() {
         </Overlay>
       ) : null}
 
-      {/* 上传后预处理弹窗：默认全选裁剪 + 可选 AI 抠图 */}
+      {/* 上传后处理弹窗：内选「图片转像素 / 图纸识别」 */}
       {isImagePrepOpen && pendingPrepImageSrc && (
         <ImagePrepModal
           imageSrc={pendingPrepImageSrc}
+          uploadMode={uploadMode}
+          onUploadModeChange={setUploadMode}
+          initialSettings={{
+            gridWidth: granularity,
+            gridHeight,
+            keepAspectRatio,
+            maxColorCount,
+            selectedColorSystem,
+          }}
           onCancel={handlePrepCancel}
-          onConfirm={handlePrepConfirm}
+          onConfirm={async (preparedDataUrl, meta) => {
+            clearStagedUpload();
+            setSelectedColorSystem(meta.selectedColorSystem);
+            setKeepAspectRatio(meta.keepAspectRatio);
+            setMaxColorCount(meta.maxColorCount);
+            setGranularity(meta.gridWidth);
+            setGranularityInput(String(meta.gridWidth));
+            setGridHeight(meta.gridHeight);
+            setGridHeightInput(String(meta.gridHeight));
+            if (meta.mode === 'recognize') {
+              await handleRecognizeRegionConfirm(preparedDataUrl, {
+                cols: meta.gridWidth,
+                rows: meta.gridHeight,
+                maxColors: meta.maxColorCount,
+                preferAutoGrid: meta.preferAutoGrid,
+              });
+              handlePrepCancel();
+              return;
+            }
+            handlePrepConfirm(preparedDataUrl, meta);
+          }}
         />
       )}
 

@@ -63,9 +63,11 @@ export function usePixelationPipeline({
   const gridHeight = useEditorStore((s) => s.gridHeight);
   const setGridHeight = useEditorStore((s) => s.setGridHeight);
   const setGridHeightInput = useEditorStore((s) => s.setGridHeightInput);
+  const setKeepAspectRatio = useEditorStore((s) => s.setKeepAspectRatio);
   const setImageAspectRatio = useEditorStore((s) => s.setImageAspectRatio);
   const similarityThreshold = useEditorStore((s) => s.similarityThreshold);
   const maxColorCount = useEditorStore((s) => s.maxColorCount);
+  const setMaxColorCount = useEditorStore((s) => s.setMaxColorCount);
   const autoRemoveWhiteBg = useEditorStore((s) => s.autoRemoveWhiteBg);
   const setAutoRemoveWhiteBg = useEditorStore((s) => s.setAutoRemoveWhiteBg);
   const pixelationMode = useEditorStore((s) => s.pixelationMode);
@@ -461,6 +463,14 @@ export function usePixelationPipeline({
     setCropRect(null);
     setCanvasToolMode('select');
     setSelectedColor(null);
+    // 换图/重新转像素必须允许管线重跑（识别或手改会把该标志置 true）
+    clearGridManuallyEdited();
+    draftPixelateLockRef.current = null;
+    suppressPixelateUntilRef.current = 0;
+    setMappedPixelData(null);
+    setGridDimensions(null);
+    setColorCounts(null);
+    setTotalBeadCount(0);
     setOriginalImageSrc(dataUrl);
     setRemapTrigger((prev) => prev + 1);
     const patternId = usePatternStore.getState().currentPatternId;
@@ -473,6 +483,13 @@ export function usePixelationPipeline({
     setCropRect,
     setCanvasToolMode,
     setSelectedColor,
+    clearGridManuallyEdited,
+    draftPixelateLockRef,
+    suppressPixelateUntilRef,
+    setMappedPixelData,
+    setGridDimensions,
+    setColorCounts,
+    setTotalBeadCount,
     setOriginalImageSrc,
     setRemapTrigger,
   ]);
@@ -483,7 +500,16 @@ export function usePixelationPipeline({
   }, []);
 
   const handlePrepConfirm = useCallback(
-    (preparedDataUrl: string, meta: { usedAiMatting: boolean }) => {
+    (
+      preparedDataUrl: string,
+      meta: {
+        usedAiMatting: boolean;
+        gridWidth?: number;
+        gridHeight?: number;
+        keepAspectRatio?: boolean;
+        maxColorCount?: number;
+      },
+    ) => {
       if (meta.usedAiMatting && pendingPrepImageSrc) {
         setPreAiImageSrc(pendingPrepImageSrc);
         setAutoRemoveWhiteBg(true);
@@ -493,18 +519,41 @@ export function usePixelationPipeline({
       probe.onload = () => {
         const ratio = probe.height / Math.max(1, probe.width);
         setImageAspectRatio(ratio);
-        const defaultW = 50;
-        const defaultH = Math.max(10, Math.min(300, Math.round(defaultW * ratio)));
-        setGranularity(defaultW);
-        setGranularityInput(String(defaultW));
-        setGridHeight(defaultH);
-        setGridHeightInput(String(defaultH));
+        const width = Math.max(10, Math.min(300, Math.round(meta.gridWidth ?? 50) || 50));
+        const height = Math.max(
+          10,
+          Math.min(300, Math.round(meta.gridHeight ?? width * ratio) || Math.round(width * ratio)),
+        );
+        setGranularity(width);
+        setGranularityInput(String(width));
+        setGridHeight(height);
+        setGridHeightInput(String(height));
+        if (typeof meta.keepAspectRatio === 'boolean') {
+          setKeepAspectRatio(meta.keepAspectRatio);
+        }
+        if (typeof meta.maxColorCount === 'number') {
+          setMaxColorCount(meta.maxColorCount);
+        }
         applyPreparedImage(preparedDataUrl);
         setIsImagePrepOpen(false);
         setPendingPrepImageSrc(null);
         showToast(meta.usedAiMatting ? '已抠图并生成图纸' : '已裁剪并生成图纸');
       };
       probe.onerror = () => {
+        if (meta.gridWidth != null) {
+          const width = Math.max(10, Math.min(300, Math.round(meta.gridWidth) || 50));
+          const height = Math.max(10, Math.min(300, Math.round(meta.gridHeight ?? width) || width));
+          setGranularity(width);
+          setGranularityInput(String(width));
+          setGridHeight(height);
+          setGridHeightInput(String(height));
+        }
+        if (typeof meta.keepAspectRatio === 'boolean') {
+          setKeepAspectRatio(meta.keepAspectRatio);
+        }
+        if (typeof meta.maxColorCount === 'number') {
+          setMaxColorCount(meta.maxColorCount);
+        }
         applyPreparedImage(preparedDataUrl);
         setIsImagePrepOpen(false);
         setPendingPrepImageSrc(null);
@@ -522,6 +571,8 @@ export function usePixelationPipeline({
       setGranularityInput,
       setGridHeight,
       setGridHeightInput,
+      setKeepAspectRatio,
+      setMaxColorCount,
     ],
   );
 

@@ -8,7 +8,7 @@
     "cf:build": "opennextjs-cloudflare build",
     "cf:deploy": "npm run cf:build && wrangler deploy",
     "cf:deploy:proxy": "npm run cf:build && NODE_OPTIONS=\"-r ./scripts/socks-undici-preload.cjs\" node ./node_modules/wrangler/bin/wrangler.js deploy --env=\"\"",
-    "db:migrate:local": "wrangler d1 migrations apply perler-beads-dev --local --env development",
+    "db:migrate:local": "wrangler d1 migrations apply perler-beads-dev --local --env development && wrangler d1 migrations apply perler-beads --local",
     "db:migrate:dev": "wrangler d1 migrations apply perler-beads-dev --remote --env development",
     "db:migrate:prod": "wrangler d1 migrations apply perler-beads --remote",
     "start": "next start",

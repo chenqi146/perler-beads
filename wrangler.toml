@@ -15,7 +15,9 @@ migrations_dir = "migrations"
 binding = "perler_beads_assets"
 bucket_name = "perler-beads-assets"
 
-# Development — used by local `next dev` (remote bindings → 开发库，不碰生产数据)
+# Development — used by local `next dev`
+# D1 默认走本地 SQLite（remote=false）：remote=true 在系统代理下经常挂死 getCloudflareContext/D1 查询。
+# 需要连云端开发库时再临时改 remote = true，并确保代理放行 Cloudflare API。
 [env.development]
 name = "perler-beads-dev"
 
@@ -24,9 +26,9 @@ binding = "perler_beads"
 database_name = "perler-beads-dev"
 database_id = "38031e71-be11-499a-a88f-4892543076c4"
 migrations_dir = "migrations"
-remote = true
+remote = false
 
 [[env.development.r2_buckets]]
 binding = "perler_beads_assets"
 bucket_name = "perler-beads-assets-dev"
-remote = true
+remote = false

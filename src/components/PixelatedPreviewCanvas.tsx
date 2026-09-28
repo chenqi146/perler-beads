@@ -384,8 +384,10 @@ const PixelatedPreviewCanvas: React.FC<PixelatedPreviewCanvasProps> = ({
   }, [darkModeState]);
 
   useEffect(() => {
-    if (mappedPixelData && gridDimensions && canvasRef.current && darkModeState !== null) {
-      drawPixelatedCanvas(mappedPixelData, canvasRef.current, gridDimensions, {
+    const canvas = canvasRef.current;
+    if (!canvas || darkModeState === null) return;
+    if (mappedPixelData && gridDimensions) {
+      drawPixelatedCanvas(mappedPixelData, canvas, gridDimensions, {
         highlightColorKey,
         persistentHighlight,
         isHighlighting,
@@ -400,6 +402,14 @@ const PixelatedPreviewCanvas: React.FC<PixelatedPreviewCanvasProps> = ({
         showCellKeys,
         showGrid,
       });
+      return;
+    }
+    // 换图清空数据时擦掉旧位图，避免仍显示上一张图纸
+    const ctx = canvas.getContext('2d');
+    if (ctx) {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      canvas.width = 1;
+      canvas.height = 1;
     }
   }, [
     mappedPixelData,

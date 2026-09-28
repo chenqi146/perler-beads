@@ -87,7 +87,7 @@ export function useEditorToolState() {
   );
 }
 
-/** 视口：缩放、平移、高亮（editorUiStore） */
+/** 视口：缩放、平移、高亮、上传模式（editorUiStore） */
 export function useEditorUiViewport() {
   return useEditorUiStore(
     useShallow((s) => ({
@@ -97,6 +97,9 @@ export function useEditorUiViewport() {
       setCanvasOffset: s.setCanvasOffset,
       panBy: s.panBy,
       highlightColorKey: s.highlightColorKey,
+      uploadMode: s.uploadMode,
+      setUploadMode: s.setUploadMode,
+      isRecognizingPattern: s.isRecognizingPattern,
     })),
   );
 }
