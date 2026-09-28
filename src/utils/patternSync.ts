@@ -178,3 +178,22 @@ export async function pushPatternToCloud(pattern: Pattern): Promise<SyncResult> 
     return { ok: false, status: 0, message: '网络异常' };
   }
 }
+
+export async function deletePatternFromCloud(patternId: string): Promise<SyncResult> {
+  try {
+    const res = await apiFetch(`/api/patterns/${encodeURIComponent(patternId)}`, {
+      method: 'DELETE',
+    });
+    if (res.ok || res.status === 404) return { ok: true };
+    if (res.status === 503) return { ok: false, status: 503, message: '云端未就绪，仅删除本地' };
+    if (res.status === 401) return { ok: false, status: 401, message: '未登录' };
+    const data = await res.json().catch(() => ({}));
+    return {
+      ok: false,
+      status: res.status,
+      message: typeof data.error === 'string' ? data.error : '云端删除失败',
+    };
+  } catch {
+    return { ok: false, status: 0, message: '网络异常，云端删除失败' };
+  }
+}

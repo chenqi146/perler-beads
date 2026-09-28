@@ -63,7 +63,6 @@ export function useBeadProgressActions() {
   return useBeadProgressStore(
     useShallow((s) => ({
       toggleCell: s.toggleCell,
-      markCell: s.markCell,
       setColorCompleted: s.setColorCompleted,
       setCells: s.setCells,
     })),

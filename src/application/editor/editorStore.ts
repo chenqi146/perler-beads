@@ -295,25 +295,29 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   setPatternSource: (source) => set({ patternSource: source }),
 
   hydrateFromPatternData: (data) => {
+    const isEmpty =
+      !data.mappedPixelData?.length || !data.gridDimensions?.N || !data.gridDimensions?.M;
     set({
-      mappedPixelData: data.mappedPixelData,
-      gridDimensions: data.gridDimensions,
-      colorCounts: data.colorCounts,
-      totalBeadCount: data.totalBeadCount,
-      originalImageSrc: data.originalImageSrc,
-      originalImageKey: data.originalImageKey ?? null,
+      mappedPixelData: isEmpty ? null : data.mappedPixelData,
+      gridDimensions: isEmpty ? null : data.gridDimensions,
+      colorCounts: isEmpty ? null : data.colorCounts,
+      totalBeadCount: isEmpty ? 0 : data.totalBeadCount,
+      originalImageSrc: isEmpty ? null : data.originalImageSrc,
+      originalImageKey: isEmpty ? null : data.originalImageKey ?? null,
+      preAiImageSrc: null,
       selectedColorSystem: (data.selectedColorSystem as ColorSystem) || 'MARD',
-      granularity: data.gridDimensions.N || 50,
-      granularityInput: String(data.gridDimensions.N || 50),
-      gridHeight: data.gridDimensions.M || 50,
-      gridHeightInput: String(data.gridDimensions.M || 50),
+      granularity: data.gridDimensions?.N || 50,
+      granularityInput: String(data.gridDimensions?.N || 50),
+      gridHeight: data.gridDimensions?.M || 50,
+      gridHeightInput: String(data.gridDimensions?.M || 50),
       selectedCells: new Set(),
       cropRect: null,
       editHistory: [],
       editRedo: [],
       bgRemovalSnapshot: null,
+      selectedColor: null,
       // 手改标记必须恢复，否则刷新后原图回填会静默重算冲掉编辑
-      gridManuallyEdited: Boolean(data.gridManuallyEdited),
+      gridManuallyEdited: isEmpty ? false : Boolean(data.gridManuallyEdited),
       patternSource: null,
       recognizedBaseline: null,
     });

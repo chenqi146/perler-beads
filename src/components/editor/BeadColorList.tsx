@@ -50,7 +50,7 @@ export function BeadColorList({
       <div className="mb-2 shrink-0 space-y-2">
         <div>
           <h2 className="text-sm font-semibold text-[#3a2416]">颜色统计</h2>
-          <p className="mt-0.5 text-[11px] text-[#8a6a4a]">点色号高亮 · 点格子完成 · 删除可擦除</p>
+          <p className="mt-0.5 text-[11px] text-[#8a6a4a]">点色号高亮 · 点格完成，再点撤回 · 删除可擦除</p>
         </div>
         <BeadCraftSettings
           gridInterval={gridInterval}

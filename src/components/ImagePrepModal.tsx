@@ -26,6 +26,29 @@ function heightFromWidth(width: number, aspectRatio: number): number {
   return clampGridSize(width * Math.max(0.05, aspectRatio));
 }
 
+function widthFromHeight(height: number, aspectRatio: number): number {
+  return clampGridSize(height / Math.max(0.05, aspectRatio));
+}
+
+/** 宽:高 → 高/宽，用于网格尺寸 */
+const GRID_RATIO_PRESETS = [
+  { id: '1:1', label: '1:1', hw: 1 },
+  { id: '4:3', label: '4:3', hw: 3 / 4 },
+  { id: '3:4', label: '3:4', hw: 4 / 3 },
+  { id: '16:9', label: '16:9', hw: 9 / 16 },
+  { id: 'crop', label: '原图', hw: null as number | null },
+] as const;
+
+type GridRatioPresetId = (typeof GRID_RATIO_PRESETS)[number]['id'];
+
+function matchRatioPresetId(hw: number): GridRatioPresetId | null {
+  for (const preset of GRID_RATIO_PRESETS) {
+    if (preset.hw == null) continue;
+    if (Math.abs(hw - preset.hw) < 0.04) return preset.id;
+  }
+  return null;
+}
+
 type CropBox = { x: number; y: number; w: number; h: number };
 type Corner = 'nw' | 'ne' | 'sw' | 'se';
 type DragMode =
@@ -167,6 +190,15 @@ const ImagePrepModal: React.FC<ImagePrepModalProps> = ({
   );
   /** 识别默认按设定尺寸，避免自动检出覆盖用户输入（如 85→43） */
   const [preferAutoGrid, setPreferAutoGrid] = useState(false);
+  /** 高/宽，供「保持比例」联动；与快捷比例芯片独立 */
+  const [gridAspectRatio, setGridAspectRatio] = useState(() => {
+    const w = Math.max(1, initialSettings.gridWidth);
+    const h = Math.max(1, initialSettings.gridHeight);
+    return h / w;
+  });
+  const [ratioPresetId, setRatioPresetId] = useState<GridRatioPresetId | null>(() =>
+    matchRatioPresetId(initialSettings.gridHeight / Math.max(1, initialSettings.gridWidth)),
+  );
   const cropAspectRef = useRef(1);
   const [cursor, setCursor] = useState('crosshair');
   const dragRef = useRef<DragMode | null>(null);
@@ -180,22 +212,45 @@ const ImagePrepModal: React.FC<ImagePrepModalProps> = ({
     if (!crop || crop.w < 2 || crop.h < 2) return;
     const ratio = crop.h / crop.w;
     cropAspectRef.current = ratio;
-    if (!keepAspectRatio) return;
+    // 仅在选了「原图」且开启保持比例时，跟随裁剪框比例
+    if (!keepAspectRatio || ratioPresetId !== 'crop') return;
+    setGridAspectRatio(ratio);
     const width = clampGridSize(Number(gridWidthInput) || initialSettings.gridWidth);
     setGridHeightInput(String(heightFromWidth(width, ratio)));
-  }, [crop, keepAspectRatio, gridWidthInput, initialSettings.gridWidth]);
+  }, [
+    crop,
+    keepAspectRatio,
+    ratioPresetId,
+    gridWidthInput,
+    initialSettings.gridWidth,
+  ]);
 
   const applyGridWidth = (raw: string) => {
     const width = clampGridSize(Number(raw) || initialSettings.gridWidth);
     setGridWidthInput(String(width));
     if (keepAspectRatio) {
-      setGridHeightInput(String(heightFromWidth(width, cropAspectRef.current)));
+      setGridHeightInput(String(heightFromWidth(width, gridAspectRatio)));
     }
   };
 
   const applyGridHeight = (raw: string) => {
-    if (keepAspectRatio) return;
     const height = clampGridSize(Number(raw) || initialSettings.gridHeight);
+    if (keepAspectRatio) {
+      const width = widthFromHeight(height, gridAspectRatio);
+      setGridWidthInput(String(width));
+      setGridHeightInput(String(heightFromWidth(width, gridAspectRatio)));
+      return;
+    }
+    setGridHeightInput(String(height));
+  };
+
+  const applyRatioPreset = (id: GridRatioPresetId) => {
+    const width = clampGridSize(Number(gridWidthInput) || initialSettings.gridWidth);
+    const hw = id === 'crop' ? cropAspectRef.current : (GRID_RATIO_PRESETS.find((p) => p.id === id)?.hw ?? 1);
+    const height = heightFromWidth(width, hw);
+    setGridAspectRatio(hw);
+    setRatioPresetId(id);
+    setGridWidthInput(String(width));
     setGridHeightInput(String(height));
   };
 
@@ -272,8 +327,9 @@ const ImagePrepModal: React.FC<ImagePrepModalProps> = ({
     const img = new Image();
     img.onload = () => {
       imgRef.current = img;
-      const maxW = Math.min(window.innerWidth - 48, 920);
-      const maxH = Math.min(window.innerHeight - 220, 560);
+      const sideBarW = window.innerWidth >= 768 ? 320 : 24;
+      const maxW = Math.min(window.innerWidth - 64 - sideBarW, 780);
+      const maxH = Math.min(window.innerHeight - 160, 720);
       const scale = Math.min(maxW / img.naturalWidth, maxH / img.naturalHeight, 1);
       const dw = Math.max(1, Math.round(img.naturalWidth * scale));
       const dh = Math.max(1, Math.round(img.naturalHeight * scale));
@@ -481,7 +537,7 @@ const ImagePrepModal: React.FC<ImagePrepModalProps> = ({
       }
       const gridWidth = clampGridSize(Number(gridWidthInput) || initialSettings.gridWidth);
       const gridHeight = keepAspectRatio
-        ? heightFromWidth(gridWidth, cropAspectRef.current)
+        ? heightFromWidth(gridWidth, gridAspectRatio)
         : clampGridSize(Number(gridHeightInput) || initialSettings.gridHeight);
       await onConfirm(dataUrl, {
         usedAiMatting: useMatting,
@@ -525,57 +581,59 @@ const ImagePrepModal: React.FC<ImagePrepModalProps> = ({
       layer="import"
       closeOnBackdrop={!busy}
       onClose={onCancel}
-      panelClassName="max-w-[960px] rounded-2xl border border-gray-200 dark:border-gray-700"
+      panelClassName="flex w-[min(1100px,96vw)] max-w-[1100px] flex-col overflow-hidden rounded-2xl border border-gray-200 dark:border-gray-700"
     >
-        <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-gray-200 dark:border-gray-700">
-          <div className="min-w-0">
-            <h3 id="image-prep-title" className="text-sm font-semibold text-gray-900 dark:text-gray-100">
-              {title}
-            </h3>
-            <p className="text-[11px] text-gray-500 mt-0.5">{hint}</p>
-          </div>
-          <IconButton aria-label="关闭" onClick={onCancel} disabled={busy}>
-            <CloseIcon />
-          </IconButton>
+      <div className="flex shrink-0 items-center justify-between gap-3 border-b border-gray-200 px-4 py-3 dark:border-gray-700">
+        <div className="min-w-0">
+          <h3 id="image-prep-title" className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+            {title}
+          </h3>
+          <p className="mt-0.5 text-[11px] text-gray-500">{hint}</p>
         </div>
+        <IconButton aria-label="关闭" onClick={onCancel} disabled={busy}>
+          <CloseIcon />
+        </IconButton>
+      </div>
 
-        <div className="px-4 pt-3">
-          <div
-            className="grid grid-cols-2 gap-1 rounded-lg bg-[#f6efe4] p-1 dark:bg-gray-800"
-            role="group"
-            aria-label="处理模式"
+      <div className="shrink-0 px-4 pt-3 pb-2">
+        <div
+          className="grid grid-cols-2 gap-1 rounded-lg bg-[#f6efe4] p-1 dark:bg-gray-800"
+          role="group"
+          aria-label="处理模式"
+        >
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => handleModeChange('generate')}
+            className={`rounded-md px-2 py-1.5 text-xs font-medium transition-colors disabled:opacity-50 ${
+              uploadMode === 'generate'
+                ? 'bg-white text-[#3a2416] shadow-sm dark:bg-gray-700 dark:text-gray-100'
+                : 'text-[#8a6a4a] hover:text-[#3a2416] dark:text-gray-400 dark:hover:text-gray-200'
+            }`}
           >
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() => handleModeChange('generate')}
-              className={`rounded-md px-2 py-1.5 text-xs font-medium transition-colors disabled:opacity-50 ${
-                uploadMode === 'generate'
-                  ? 'bg-white text-[#3a2416] shadow-sm dark:bg-gray-700 dark:text-gray-100'
-                  : 'text-[#8a6a4a] hover:text-[#3a2416] dark:text-gray-400 dark:hover:text-gray-200'
-              }`}
-            >
-              图片转像素
-            </button>
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() => handleModeChange('recognize')}
-              className={`rounded-md px-2 py-1.5 text-xs font-medium transition-colors disabled:opacity-50 ${
-                uploadMode === 'recognize'
-                  ? 'bg-white text-[#3a2416] shadow-sm dark:bg-gray-700 dark:text-gray-100'
-                  : 'text-[#8a6a4a] hover:text-[#3a2416] dark:text-gray-400 dark:hover:text-gray-200'
-              }`}
-            >
-              图纸识别
-            </button>
-          </div>
+            图片转像素
+          </button>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => handleModeChange('recognize')}
+            className={`rounded-md px-2 py-1.5 text-xs font-medium transition-colors disabled:opacity-50 ${
+              uploadMode === 'recognize'
+                ? 'bg-white text-[#3a2416] shadow-sm dark:bg-gray-700 dark:text-gray-100'
+                : 'text-[#8a6a4a] hover:text-[#3a2416] dark:text-gray-400 dark:hover:text-gray-200'
+            }`}
+          >
+            图纸识别
+          </button>
         </div>
+      </div>
 
-        <div className="relative flex max-h-[46vh] justify-center overflow-auto bg-gray-100 p-3 dark:bg-gray-900/50">
+      <div className="flex min-h-0 flex-1 flex-col md:flex-row">
+        {/* 左侧预览 */}
+        <div className="relative flex min-h-[42vh] min-w-0 flex-1 items-center justify-center overflow-auto bg-gray-100 p-3 dark:bg-gray-900/50 md:min-h-0">
           <canvas
             ref={canvasRef}
-            className={`max-w-full touch-none rounded shadow-sm bg-white ${busy ? 'cursor-wait opacity-70' : ''}`}
+            className={`max-h-full max-w-full touch-none rounded bg-white shadow-sm ${busy ? 'cursor-wait opacity-70' : ''}`}
             style={{
               width: displaySize.w || undefined,
               height: displaySize.h || undefined,
@@ -587,36 +645,37 @@ const ImagePrepModal: React.FC<ImagePrepModalProps> = ({
             onPointerCancel={onPointerUp}
           />
           {busy && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/35 text-white text-xs">
-              <div className="mb-2 h-7 w-7 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+            <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/35 text-xs text-white">
+              <div className="mb-2 h-7 w-7 animate-spin rounded-full border-2 border-white/40 border-t-white" />
               <p>{progressText || '处理中…'}</p>
             </div>
           )}
         </div>
 
-        <div className="px-4 py-3 border-t border-gray-200 dark:border-gray-700 space-y-3">
-          <div className="flex flex-wrap items-center gap-2">
-            {uploadMode === 'generate' ? (
+        {/* 右侧参数栏 */}
+        <aside className="flex max-h-[48vh] w-full shrink-0 flex-col border-t border-gray-200 bg-[#faf6f0] dark:border-gray-700 dark:bg-gray-800/60 md:max-h-none md:w-[300px] md:border-l md:border-t-0">
+          <div className={`min-h-0 flex-1 space-y-3 overflow-y-auto p-3 ${busy ? 'pointer-events-none opacity-50' : ''}`}>
+            <div className="flex flex-wrap gap-2">
+              {uploadMode === 'generate' ? (
+                <button
+                  type="button"
+                  onClick={handleAutoSubjectCrop}
+                  disabled={busy || !displaySize.w}
+                  className="h-8 rounded-lg border border-amber-300 bg-amber-50 px-3 text-xs text-amber-800 disabled:opacity-40 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200"
+                >
+                  自动框选主体
+                </button>
+              ) : null}
               <button
                 type="button"
-                onClick={handleAutoSubjectCrop}
-                disabled={busy || !displaySize.w}
-                className="h-8 px-3 rounded-lg border border-amber-300 bg-amber-50 text-xs text-amber-800 disabled:opacity-40 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200"
+                onClick={resetFullCrop}
+                disabled={busy}
+                className="h-8 rounded-lg border border-gray-300 px-3 text-xs text-gray-600 disabled:opacity-40 dark:border-gray-600 dark:text-gray-300"
               >
-                自动框选主体
+                恢复全选
               </button>
-            ) : null}
-            <button
-              type="button"
-              onClick={resetFullCrop}
-              disabled={busy}
-              className="h-8 px-3 rounded-lg border border-gray-300 dark:border-gray-600 text-xs text-gray-600 dark:text-gray-300 disabled:opacity-40"
-            >
-              恢复全选
-            </button>
-          </div>
+            </div>
 
-          <div className={`space-y-3 ${busy ? 'pointer-events-none opacity-50' : ''}`}>
             {uploadMode === 'generate' ? (
               <Switch
                 checked={enableAiMatting}
@@ -634,18 +693,14 @@ const ImagePrepModal: React.FC<ImagePrepModalProps> = ({
                 description={
                   preferAutoGrid
                     ? '开启后将忽略下方尺寸（失败才回退）'
-                    : '请框选纯格子区域（去掉图例/坐标），尺寸用图纸标注值'
+                    : '请框选纯格子区域（去掉图例/坐标）'
                 }
               />
             )}
-          </div>
 
-          <div className="grid gap-3 rounded-xl bg-[#faf6f0] p-3 dark:bg-gray-800/60 sm:grid-cols-2">
-            <div className="space-y-3">
+            <div className="space-y-3 rounded-xl border border-[#eadfce] bg-white/80 p-3 dark:border-gray-600 dark:bg-gray-900/40">
               <div className="flex items-center justify-between gap-2">
-                <label className="text-xs font-medium text-gray-600 dark:text-gray-300">
-                  图纸尺寸
-                </label>
+                <label className="text-xs font-medium text-gray-600 dark:text-gray-300">图纸尺寸</label>
                 <span className="text-[11px] font-medium tabular-nums text-amber-600 dark:text-amber-400">
                   {uploadMode === 'recognize' && preferAutoGrid
                     ? '自动检测'
@@ -653,7 +708,7 @@ const ImagePrepModal: React.FC<ImagePrepModalProps> = ({
                         keepAspectRatio
                           ? heightFromWidth(
                               clampGridSize(Number(gridWidthInput) || initialSettings.gridWidth),
-                              cropAspectRef.current,
+                              gridAspectRatio,
                             )
                           : clampGridSize(Number(gridHeightInput) || initialSettings.gridHeight)
                       }`}
@@ -661,20 +716,54 @@ const ImagePrepModal: React.FC<ImagePrepModalProps> = ({
               </div>
 
               {(uploadMode === 'generate' || !preferAutoGrid) && (
-                <div className={busy ? 'pointer-events-none opacity-50' : ''}>
+                <>
+                  <div>
+                    <p className="mb-1.5 text-[11px] text-gray-500 dark:text-gray-400">快捷比例</p>
+                    <div className="flex flex-wrap gap-1.5" role="group" aria-label="快捷比例">
+                      {GRID_RATIO_PRESETS.map((preset) => {
+                        const selected = ratioPresetId === preset.id;
+                        return (
+                          <button
+                            key={preset.id}
+                            type="button"
+                            disabled={busy}
+                            onClick={() => applyRatioPreset(preset.id)}
+                            aria-pressed={selected}
+                            className={`h-7 rounded-lg border px-2 text-[11px] font-medium transition-colors disabled:opacity-40 ${
+                              selected
+                                ? 'border-[#c47a2c] bg-[#fff4e6] text-[#8a4e18]'
+                                : 'border-[#e0d0bc] bg-white text-[#5a4030] hover:border-[#d4b896] dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200'
+                            }`}
+                          >
+                            {preset.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
                   <Switch
                     checked={keepAspectRatio}
                     disabled={busy}
                     onChange={(next) => {
                       setKeepAspectRatio(next);
                       if (next) {
-                        const width = clampGridSize(Number(gridWidthInput) || initialSettings.gridWidth);
-                        setGridHeightInput(String(heightFromWidth(width, cropAspectRef.current)));
+                        const width = clampGridSize(
+                          Number(gridWidthInput) || initialSettings.gridWidth,
+                        );
+                        const height = clampGridSize(
+                          Number(gridHeightInput) || initialSettings.gridHeight,
+                        );
+                        const hw = height / Math.max(1, width);
+                        setGridAspectRatio(hw);
+                        setRatioPresetId(matchRatioPresetId(hw));
+                        setGridHeightInput(String(heightFromWidth(width, hw)));
                       }
                     }}
                     label="保持比例"
+                    description="开启后拖动宽或高，另一边按当前比例联动"
                   />
-                </div>
+                </>
               )}
 
               <div>
@@ -704,7 +793,7 @@ const ImagePrepModal: React.FC<ImagePrepModalProps> = ({
                     {keepAspectRatio
                       ? heightFromWidth(
                           clampGridSize(Number(gridWidthInput) || initialSettings.gridWidth),
-                          cropAspectRef.current,
+                          gridAspectRatio,
                         )
                       : clampGridSize(Number(gridHeightInput) || initialSettings.gridHeight)}
                   </span>
@@ -714,16 +803,12 @@ const ImagePrepModal: React.FC<ImagePrepModalProps> = ({
                   min={10}
                   max={300}
                   step={1}
-                  disabled={
-                    busy ||
-                    (uploadMode === 'recognize' && preferAutoGrid) ||
-                    keepAspectRatio
-                  }
+                  disabled={busy || (uploadMode === 'recognize' && preferAutoGrid)}
                   value={
                     keepAspectRatio
                       ? heightFromWidth(
                           clampGridSize(Number(gridWidthInput) || initialSettings.gridWidth),
-                          cropAspectRef.current,
+                          gridAspectRatio,
                         )
                       : clampGridSize(Number(gridHeightInput) || initialSettings.gridHeight)
                   }
@@ -732,84 +817,77 @@ const ImagePrepModal: React.FC<ImagePrepModalProps> = ({
                   aria-label="网格高度"
                 />
               </div>
-
-              <p className="text-[11px] leading-relaxed text-[#a08060]">
-                {uploadMode === 'recognize' && preferAutoGrid
-                  ? '将自动检测网格尺寸'
-                  : `${maxColorCount === 0 ? '不限色' : `限 ${maxColorCount} 色`}`}
-              </p>
             </div>
 
-            <div className="space-y-3">
-              <div>
-                <label className="mb-1.5 block text-xs font-medium text-gray-600 dark:text-gray-300">
-                  色板品牌
-                </label>
-                <select
-                  disabled={busy}
-                  value={selectedColorSystem}
-                  onChange={(e) => setSelectedColorSystem(e.target.value as ColorSystem)}
-                  className="h-9 w-full rounded-lg border border-[#e0d0bc] bg-white px-2 text-sm disabled:opacity-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
-                >
-                  {colorSystemOptions.map((option) => (
-                    <option key={option.key} value={option.key}>
-                      {option.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <div className="mb-1 flex items-center justify-between gap-2">
-                  <label className="text-xs font-medium text-gray-600 dark:text-gray-300">限制用色</label>
-                  <span className="text-[11px] font-medium text-amber-600 dark:text-amber-400">
-                    {maxColorCount === 0 ? '无限制' : `${maxColorCount} 色`}
-                  </span>
-                </div>
-                <input
-                  type="range"
-                  min={0}
-                  max={50}
-                  step={1}
-                  disabled={busy}
-                  value={maxColorCount}
-                  onChange={(e) => setMaxColorCount(Number(e.target.value))}
-                  className="w-full accent-amber-500 disabled:opacity-50"
-                  aria-label="限制拼豆颜色数量"
-                />
-              </div>
-              <div>
-                <label className="mb-1.5 block text-xs font-medium text-gray-600 dark:text-gray-300">
-                  处理模式
-                </label>
-                <select
-                  disabled={busy}
-                  value={pixelationMode}
-                  onChange={(e) => setPixelationMode(e.target.value as PixelationMode)}
-                  className="h-9 w-full rounded-lg border border-[#e0d0bc] bg-white px-2 text-sm disabled:opacity-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
-                >
-                  <option value={PixelationMode.EdgeAware}>清晰 (保线稿)</option>
-                  <option value={PixelationMode.Dominant}>卡通 (主色)</option>
-                  <option value={PixelationMode.Average}>真实 (平均)</option>
-                </select>
-              </div>
-              <div className={busy ? 'pointer-events-none opacity-50' : ''}>
-                <Switch
-                  checked={ditheringEnabled}
-                  disabled={busy}
-                  onChange={setDitheringEnabled}
-                  label="颜色抖动"
-                  description="适合照片渐变；卡通/线稿建议关闭。确认后同步到外层设置"
-                />
-              </div>
+            <div>
+              <label className="mb-1.5 block text-xs font-medium text-gray-600 dark:text-gray-300">
+                色板品牌
+              </label>
+              <select
+                disabled={busy}
+                value={selectedColorSystem}
+                onChange={(e) => setSelectedColorSystem(e.target.value as ColorSystem)}
+                className="h-9 w-full rounded-lg border border-[#e0d0bc] bg-white px-2 text-sm disabled:opacity-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
+              >
+                {colorSystemOptions.map((option) => (
+                  <option key={option.key} value={option.key}>
+                    {option.name}
+                  </option>
+                ))}
+              </select>
             </div>
+
+            <div>
+              <div className="mb-1 flex items-center justify-between gap-2">
+                <label className="text-xs font-medium text-gray-600 dark:text-gray-300">限制用色</label>
+                <span className="text-[11px] font-medium text-amber-600 dark:text-amber-400">
+                  {maxColorCount === 0 ? '无限制' : `${maxColorCount} 色`}
+                </span>
+              </div>
+              <input
+                type="range"
+                min={0}
+                max={50}
+                step={1}
+                disabled={busy}
+                value={maxColorCount}
+                onChange={(e) => setMaxColorCount(Number(e.target.value))}
+                className="w-full accent-amber-500 disabled:opacity-50"
+                aria-label="限制拼豆颜色数量"
+              />
+            </div>
+
+            <div>
+              <label className="mb-1.5 block text-xs font-medium text-gray-600 dark:text-gray-300">
+                处理模式
+              </label>
+              <select
+                disabled={busy}
+                value={pixelationMode}
+                onChange={(e) => setPixelationMode(e.target.value as PixelationMode)}
+                className="h-9 w-full rounded-lg border border-[#e0d0bc] bg-white px-2 text-sm disabled:opacity-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
+              >
+                <option value={PixelationMode.EdgeAware}>清晰 (保线稿)</option>
+                <option value={PixelationMode.Dominant}>卡通 (主色)</option>
+                <option value={PixelationMode.Average}>真实 (平均)</option>
+              </select>
+            </div>
+
+            <Switch
+              checked={ditheringEnabled}
+              disabled={busy}
+              onChange={setDitheringEnabled}
+              label="颜色抖动"
+              description="适合照片渐变；卡通/线稿建议关闭。确认后同步到外层"
+            />
           </div>
 
-          <div className="flex items-center justify-end gap-2">
+          <div className="flex shrink-0 items-center justify-end gap-2 border-t border-[#eadfce] p-3 dark:border-gray-700">
             <button
               type="button"
               onClick={onCancel}
               disabled={busy}
-              className="h-9 px-4 rounded-lg border border-gray-300 text-sm text-gray-600 disabled:opacity-40"
+              className="h-9 rounded-lg border border-gray-300 px-4 text-sm text-gray-600 disabled:opacity-40"
             >
               取消
             </button>
@@ -817,12 +895,13 @@ const ImagePrepModal: React.FC<ImagePrepModalProps> = ({
               type="button"
               onClick={() => void handleConfirm()}
               disabled={busy}
-              className="h-9 px-4 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-sm font-medium disabled:opacity-50"
+              className="h-9 rounded-lg bg-amber-500 px-4 text-sm font-medium text-white hover:bg-amber-600 disabled:opacity-50"
             >
               {confirmLabel}
             </button>
           </div>
-        </div>
+        </aside>
+      </div>
     </Overlay>
   );
 };

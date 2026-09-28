@@ -54,7 +54,7 @@ export function BeadPageToolbar({
             <button
               type="button"
               onClick={onOpenPhoto}
-              className="inline-flex h-11 touch-manipulation items-center gap-1 rounded-xl border border-[#e0d0bc] bg-white px-3 text-sm font-medium text-[#5c4030] transition-[background-color] duration-150 hover:bg-[#fff4e6] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e8b86a] lg:h-9"
+              className="hidden h-11 touch-manipulation items-center gap-1 rounded-xl border border-[#e0d0bc] bg-white px-3 text-sm font-medium text-[#5c4030] transition-[background-color] duration-150 hover:bg-[#fff4e6] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e8b86a] lg:inline-flex lg:h-9"
               aria-label="拍照上传作品"
             >
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4" aria-hidden="true">
@@ -65,7 +65,7 @@ export function BeadPageToolbar({
           ) : null}
         </>
       ) : null}
-      <div className="flex items-center rounded-xl border border-[#e0d0bc] bg-white/95 px-0.5 shadow-sm backdrop-blur-sm">
+      <div className="flex min-w-0 items-center rounded-xl border border-[#e0d0bc] bg-white/95 px-0.5 shadow-sm backdrop-blur-sm">
         {onToggleImmersive ? (
           <IconButton
             aria-label={immersive ? '退出全屏' : '全屏拼豆'}

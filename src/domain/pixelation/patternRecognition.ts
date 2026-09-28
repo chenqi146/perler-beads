@@ -197,10 +197,6 @@ export function cropImageDataToRect(
   } as ImageData;
 }
 
-function gridSizeClose(a: number, b: number, tol = 2): boolean {
-  return Math.abs(a - b) <= tol;
-}
-
 /** 沿单轴投影：暗中性色 + 局部灰度跳变，用于找网格线 */
 export function buildAxisLineScores(imgData: ImageData, axis: 'x' | 'y'): Float32Array {
   const { width, height, data } = imgData;
@@ -429,7 +425,20 @@ export function sampleCellRgb(
     if (midLuma >= 150 && luma < midLuma - 20) return false;
     return true;
   });
-  const pool = fill.length >= Math.max(4, pixels.length * 0.28) ? fill : pixels;
+  // 网格线+浅底双峰时，中位亮度落在中间，inkTol 会滤空；优先浅色簇
+  let pool = fill.length >= Math.max(4, pixels.length * 0.28) ? fill : pixels;
+  if (pool === pixels && pixels.length >= 8) {
+    const sorted = [...lumas].sort((a, b) => a - b);
+    const p20 = sorted[Math.floor(sorted.length * 0.2)]!;
+    const p80 = sorted[Math.floor(sorted.length * 0.8)]!;
+    if (p80 - p20 > 70) {
+      const cut = (p20 + p80) / 2;
+      const light = pixels.filter((_, i) => lumas[i] >= cut);
+      if (light.length >= pixels.length * 0.35) {
+        pool = light;
+      }
+    }
+  }
 
   // 5-bit 分箱足够抗 JPEG，又不会把邻近色号糊死
   const bins = new Map<number, { w: number; sumR: number; sumG: number; sumB: number }>();
@@ -652,32 +661,15 @@ export function recognizePatternFromImageData(
     grid = hintGrid;
     gridSource = hintOnScaled ? 'auto' : 'auto-cropped';
   } else if (hintGrid) {
-    // 手动尺寸：用检出的网格外框对齐图纸区，再按用户设定均分，避免把图例/坐标轴算进格子
+    // 手动尺寸：用检出的网格外框对齐图纸区，再严格按用户设定均分（不再用「接近」的自动行列数覆盖）
     const x0 = hintGrid.xLines[0];
     const y0 = hintGrid.yLines[0];
     const x1 = hintGrid.xLines[hintGrid.xLines.length - 1];
     const y1 = hintGrid.yLines[hintGrid.yLines.length - 1];
     const region = cropImageDataToRect(hintBase, x0, y0, x1, y1);
     workData = region;
-
-    if (
-      gridSizeClose(hintGrid.cols, fallbackCols) &&
-      gridSizeClose(hintGrid.rows, fallbackRows)
-    ) {
-      grid = {
-        cols: hintGrid.cols,
-        rows: hintGrid.rows,
-        source: 'auto',
-        xLines: hintGrid.xLines.map((x) => x - x0),
-        yLines: hintGrid.yLines.map((y) => y - y0),
-      };
-      grid.xLines[grid.cols] = region.width;
-      grid.yLines[grid.rows] = region.height;
-      gridSource = 'auto-cropped';
-    } else {
-      grid = buildEvenGrid(region, fallbackCols, fallbackRows);
-      gridSource = 'manual-cropped';
-    }
+    grid = buildEvenGrid(region, fallbackCols, fallbackRows);
+    gridSource = 'manual-cropped';
   } else {
     workData = cropped;
     grid = buildEvenGrid(cropped, fallbackCols, fallbackRows);

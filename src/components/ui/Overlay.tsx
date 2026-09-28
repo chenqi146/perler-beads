@@ -69,12 +69,12 @@ export function Overlay({
         type="button"
         aria-label="关闭"
         tabIndex={closeOnBackdrop ? 0 : -1}
-        className="absolute inset-0 bg-black/50 backdrop-blur-sm motion-safe:transition-opacity motion-reduce:transition-none"
+        className="absolute inset-0 bg-[#3a2416]/50 backdrop-blur-sm motion-safe:transition-opacity motion-reduce:transition-none"
         onClick={closeOnBackdrop ? onClose : undefined}
       />
       <div
         className={cn(
-          'relative z-10 flex flex-col overflow-hidden bg-white shadow-2xl overscroll-contain dark:bg-gray-800',
+        'relative z-10 flex flex-col overflow-hidden bg-[#fffaf3] shadow-2xl overscroll-contain',
           'motion-safe:transition-transform motion-reduce:transition-none',
           placement === 'center' && 'max-h-[90vh] w-full rounded-xl',
           placement === 'drawer' && 'h-full w-80 max-w-[90vw]',

@@ -21,6 +21,7 @@ export interface R2Bucket {
     body: ReadableStream;
     httpMetadata?: { contentType?: string };
   } | null>;
+  delete(key: string): Promise<void>;
 }
 
 type EnvBag = {

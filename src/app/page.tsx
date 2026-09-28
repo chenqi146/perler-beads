@@ -151,6 +151,8 @@ function Editor() {
     setPatternName(pattern.name);
     setPatternDescription(pattern.description);
     setPatternVisibility(pattern.visibility);
+    // 切换图纸时先清掉上一张的残留（含草稿异步回填），再水合
+    useEditorStore.getState().resetDocument();
     useEditorStore.getState().hydrateFromPatternData(pattern.data);
     const s = useEditorStore.getState();
     draftPixelateLockRef.current = {
@@ -170,8 +172,13 @@ function Editor() {
     suppressPixelateUntilRef.current = Date.now() + 4000;
     draftReadyToSaveRef.current = true;
 
+    const isEmptyPattern =
+      !pattern.data.mappedPixelData?.length || !pattern.data.gridDimensions?.N;
+
     let cancelled = false;
     void (async () => {
+      // 新建空图纸：不要回填任何原图
+      if (isEmptyPattern) return;
       const { getOriginalImage, putOriginalImage } = await import('../infrastructure/storage');
       let src = await getOriginalImage(currentPatternId);
       if (!src) {
@@ -207,7 +214,12 @@ function Editor() {
     return () => {
       cancelled = true;
     };
-  }, [currentPatternId, draftPixelateLockRef, draftReadyToSaveRef, suppressPixelateUntilRef]);
+  }, [
+    currentPatternId,
+    draftPixelateLockRef,
+    draftReadyToSaveRef,
+    suppressPixelateUntilRef,
+  ]);
 
   // 编辑页锁定整页滚动，保证一屏展示
   useEffect(() => {
@@ -345,6 +357,11 @@ function Editor() {
     openImagePrep,
     showToast,
   });
+
+  // 切换图纸时清掉待处理上传，避免旧图残留
+  useEffect(() => {
+    clearStagedUpload();
+  }, [currentPatternId, clearStagedUpload]);
 
   const { handleSavePattern, handleStartBeading } = useEditorPatternActions({
     patternName,

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import type { Visibility } from '../../domain/pattern';
+import { assertPatternHasGrid } from '../../domain/pattern';
 import { useEditorStore } from './editorStore';
 import { usePatternStore } from '../pattern/patternStore';
 
@@ -15,6 +16,22 @@ type UsePatternAutosaveOptions = {
   /** 水合后跳过自动保存的毫秒数，避免刚加载就写回 */
   hydrateSkipMs?: number;
   debounceMs?: number;
+};
+
+type PendingSnapshot = {
+  fingerprint: string;
+  patternId: string;
+  name: string;
+  description: string;
+  visibility: Visibility;
+  mappedPixelData: NonNullable<ReturnType<typeof useEditorStore.getState>['mappedPixelData']>;
+  gridDimensions: NonNullable<ReturnType<typeof useEditorStore.getState>['gridDimensions']>;
+  colorCounts: ReturnType<typeof useEditorStore.getState>['colorCounts'];
+  totalBeadCount: number;
+  originalImageSrc: string | null;
+  originalImageKey: string | null | undefined;
+  selectedColorSystem: string;
+  gridManuallyEdited: boolean;
 };
 
 /**
@@ -31,7 +48,9 @@ export function usePatternAutosave({
   const [autosaveStatus, setAutosaveStatus] = useState<AutosaveStatus>('idle');
   const readyAtRef = useRef(0);
   const lastFingerprintRef = useRef<string>('');
-  const baselinePendingRef = useRef(true);
+  /** 仅「打开时已有格子」才跳过第一次写回，避免空图纸生成后被当成水合基线丢掉 */
+  const baselinePendingRef = useRef(false);
+  const pendingRef = useRef<PendingSnapshot | null>(null);
   const savedHintTimerRef = useRef<number | null>(null);
 
   const mappedPixelData = useEditorStore((s) => s.mappedPixelData);
@@ -43,11 +62,64 @@ export function usePatternAutosave({
   const selectedColorSystem = useEditorStore((s) => s.selectedColorSystem);
   const gridManuallyEdited = useEditorStore((s) => s.gridManuallyEdited);
 
-  // pattern 切换 / 首次挂载：重置指纹并进入水合保护期
+  const persistSnapshot = (snapshot: PendingSnapshot) => {
+    if (snapshot.fingerprint === lastFingerprintRef.current) return false;
+
+    if (baselinePendingRef.current) {
+      baselinePendingRef.current = false;
+      lastFingerprintRef.current = snapshot.fingerprint;
+      return false;
+    }
+
+    setAutosaveStatus('saving');
+    try {
+      usePatternStore.getState().savePattern(
+        {
+          name: snapshot.name.trim() || '未命名图纸',
+          description: snapshot.description,
+          tags: [],
+          visibility: snapshot.visibility,
+          data: {
+            mappedPixelData: snapshot.mappedPixelData,
+            gridDimensions: snapshot.gridDimensions,
+            colorCounts: snapshot.colorCounts,
+            totalBeadCount: snapshot.totalBeadCount,
+            originalImageSrc: snapshot.originalImageSrc,
+            originalImageKey: snapshot.originalImageKey,
+            selectedColorSystem: snapshot.selectedColorSystem,
+            gridManuallyEdited: snapshot.gridManuallyEdited,
+          },
+        },
+        snapshot.patternId,
+      );
+      lastFingerprintRef.current = snapshot.fingerprint;
+      setAutosaveStatus('saved');
+      if (savedHintTimerRef.current) window.clearTimeout(savedHintTimerRef.current);
+      savedHintTimerRef.current = window.setTimeout(() => setAutosaveStatus('idle'), 2200);
+      return true;
+    } catch {
+      setAutosaveStatus('error');
+      return false;
+    }
+  };
+
+  const flushPending = () => {
+    const pending = pendingRef.current;
+    if (!pending) return;
+    pendingRef.current = null;
+    persistSnapshot(pending);
+  };
+
+  // pattern 切换 / 首次挂载：重置指纹；空图纸不跳过首次保存
   useEffect(() => {
     readyAtRef.current = Date.now() + hydrateSkipMs;
     lastFingerprintRef.current = '';
-    baselinePendingRef.current = true;
+    pendingRef.current = null;
+    const pattern = currentPatternId
+      ? usePatternStore.getState().loadPattern(currentPatternId)
+      : null;
+    const hadGridOnLoad = Boolean(pattern && assertPatternHasGrid(pattern.data));
+    baselinePendingRef.current = hadGridOnLoad;
     setAutosaveStatus('idle');
   }, [currentPatternId, hydrateSkipMs]);
 
@@ -80,49 +152,31 @@ export function usePatternAutosave({
 
     if (fingerprint === lastFingerprintRef.current) return;
 
-    const runSave = () => {
-      if (fingerprint === lastFingerprintRef.current) return;
-
-      // 水合后第一次只记基线，避免打开图纸就立刻云同步
-      if (baselinePendingRef.current) {
-        baselinePendingRef.current = false;
-        lastFingerprintRef.current = fingerprint;
-        return;
-      }
-
-      setAutosaveStatus('saving');
-      try {
-        usePatternStore.getState().savePattern(
-          {
-            name: patternName.trim() || '未命名图纸',
-            description: patternDescription,
-            tags: [],
-            visibility: patternVisibility,
-            data: {
-              mappedPixelData,
-              gridDimensions,
-              colorCounts,
-              totalBeadCount,
-              originalImageSrc,
-              originalImageKey,
-              selectedColorSystem,
-              gridManuallyEdited,
-            },
-          },
-          currentPatternId,
-        );
-        lastFingerprintRef.current = fingerprint;
-        setAutosaveStatus('saved');
-        if (savedHintTimerRef.current) window.clearTimeout(savedHintTimerRef.current);
-        savedHintTimerRef.current = window.setTimeout(() => setAutosaveStatus('idle'), 2200);
-      } catch {
-        setAutosaveStatus('error');
-      }
+    const snapshot: PendingSnapshot = {
+      fingerprint,
+      patternId: currentPatternId,
+      name: patternName,
+      description: patternDescription,
+      visibility: patternVisibility,
+      mappedPixelData,
+      gridDimensions,
+      colorCounts,
+      totalBeadCount,
+      originalImageSrc,
+      originalImageKey,
+      selectedColorSystem,
+      gridManuallyEdited,
     };
+    pendingRef.current = snapshot;
 
     const hydrateLeft = readyAtRef.current - Date.now();
     const delay = Math.max(debounceMs, hydrateLeft > 0 ? hydrateLeft : 0);
-    const timer = window.setTimeout(runSave, delay);
+    const timer = window.setTimeout(() => {
+      const pending = pendingRef.current;
+      if (!pending || pending.fingerprint !== fingerprint) return;
+      pendingRef.current = null;
+      persistSnapshot(pending);
+    }, delay);
 
     return () => window.clearTimeout(timer);
   }, [
@@ -141,12 +195,18 @@ export function usePatternAutosave({
     debounceMs,
   ]);
 
-  useEffect(
-    () => () => {
+  // 离开页面前刷掉防抖中的保存，避免刚生成就退出丢数据
+  useEffect(() => {
+    const onLeave = () => flushPending();
+    window.addEventListener('pagehide', onLeave);
+    window.addEventListener('beforeunload', onLeave);
+    return () => {
+      window.removeEventListener('pagehide', onLeave);
+      window.removeEventListener('beforeunload', onLeave);
+      flushPending();
       if (savedHintTimerRef.current) window.clearTimeout(savedHintTimerRef.current);
-    },
-    [],
-  );
+    };
+  }, []);
 
   return { autosaveStatus };
 }

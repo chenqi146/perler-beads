@@ -73,10 +73,10 @@ const DownloadSettingsModal: React.FC<DownloadSettingsModalProps> = ({
       onClose={onClose}
       panelClassName="h-[92vh] max-w-6xl"
     >
-        <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3 dark:border-gray-700">
+        <div className="flex items-center justify-between border-b border-[#eadfce] px-4 py-3">
           <div>
-            <h3 id="download-settings-title" className="text-base font-semibold text-gray-900 dark:text-gray-100">导出图纸</h3>
-            <p className="mt-0.5 text-[11px] text-gray-500">调整参数后预览完整图纸，再下载</p>
+            <h3 id="download-settings-title" className="text-base font-semibold text-[#3a2416]">导出图纸</h3>
+            <p className="mt-0.5 text-[11px] text-[#8a6a4a]">调整参数后预览完整图纸，再下载</p>
           </div>
           <IconButton aria-label="关闭" onClick={onClose}>
             <CloseIcon />
@@ -84,8 +84,8 @@ const DownloadSettingsModal: React.FC<DownloadSettingsModalProps> = ({
         </div>
 
         <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
-          <div className="w-full shrink-0 overflow-y-auto border-b border-gray-200 p-4 dark:border-gray-700 lg:w-[320px] lg:border-b-0 lg:border-r">
-          <div className="space-y-4">
+          <div className="w-full shrink-0 overflow-y-auto border-b border-[#eadfce] p-4 lg:w-[320px] lg:border-b-0 lg:border-r">
+            <div className="space-y-4">
             <Switch
               label="显示网格线"
               checked={tempOptions.showGrid}
@@ -94,10 +94,10 @@ const DownloadSettingsModal: React.FC<DownloadSettingsModalProps> = ({
             
             {/* 网格线设置 (仅当显示网格线时) */}
             {tempOptions.showGrid && (
-              <div className="space-y-4 pl-2 border-l-2 border-gray-200 dark:border-gray-700 ml-1 pt-2 pb-1">
+              <div className="space-y-4 rounded-xl border border-[#eadfce] bg-[#fff4e6]/60 p-3">
                 {/* 网格线间隔选项 */}
                 <div className="flex flex-col space-y-2">
-                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  <label className="text-sm font-medium text-[#5c4030]">
                     网格线间隔 (每 N 格画一条线)
                   </label>
                   <div className="flex items-center justify-between space-x-3">
@@ -108,9 +108,9 @@ const DownloadSettingsModal: React.FC<DownloadSettingsModalProps> = ({
                       step="1"
                       value={tempOptions.gridInterval}
                       onChange={(e) => handleOptionChange('gridInterval', parseInt(e.target.value))}
-                      className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-700"
+                      className="w-full h-2 rounded-lg bg-[#e8dcc8] accent-[#c47a2c] appearance-none cursor-pointer"
                     />
-                    <span className="flex items-center justify-center min-w-[40px] text-sm font-medium text-gray-900 dark:text-gray-100">
+                    <span className="flex items-center justify-center min-w-[40px] text-sm font-medium text-[#3a2416]">
                       {tempOptions.gridInterval}
                     </span>
                   </div>
@@ -118,7 +118,7 @@ const DownloadSettingsModal: React.FC<DownloadSettingsModalProps> = ({
 
                 {/* 网格线颜色选择 */}
                 <div className="flex flex-col space-y-2">
-                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  <label className="text-sm font-medium text-[#5c4030]">
                     分割线颜色
                   </label>
                   <div className="flex flex-wrap gap-2">
@@ -159,13 +159,13 @@ const DownloadSettingsModal: React.FC<DownloadSettingsModalProps> = ({
               checked={tempOptions.exportCsv}
               onChange={(checked) => handleOptionChange('exportCsv', checked)}
             />
-          </div>
+            </div>
           </div>
 
-          <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-[#eef0f3] dark:bg-gray-950">
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-[#f3ebe0]">
             <div className="relative min-h-0 flex-1">
               {previewLoading ? (
-                <div className="flex h-full items-center justify-center text-sm text-gray-500">正在生成完整预览…</div>
+                <div className="flex h-full items-center justify-center text-sm text-[#8a6a4a]">正在生成完整预览…</div>
               ) : previewUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
@@ -174,17 +174,17 @@ const DownloadSettingsModal: React.FC<DownloadSettingsModalProps> = ({
                   className="absolute inset-0 m-auto max-h-full max-w-full object-contain p-3"
                 />
               ) : (
-                <div className="flex h-full items-center justify-center text-sm text-gray-500">预览生成失败</div>
+                <div className="flex h-full items-center justify-center text-sm text-[#8a6a4a]">预览生成失败</div>
               )}
             </div>
           </div>
         </div>
 
-        <div className="flex items-center justify-end gap-2 border-t border-gray-200 px-4 py-3 dark:border-gray-700">
+        <div className="flex items-center justify-end gap-2 border-t border-[#eadfce] px-4 py-3">
           <button
             type="button"
             onClick={onClose}
-            className="h-9 rounded-lg bg-gray-200 px-4 text-sm text-gray-800 hover:bg-gray-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600"
+            className="h-10 rounded-xl border border-[#e0d0bc] bg-white px-4 text-sm font-medium text-[#6b5340] hover:bg-[#fff4e6] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e8b86a]"
           >
             取消
           </button>
@@ -192,7 +192,7 @@ const DownloadSettingsModal: React.FC<DownloadSettingsModalProps> = ({
             type="button"
             onClick={handleSave}
             disabled={!previewUrl || previewLoading}
-            className="h-9 rounded-lg bg-emerald-600 px-4 text-sm font-medium text-white hover:bg-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 disabled:opacity-50"
+            className="h-10 rounded-xl bg-[#c47a2c] px-4 text-sm font-semibold text-white shadow-[0_8px_18px_rgba(196,122,44,0.22)] hover:bg-[#b06b22] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e8b86a] disabled:opacity-50"
           >
             下载图纸
           </button>

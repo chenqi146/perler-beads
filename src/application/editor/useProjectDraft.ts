@@ -61,8 +61,10 @@ export function useProjectDraft({
   // 启动时恢复上次图纸草稿（有 patternId 时跳过，由 pattern 水合优先）
   useEffect(() => {
     if (currentPatternId) return;
+
+    let cancelled = false;
     const draft = loadProjectDraft();
-    if (!draft?.mappedPixelData?.length || !draft.gridDimensions) {
+    if (!draft?.mappedPixelData?.length || !draft.gridDimensions?.N) {
       draftReadyToSaveRef.current = true;
       return;
     }
@@ -122,20 +124,26 @@ export function useProjectDraft({
     } else {
       setOriginalImageSrc(null);
       void getOriginalImage(DRAFT_ORIGINAL_KEY).then((src) => {
-        if (src) useEditorStore.getState().setOriginalImageSrc(src);
+        // 已跳进某张图纸 / effect 已卸载时，禁止把草稿原图写回
+        if (cancelled || !src) return;
+        if (useEditorStore.getState().originalImageSrc) return;
+        setOriginalImageSrc(src);
       });
     }
 
     setDraftSaveHint('已恢复上次图纸');
     const t = window.setTimeout(() => setDraftSaveHint(null), 2500);
     draftReadyToSaveRef.current = true;
-    return () => window.clearTimeout(t);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(t);
+    };
   }, [currentPatternId, suppressPixelateUntilRef]);
 
   // 图纸改动自动保存到浏览器
   useEffect(() => {
     if (!draftReadyToSaveRef.current) return;
-    if (!mappedPixelData || !gridDimensions) return;
+    if (!mappedPixelData?.length || !gridDimensions?.N) return;
 
     const timer = window.setTimeout(() => {
       const result = saveProjectDraft({

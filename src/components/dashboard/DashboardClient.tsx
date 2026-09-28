@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import {
   usePatternStore,
   useBeadProgressStore,
+  useEditorStore,
   summarizeBeadProgress,
 } from '@/stores';
 import { useToast } from '@/components/ui/ToastProvider';
@@ -72,6 +73,8 @@ export function DashboardClient({ initialPatterns }: Props) {
 
   const create = () => {
     if (!name.trim()) return;
+    // 清掉上一张图纸/草稿在内存里的残留，避免新建页还带着旧图
+    useEditorStore.getState().resetDocument();
     const raw = savePattern({
       name: name.trim(),
       description: '',

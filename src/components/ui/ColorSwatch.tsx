@@ -29,7 +29,7 @@ export function ColorSwatch({
     'inline-block shrink-0 border border-gray-300 dark:border-gray-600',
     sizeClass[size],
     shape === 'circle' ? 'rounded-full' : 'rounded',
-    isSelected && 'ring-2 ring-blue-500 ring-offset-1 dark:ring-offset-gray-800',
+    isSelected && 'ring-2 ring-[#c47a2c] ring-offset-1 ring-offset-[#fffaf3]',
     className,
   );
   const style = { backgroundColor: hex };
@@ -42,7 +42,7 @@ export function ColorSwatch({
         onClick={onClick}
         className={cn(
           classes,
-          'touch-manipulation hover:border-gray-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500',
+          'touch-manipulation hover:border-[#c47a2c] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e8b86a]',
         )}
         style={style}
       />

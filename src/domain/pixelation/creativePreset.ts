@@ -26,7 +26,7 @@ export const CREATIVE_PRESETS: Record<CreativePresetId, CreativePresetConfig> = 
   cartoon: {
     id: 'cartoon',
     label: '卡通',
-    hint: '主色块，适合色块清晰的图',
+    hint: '主色块，忽略细网格线，适合色块图',
     pixelationMode: PixelationMode.Dominant,
     similarityThreshold: 0,
     dithering: false,

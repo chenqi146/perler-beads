@@ -36,6 +36,8 @@ interface PixelatedPreviewCanvasProps {
   /** select=多选格子；crop=拖拽裁剪框 */
   toolMode?: CanvasToolMode;
   selectedCells?: Set<string>;
+  /** 拼豆模式下已完成的格子，用于提供可见的完成反馈 */
+  completedCells?: Set<string>;
   onSelectCells?: (keys: string[], mode: 'add' | 'toggle' | 'set') => void;
   onSelectionDoubleClick?: () => void;
   cropRect?: CropRect | null;
@@ -72,6 +74,7 @@ function drawPixelatedCanvas(
     axisSize: number;
     gridInterval: number;
     selectedCells?: Set<string>;
+    completedCells?: Set<string>;
     cropRect?: CropRect | null;
     highlightFade?: number;
     showCellKeys?: boolean;
@@ -88,6 +91,7 @@ function drawPixelatedCanvas(
     axisSize,
     gridInterval,
     selectedCells,
+    completedCells,
     cropRect,
     highlightFade = 0.84,
     showCellKeys,
@@ -228,6 +232,21 @@ function drawPixelatedCanvas(
         ctx.strokeRect(drawX + 0.75, drawY + 0.75, cellSize - 1.5, cellSize - 1.5);
       }
 
+      if (completedCells?.has(cellKey(j, i)) && !cellData.isExternal) {
+        ctx.fillStyle = 'rgba(47, 125, 92, 0.22)';
+        ctx.fillRect(drawX, drawY, cellSize, cellSize);
+        ctx.strokeStyle = '#2f7d5c';
+        ctx.lineWidth = Math.max(1, Math.min(2, cellSize / 8));
+        ctx.strokeRect(drawX + 1, drawY + 1, cellSize - 2, cellSize - 2);
+        if (cellSize >= 12) {
+          ctx.beginPath();
+          ctx.moveTo(drawX + cellSize * 0.24, drawY + cellSize * 0.52);
+          ctx.lineTo(drawX + cellSize * 0.44, drawY + cellSize * 0.72);
+          ctx.lineTo(drawX + cellSize * 0.78, drawY + cellSize * 0.32);
+          ctx.stroke();
+        }
+      }
+
       if (showKeys && !cellData.isExternal && cellData.key !== 'ERASE') {
         if (!highlightStyle || isAccent) {
           const displayKey = getDisplayColorKey(cellData.color || '#FFFFFF', selectedColorSystem);
@@ -308,6 +327,7 @@ const PixelatedPreviewCanvas: React.FC<PixelatedPreviewCanvasProps> = ({
   previewZoom = 1,
   toolMode = 'select',
   selectedCells,
+  completedCells,
   onSelectCells,
   onSelectionDoubleClick,
   cropRect,
@@ -397,6 +417,7 @@ const PixelatedPreviewCanvas: React.FC<PixelatedPreviewCanvasProps> = ({
         axisSize,
         gridInterval,
         selectedCells,
+        completedCells,
         cropRect,
         highlightFade,
         showCellKeys,
@@ -424,6 +445,7 @@ const PixelatedPreviewCanvas: React.FC<PixelatedPreviewCanvasProps> = ({
     axisSize,
     gridInterval,
     selectedCells,
+    completedCells,
     cropRect,
     highlightFade,
     showCellKeys,

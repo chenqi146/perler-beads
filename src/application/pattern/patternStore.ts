@@ -6,7 +6,7 @@ import {
   getOriginalImage,
   deleteOriginalImage,
 } from '../../infrastructure/storage';
-import { pullPatternsFromCloud, pushPatternToCloud } from '../../utils/patternSync';
+import { deletePatternFromCloud, pullPatternsFromCloud, pushPatternToCloud } from '../../utils/patternSync';
 import { useEditorStore } from '../editor/editorStore';
 
 type PatternState = {
@@ -125,6 +125,11 @@ export const usePatternStore = create<PatternState>((set, get) => ({
   deletePattern: (patternId) => {
     repo.remove(patternId);
     void deleteOriginalImage(patternId);
+    void deletePatternFromCloud(patternId).then((result) => {
+      if (!result.ok && result.status !== 401) {
+        set({ syncMessage: result.message });
+      }
+    });
     set((state) => ({
       patterns: repo.listByOwner(),
       currentPattern: state.currentPatternId === patternId ? null : state.currentPattern,

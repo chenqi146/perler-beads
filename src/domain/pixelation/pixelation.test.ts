@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   PixelationMode,
   calculateCellRepresentativeColor,
+  calculatePixelGrid,
   colorDistance,
   findClosestPaletteColor,
   hexToRgb,
@@ -358,5 +359,94 @@ describe('patternCleanup', () => {
     ];
     const out = absorbSimilarSpeckles(grid, 100, 4);
     expect(out[1][1].key).toBe('K');
+  });
+});
+
+describe('calculatePixelGrid stroke gating', () => {
+  const palette: PaletteColor[] = [
+    { key: 'T01', hex: '#FFFFFF', rgb: { r: 255, g: 255, b: 255 } },
+    { key: 'P01', hex: '#FCF7F8', rgb: { r: 252, g: 247, b: 248 } },
+    { key: 'H07', hex: '#000000', rgb: { r: 0, g: 0, b: 0 } },
+    { key: 'F10', hex: '#FF8FA8', rgb: { r: 255, g: 143, b: 168 } },
+  ];
+  const t1 = palette[0];
+
+  function mockCtx(w: number, h: number, rgba: Uint8ClampedArray): CanvasRenderingContext2D {
+    return {
+      getImageData: () => ({ data: rgba, width: w, height: h, colorSpace: 'srgb' }) as ImageData,
+    } as unknown as CanvasRenderingContext2D;
+  }
+
+  /** 白底粉块 + 贯穿全图的细黑网格（模拟「已是拼豆底稿」再转像素） */
+  function makeGriddedSprite(cols: number, rows: number, cell = 8, line = 1) {
+    const w = cols * cell;
+    const h = rows * cell;
+    const rgba = new Uint8ClampedArray(w * h * 4);
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const i = (y * w + x) * 4;
+        const onGrid = x % cell === 0 || y % cell === 0;
+        const inPink =
+          x >= cols * cell * 0.3 &&
+          x < cols * cell * 0.7 &&
+          y >= rows * cell * 0.3 &&
+          y < rows * cell * 0.7;
+        if (onGrid) {
+          rgba[i] = 20;
+          rgba[i + 1] = 20;
+          rgba[i + 2] = 20;
+        } else if (inPink) {
+          rgba[i] = 255;
+          rgba[i + 1] = 143;
+          rgba[i + 2] = 168;
+        } else {
+          rgba[i] = 245;
+          rgba[i + 1] = 245;
+          rgba[i + 2] = 245;
+        }
+        rgba[i + 3] = 255;
+      }
+    }
+    return { w, h, rgba };
+  }
+
+  it('Dominant without dither keeps light bg on gridded source (no stroke overpaint)', () => {
+    const { w, h, rgba } = makeGriddedSprite(50, 50, 8, 1);
+    const grid = calculatePixelGrid(
+      mockCtx(w, h, rgba),
+      w,
+      h,
+      50,
+      50,
+      palette,
+      PixelationMode.Dominant,
+      t1,
+      { dithering: false },
+    );
+    let black = 0;
+    for (const row of grid) for (const c of row) if (c.key === 'H07') black++;
+    // 角上背景格不应被网格线染黑
+    expect(grid[0][0].key).not.toBe('H07');
+    expect(grid[1][1].key).not.toBe('H07');
+    expect(black / 2500).toBeLessThan(0.12);
+  });
+
+  it('EdgeAware without dither may still keep dark strokes', () => {
+    const { w, h, rgba } = makeGriddedSprite(20, 20, 10, 2);
+    const grid = calculatePixelGrid(
+      mockCtx(w, h, rgba),
+      w,
+      h,
+      20,
+      20,
+      palette,
+      PixelationMode.EdgeAware,
+      t1,
+      { dithering: false },
+    );
+    // 清晰模式仍可识别暗线；不强制背景全白，只断言能跑通且有非空色
+    expect(grid.flat().some((c) => c.key === 'H07' || c.key === 'T01' || c.key === 'P01')).toBe(
+      true,
+    );
   });
 });

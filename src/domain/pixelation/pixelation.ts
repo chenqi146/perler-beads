@@ -618,7 +618,8 @@ export type CalculatePixelGridOptions = {
 
 /**
  * 根据原始图像数据、网格尺寸、调色板和模式计算像素化网格数据。
- * EdgeAware / Dominant 会额外做线稿掩码：细描边格子强制取暗色，避免被填充色淹没。
+ * 仅 EdgeAware（清晰）在关抖动时做线稿掩码：细描边格子强制取暗色。
+ * Dominant（卡通）始终取主色填充，避免原图自带网格线被当成描边整格染黑。
  * 开启 dithering 时跳过描边强制映射，先取代表色再抖动量化。
  */
 export function calculatePixelGrid(
@@ -656,8 +657,8 @@ export function calculatePixelGrid(
   fullImageData = adjustImageData(fullImageData, { contrast, saturation });
   fullImageData = enhanceImageDataForSmallGrid(fullImageData, N, M);
   const cellArea = (imgWidth / N) * (imgHeight / M);
-  // 抖动路径用连续代表色，跳过描边强制，避免误差扩散被打断
-  const preserveLines = !dithering && mode !== PixelationMode.Average;
+  // 仅清晰模式保线稿；卡通主色吃填充。抖动时也跳过，以免打断误差扩散
+  const preserveLines = !dithering && mode === PixelationMode.EdgeAware;
 
   // 描边掩码：提高覆盖率门槛、禁止膨胀，避免「沾一点黑就整格变黑边」
   const strokeMask =
