@@ -1,22 +1,20 @@
 'use client';
 
-import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   usePatternStore,
   useBeadProgressStore,
   summarizeBeadProgress,
-  beadCraftCtaLabel,
 } from '@/stores';
 import { useToast } from '@/components/ui/ToastProvider';
 import type { Pattern } from '@/types/platform';
-import { PatternPreviewImage } from '@/components/patterns/PatternPreviewImage';
-import { PatternBeadProgress } from '@/components/patterns/PatternBeadProgress';
+import { PatternCard } from '@/components/patterns/PatternCard';
 import {
   PatternListQueryBar,
   type PatternProgressFilter,
 } from '@/components/patterns/PatternListQueryBar';
+import { hydrateBeadProgressFromCloud } from '@/utils/craftSessionSync';
 
 type Props = {
   initialPatterns: Pattern[];
@@ -33,7 +31,6 @@ export function DashboardClient({ initialPatterns }: Props) {
   const [hydrated, setHydrated] = useState(false);
   const [open, setOpen] = useState(false);
   const [name, setName] = useState('');
-  const [description, setDescription] = useState('');
   const [query, setQuery] = useState('');
   const [progressFilter, setProgressFilter] = useState<PatternProgressFilter>('all');
 
@@ -43,6 +40,7 @@ export function DashboardClient({ initialPatterns }: Props) {
       .getState()
       .refreshPatternsFromCloud()
       .finally(() => setHydrated(true));
+    void hydrateBeadProgressFromCloud();
   }, [refreshPatterns]);
 
   const patterns =
@@ -51,9 +49,11 @@ export function DashboardClient({ initialPatterns }: Props) {
   const progressById = useMemo(() => {
     const map: Record<string, ReturnType<typeof summarizeBeadProgress>> = {};
     for (const pattern of patterns) {
+      const entry = byPatternProgress[pattern.id];
       map[pattern.id] = summarizeBeadProgress(
         pattern,
-        byPatternProgress[pattern.id]?.completedCells,
+        entry?.completedCells,
+        entry?.manualStatus,
       );
     }
     return map;
@@ -74,7 +74,7 @@ export function DashboardClient({ initialPatterns }: Props) {
     if (!name.trim()) return;
     const raw = savePattern({
       name: name.trim(),
-      description,
+      description: '',
       tags: [],
       visibility: 'private',
       data: {
@@ -126,6 +126,7 @@ export function DashboardClient({ initialPatterns }: Props) {
         <div className="fixed inset-0 z-50 grid place-items-center bg-[#3a2416]/40 p-4 overscroll-contain">
           <div className="w-full max-w-md rounded-2xl border border-[#eadfce] bg-[#fffaf3] p-6 shadow-[0_24px_60px_rgba(90,52,24,0.18)]">
             <h2 className="text-xl font-semibold text-[#3a2416]">创建图纸</h2>
+            <p className="mt-1 text-sm text-[#8a6a4a]">先命名，下一步直接上传图片开始处理。</p>
             <label className="mt-5 block text-sm font-medium text-[#5c4030]">
               图纸名称
               <input
@@ -136,21 +137,12 @@ export function DashboardClient({ initialPatterns }: Props) {
                 autoFocus
               />
             </label>
-            <label className="mt-4 block text-sm font-medium text-[#5c4030]">
-              描述
-              <textarea
-                className="mt-2 min-h-20 w-full rounded-xl border border-[#e0d0bc] bg-white px-3 py-2 focus-visible:border-[#c47a2c] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e8b86a]"
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                autoComplete="off"
-              />
-            </label>
             <div className="mt-6 flex justify-end gap-3">
               <button type="button" className="secondary-button" onClick={() => setOpen(false)}>
                 取消
               </button>
               <button type="button" className="primary-button" onClick={create}>
-                创建并编辑
+                创建并上传
               </button>
             </div>
           </div>
@@ -174,68 +166,36 @@ export function DashboardClient({ initialPatterns }: Props) {
         ) : filteredPatterns.length === 0 ? (
           <p className="empty-state">没有符合条件的图纸，试试其他关键词或进度筛选。</p>
         ) : (
-          filteredPatterns.map((pattern) => {
+          filteredPatterns.map((pattern, index) => {
             const summary = progressById[pattern.id];
-            const emptyGrid = pattern.data.gridDimensions.N <= 0;
             return (
-              <article className="pattern-card" key={pattern.id}>
-                <div className="pattern-card-media">
-                  <Link href={`/editor/${pattern.id}`} className="pattern-preview">
-                    <PatternPreviewImage
-                      data={pattern.data}
-                      cacheKey={`${pattern.id}:${pattern.updatedAt}`}
-                    />
-                  </Link>
-                  <span
-                    className={`pattern-badge ${pattern.visibility === 'public' ? 'is-public' : 'is-private'}`}
-                  >
-                    {pattern.visibility === 'public' ? '公开' : '私有'}
-                  </span>
-                </div>
-                <div className="pattern-card-body">
-                  <h2>{pattern.name}</h2>
-                  {pattern.description ? <p>{pattern.description}</p> : null}
-                  <small>
-                    {pattern.data.gridDimensions.N} × {pattern.data.gridDimensions.M}
-                  </small>
-                </div>
-                <PatternBeadProgress
-                  patternId={pattern.id}
-                  summary={summary}
-                  disabled={emptyGrid}
-                />
-                <div className="pattern-card-actions">
-                  <Link
-                    href={`/editor/${pattern.id}`}
-                    className="secondary-button touch-manipulation"
-                  >
-                    编辑
-                  </Link>
-                  <Link
-                    href={`/bead/${pattern.id}`}
-                    className={`primary-button touch-manipulation ${emptyGrid ? 'pointer-events-none opacity-40' : ''}`}
-                    aria-disabled={emptyGrid}
-                  >
-                    {beadCraftCtaLabel(summary.status)}
-                  </Link>
-                </div>
-                <div className="pattern-card-tools">
-                  <button type="button" onClick={() => toggleVisibility(pattern)}>
-                    {pattern.visibility === 'public' ? '取消公开' : '设为公开'}
-                  </button>
-                  <span aria-hidden="true">·</span>
-                  <button
-                    type="button"
-                    className="danger"
-                    onClick={() => {
-                      deletePattern(pattern.id);
-                      toast('已删除');
-                    }}
-                  >
-                    删除
-                  </button>
-                </div>
-              </article>
+              <PatternCard
+                key={pattern.id}
+                pattern={pattern}
+                summary={summary}
+                index={index}
+                footer={
+                  <>
+                    <button type="button" onClick={() => toggleVisibility(pattern)}>
+                      {pattern.visibility === 'public' ? '取消公开' : '设为公开'}
+                    </button>
+                    <span aria-hidden="true">·</span>
+                    <button
+                      type="button"
+                      className="danger"
+                      onClick={() => {
+                        if (!window.confirm(`确定删除「${pattern.name}」吗？删除后无法恢复。`)) {
+                          return;
+                        }
+                        deletePattern(pattern.id);
+                        toast('已删除');
+                      }}
+                    >
+                      删除
+                    </button>
+                  </>
+                }
+              />
             );
           })
         )}

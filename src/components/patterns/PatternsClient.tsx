@@ -6,15 +6,14 @@ import {
   usePatternStore,
   useBeadProgressStore,
   summarizeBeadProgress,
-  beadCraftCtaLabel,
 } from '@/stores';
 import type { Pattern } from '@/types/platform';
-import { PatternPreviewImage } from './PatternPreviewImage';
-import { PatternBeadProgress } from './PatternBeadProgress';
+import { PatternCard } from './PatternCard';
 import {
   PatternListQueryBar,
   type PatternProgressFilter,
 } from './PatternListQueryBar';
+import { hydrateBeadProgressFromCloud } from '@/utils/craftSessionSync';
 
 type Props = {
   initialPatterns: Pattern[];
@@ -31,6 +30,7 @@ export function PatternsClient({ initialPatterns }: Props) {
   useEffect(() => {
     refreshPatterns();
     setHydrated(true);
+    void hydrateBeadProgressFromCloud();
   }, [refreshPatterns]);
 
   const patterns =
@@ -39,9 +39,11 @@ export function PatternsClient({ initialPatterns }: Props) {
   const progressById = useMemo(() => {
     const map: Record<string, ReturnType<typeof summarizeBeadProgress>> = {};
     for (const pattern of patterns) {
+      const entry = byPatternProgress[pattern.id];
       map[pattern.id] = summarizeBeadProgress(
         pattern,
-        byPatternProgress[pattern.id]?.completedCells,
+        entry?.completedCells,
+        entry?.manualStatus,
       );
     }
     return map;
@@ -88,54 +90,15 @@ export function PatternsClient({ initialPatterns }: Props) {
         ) : filteredPatterns.length === 0 ? (
           <p className="empty-state">没有符合条件的图纸，试试其他关键词或进度筛选。</p>
         ) : (
-          filteredPatterns.map((pattern) => {
-            const summary = progressById[pattern.id];
-            const emptyGrid = pattern.data.gridDimensions.N <= 0;
-            return (
-              <article className="pattern-card" key={pattern.id}>
-                <div className="pattern-card-media">
-                  <Link href={`/editor/${pattern.id}`} className="pattern-preview">
-                    <PatternPreviewImage
-                      data={pattern.data}
-                      cacheKey={`${pattern.id}:${pattern.updatedAt}`}
-                    />
-                  </Link>
-                  <span
-                    className={`pattern-badge ${pattern.visibility === 'public' ? 'is-public' : 'is-private'}`}
-                  >
-                    {pattern.visibility === 'public' ? '公开' : '私有'}
-                  </span>
-                </div>
-                <div className="pattern-card-body">
-                  <h2>{pattern.name}</h2>
-                  {pattern.description ? <p>{pattern.description}</p> : null}
-                  <small>
-                    {pattern.data.gridDimensions.N} × {pattern.data.gridDimensions.M}
-                  </small>
-                </div>
-                <PatternBeadProgress
-                  patternId={pattern.id}
-                  summary={summary}
-                  disabled={emptyGrid}
-                />
-                <div className="pattern-card-actions pattern-card-actions--footer">
-                  <Link
-                    className="secondary-button touch-manipulation"
-                    href={`/editor/${pattern.id}`}
-                  >
-                    编辑
-                  </Link>
-                  <Link
-                    className={`primary-button touch-manipulation ${emptyGrid ? 'pointer-events-none opacity-40' : ''}`}
-                    href={`/bead/${pattern.id}`}
-                    aria-disabled={emptyGrid}
-                  >
-                    {beadCraftCtaLabel(summary?.status ?? 'empty')}
-                  </Link>
-                </div>
-              </article>
-            );
-          })
+          filteredPatterns.map((pattern, index) => (
+            <PatternCard
+              key={pattern.id}
+              pattern={pattern}
+              summary={progressById[pattern.id]}
+              index={index}
+              showVisibilityBadge={false}
+            />
+          ))
         )}
       </section>
     </main>

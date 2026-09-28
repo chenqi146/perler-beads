@@ -156,8 +156,8 @@ body {
 
 .pattern-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: 18px;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 20px;
 }
 
 .pattern-card {
@@ -165,28 +165,65 @@ body {
   flex-direction: column;
   color: inherit;
   text-decoration: none;
-  background: #fffaf3;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.55), transparent 28%),
+    #fffaf3;
   border: 1px solid #eadfce;
   padding: 0;
-  border-radius: 16px;
-  overflow: hidden;
-  transition: border-color 150ms, box-shadow 150ms, transform 150ms;
+  border-radius: 18px;
+  /* 菜单要溢出卡片，裁剪交给封面区域 */
+  overflow: visible;
+  box-shadow: 0 10px 28px -18px rgba(90, 52, 24, 0.28);
+  transition:
+    border-color 220ms cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 220ms cubic-bezier(0.16, 1, 0.3, 1),
+    transform 220ms cubic-bezier(0.16, 1, 0.3, 1);
+  animation: pattern-card-in 420ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: calc(var(--card-index, 0) * 45ms);
+  will-change: transform;
+}
+
+.pattern-card:has(.pattern-status-menu) {
+  z-index: 6;
+}
+
+@keyframes pattern-card-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pattern-card {
+    animation: none;
+  }
 }
 
 .pattern-card:hover {
   border-color: #e0c49a;
-  box-shadow: 0 12px 30px rgba(90, 52, 24, 0.1);
-  transform: translateY(-2px);
+  box-shadow: 0 18px 36px -16px rgba(90, 52, 24, 0.22);
+  transform: translateY(-3px);
+}
+
+.pattern-card:active {
+  transform: translateY(-1px) scale(0.995);
 }
 
 .pattern-card-media {
   position: relative;
+  overflow: hidden;
+  border-radius: 17px 17px 0 0;
 }
 
 .pattern-preview {
   aspect-ratio: 1;
   background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.35), transparent 40%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.4), transparent 42%),
     #f3e6d4;
   display: grid;
   place-items: center;
@@ -207,6 +244,11 @@ body {
   width: 100%;
   height: 100%;
   object-fit: contain;
+  transition: transform 320ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.pattern-card:hover .pattern-preview img {
+  transform: scale(1.03);
 }
 
 .pattern-card-actions--footer {
@@ -225,6 +267,7 @@ body {
   letter-spacing: 0.02em;
   backdrop-filter: blur(8px);
   pointer-events: none;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35);
 }
 
 .pattern-badge.is-private {
@@ -247,56 +290,70 @@ body {
   min-height: 0;
 }
 
+.pattern-card-title-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+}
+
+.pattern-card-title-row h2 {
+  flex: 1;
+  min-width: 0;
+}
+
+.pattern-card-title-row small {
+  flex-shrink: 0;
+  margin-top: 0;
+}
+
 .pattern-card-body--padded {
   padding-bottom: 14px;
 }
 
 .pattern-bead-progress {
+  position: relative;
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  margin: 10px 14px 0;
-  padding: 8px 10px;
-  border-radius: 10px;
+  gap: 8px;
+  margin: 12px 14px 0;
+  padding: 10px 11px;
+  border-radius: 12px;
   border: 1px solid #eadfce;
-  background: #fff4e6;
+  background: linear-gradient(180deg, #fff7ea, #fff3e0);
   color: inherit;
   text-decoration: none;
-  transition: border-color 150ms, background-color 150ms;
+  transition: border-color 180ms, background-color 180ms, box-shadow 180ms;
 }
 
-.pattern-bead-progress:hover {
-  border-color: #e0c49a;
-  background: #ffefd8;
-}
-
-.pattern-bead-progress:focus-visible {
-  outline: none;
-  box-shadow: 0 0 0 3px #e8b86a;
-}
-
-.pattern-bead-progress.is-empty {
-  margin: 8px 14px 0;
-  padding: 0;
-  border: none;
-  background: transparent;
-  color: #b07a3a;
-  font-size: 0.78rem;
-  pointer-events: none;
+.pattern-bead-progress.is-idle {
+  background: linear-gradient(180deg, #fff8ef, #fff4e6);
 }
 
 .pattern-bead-progress.is-active {
   border-color: #e8b86a;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.55);
+}
+
+.pattern-bead-progress.is-paused {
+  border-color: #d8c4a8;
+  background: linear-gradient(180deg, #f7f1e8, #f3ebe0);
 }
 
 .pattern-bead-progress.is-completed {
   border-color: #c6d9a8;
-  background: #f3f7ea;
+  background: linear-gradient(180deg, #f5f8ee, #eef4e4);
+}
+
+.pattern-bead-progress.is-saving {
+  opacity: 0.72;
+  pointer-events: none;
 }
 
 .pattern-bead-progress-meta {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
   gap: 8px;
   font-size: 0.75rem;
@@ -304,7 +361,10 @@ body {
 }
 
 .pattern-bead-progress-label {
-  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 650;
   color: #5c4030;
 }
 
@@ -312,14 +372,31 @@ body {
   color: #4a6b2a;
 }
 
+.pattern-bead-progress.is-paused .pattern-bead-progress-label {
+  color: #7a6550;
+}
+
 .pattern-bead-progress-counts {
   color: #8a6a4a;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+  text-decoration: none;
+  border-radius: 6px;
+  padding: 2px 0;
+  transition: color 150ms;
+}
+
+.pattern-bead-progress-counts:hover {
+  color: #5a3a18;
+}
+
+.pattern-bead-progress-counts:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px #e8b86a;
 }
 
 .pattern-bead-progress-track {
-  height: 4px;
+  height: 5px;
   overflow: hidden;
   border-radius: 999px;
   background: #eadfce;
@@ -329,15 +406,228 @@ body {
   background: #d7e4c4;
 }
 
+.pattern-bead-progress.is-paused .pattern-bead-progress-track {
+  background: #e2d6c6;
+}
+
 .pattern-bead-progress-fill {
   height: 100%;
   border-radius: inherit;
-  background: #c47a2c;
-  transition: width 200ms ease-out;
+  background: linear-gradient(90deg, #c47a2c, #d4923f);
+  transition: width 280ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .pattern-bead-progress.is-completed .pattern-bead-progress-fill {
+  background: linear-gradient(90deg, #6a9a3a, #84b352);
+}
+
+.pattern-bead-progress.is-paused .pattern-bead-progress-fill {
+  background: linear-gradient(90deg, #a08968, #b59a78);
+}
+
+.pattern-status-control {
+  position: relative;
+  min-width: 0;
+  z-index: 2;
+}
+
+.pattern-status-control:has(.pattern-status-menu) {
+  z-index: 8;
+}
+
+.pattern-status-trigger {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 100%;
+  margin: 0;
+  padding: 3px 7px 3px 5px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.45);
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  transition:
+    background-color 160ms,
+    border-color 160ms,
+    transform 120ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.pattern-status-trigger:hover {
+  background: rgba(255, 255, 255, 0.8);
+  border-color: rgba(196, 122, 44, 0.28);
+}
+
+.pattern-status-trigger:active {
+  transform: scale(0.98);
+}
+
+.pattern-status-trigger:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px #e8b86a;
+}
+
+.pattern-status-trigger[aria-expanded='true'] {
+  background: #fff;
+  border-color: rgba(196, 122, 44, 0.35);
+}
+
+.pattern-status-dot {
+  width: 7px;
+  height: 7px;
+  flex-shrink: 0;
+  border-radius: 999px;
+  background: #c4a078;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.55);
+}
+
+.pattern-bead-progress.is-active .pattern-status-dot,
+.pattern-status-dot.is-in_progress {
+  background: #c47a2c;
+  animation: pattern-status-breathe 2.4s ease-in-out infinite;
+}
+
+.pattern-bead-progress.is-paused .pattern-status-dot,
+.pattern-status-dot.is-paused {
+  background: #a08968;
+  animation: none;
+}
+
+.pattern-bead-progress.is-completed .pattern-status-dot,
+.pattern-status-dot.is-completed {
   background: #6a9a3a;
+  animation: none;
+}
+
+.pattern-status-dot.is-not_started {
+  background: #c4a078;
+  animation: none;
+}
+
+@keyframes pattern-status-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.18);
+    opacity: 0.72;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pattern-bead-progress.is-active .pattern-status-dot,
+  .pattern-status-dot.is-in_progress {
+    animation: none;
+  }
+}
+
+.pattern-status-chevron {
+  flex-shrink: 0;
+  color: #a07a52;
+  transition: transform 180ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.pattern-status-chevron.is-open {
+  transform: rotate(180deg);
+}
+
+.pattern-status-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 30;
+  min-width: 188px;
+  max-height: min(280px, 50vh);
+  overflow-y: auto;
+  margin: 0;
+  padding: 6px;
+  list-style: none;
+  border-radius: 14px;
+  border: 1px solid #eadfce;
+  background: #fffaf3;
+  box-shadow:
+    0 18px 40px -18px rgba(90, 52, 24, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.7);
+  animation: pattern-status-menu-in 160ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.pattern-status-menu.is-up {
+  top: auto;
+  bottom: calc(100% + 6px);
+  animation-name: pattern-status-menu-in-up;
+}
+
+@keyframes pattern-status-menu-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pattern-status-menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.pattern-status-menu button {
+  appearance: none;
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  margin: 0;
+  padding: 8px 10px;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: #3a2416;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 140ms;
+}
+
+.pattern-status-menu button:hover,
+.pattern-status-menu button:focus-visible {
+  background: #fff1df;
+  outline: none;
+}
+
+.pattern-status-menu button.is-selected {
+  background: #ffe8c8;
+}
+
+.pattern-status-menu button:active {
+  transform: scale(0.99);
+}
+
+.pattern-status-option-main {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 0.82rem;
+  font-weight: 650;
+}
+
+.pattern-status-option-hint {
+  padding-left: 14px;
+  color: #8a6a4a;
+  font-size: 0.7rem;
 }
 
 .pattern-card h2 {
@@ -364,7 +654,7 @@ body {
 
 .pattern-card small {
   color: #b07a3a;
-  font-size: 0.8rem;
+  font-size: 0.78rem;
   font-variant-numeric: tabular-nums;
   margin-top: 2px;
 }
@@ -381,13 +671,23 @@ body {
   width: 100%;
   padding: 9px 12px;
   font-size: 0.9rem;
-  border-radius: 10px;
+  border-radius: 11px;
   box-shadow: none;
+  transition:
+    background-color 160ms,
+    border-color 160ms,
+    color 160ms,
+    transform 120ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .pattern-card-actions .primary-button:hover,
 .pattern-card-actions .secondary-button:hover {
   transform: none;
+}
+
+.pattern-card-actions .primary-button:active,
+.pattern-card-actions .secondary-button:active {
+  transform: scale(0.98);
 }
 
 .pattern-card-tools {

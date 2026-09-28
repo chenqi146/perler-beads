@@ -21,6 +21,9 @@ export default function PatternDetail() {
   const completedCells = useBeadProgressStore(
     (s) => s.byPattern[params.id]?.completedCells,
   );
+  const manualStatus = useBeadProgressStore(
+    (s) => s.byPattern[params.id]?.manualStatus,
+  );
   const [pattern, setPattern] = useState<Pattern | null | undefined>(undefined);
 
   useEffect(() => {
@@ -28,8 +31,11 @@ export default function PatternDetail() {
   }, [params.id, loadPattern]);
 
   const summary = useMemo(
-    () => (pattern ? summarizeBeadProgress(pattern, completedCells) : null),
-    [pattern, completedCells],
+    () =>
+      pattern
+        ? summarizeBeadProgress(pattern, completedCells, manualStatus)
+        : null,
+    [pattern, completedCells, manualStatus],
   );
 
   if (!pattern || !summary) {
@@ -62,7 +68,9 @@ export default function PatternDetail() {
         <PatternBeadProgress
           patternId={pattern.id}
           summary={summary}
+          mappedPixelData={pattern.data.mappedPixelData}
           disabled={emptyGrid}
+          patternSnapshot={pattern.data}
         />
         <div className="detail-actions px-4 pb-4">
           <Link

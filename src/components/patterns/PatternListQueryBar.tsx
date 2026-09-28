@@ -8,6 +8,7 @@ const FILTERS: { value: PatternProgressFilter; label: string }[] = [
   { value: 'all', label: '全部' },
   { value: 'not_started', label: '未拼' },
   { value: 'in_progress', label: '拼豆中' },
+  { value: 'paused', label: '已暂停' },
   { value: 'completed', label: '已拼完' },
   { value: 'empty', label: '无格子' },
 ];

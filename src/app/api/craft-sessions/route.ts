@@ -92,7 +92,11 @@ export async function POST(request: Request) {
   const now = Date.now();
   const id = String(body.id || crypto.randomUUID());
   const status: CraftStatus =
-    body.status === 'completed' || body.status === 'paused' ? body.status : 'active';
+    body.status === 'completed' ||
+    body.status === 'paused' ||
+    body.status === 'not_started'
+      ? body.status
+      : 'active';
   const completedCells = Array.isArray(body.completedCells) ? body.completedCells.map(String) : [];
   const elapsedSeconds = Number(body.elapsedSeconds) || 0;
   const snapshot = body.patternSnapshot ?? body.snapshot ?? {

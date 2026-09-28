@@ -44,4 +44,5 @@ export type {
   AutosaveStatus,
   BeadProgressSummary,
   BeadProgressStatus,
+  BeadCraftPhase,
 } from '../application';

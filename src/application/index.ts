@@ -22,10 +22,13 @@ export {
 export {
   summarizeBeadProgress,
   beadCraftCtaLabel,
+  beadProgressStatusLabel,
+  resolveBeadStatus,
 } from './bead/beadProgressSummary';
 export type {
   BeadProgressSummary,
   BeadProgressStatus,
+  BeadCraftPhase,
 } from './bead/beadProgressSummary';
 export { useEditorHistory } from './editor/useEditorHistory';
 export { useEditorPatternActions } from './editor/useEditorPatternActions';

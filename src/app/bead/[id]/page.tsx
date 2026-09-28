@@ -24,7 +24,9 @@ import {
 import type { Pattern } from '../../../types/platform';
 import { useBeadProgressStore } from '../../../application/bead/beadProgressStore';
 import {
+  craftStatusToPhase,
   loadCraftSessionForPattern,
+  phaseToCraftStatus,
   pushCraftSession,
 } from '../../../utils/craftSessionSync';
 import {
@@ -122,7 +124,7 @@ function BeadPageContent() {
   const panSurfaceRef = useRef<HTMLDivElement | null>(null);
 
   const completedCellsArr = useBeadCompletedCells(patternId);
-  const { markCell, setColorCompleted, setCells } = useBeadProgressActions();
+  const { toggleCell, setColorCompleted, setCells } = useBeadProgressActions();
   const startedAtRef = useRef<number>(Date.now());
   const syncTimerRef = useRef<number | null>(null);
   const lastMarkRef = useRef<{ key: string; at: number } | null>(null);
@@ -181,23 +183,26 @@ function BeadPageContent() {
 
     void (async () => {
       const remote = await loadCraftSessionForPattern(patternId);
-      const localCells = useBeadProgressStore.getState().getCells(patternId);
+      const localEntry = useBeadProgressStore.getState().byPattern[patternId];
+      const localCells = localEntry?.completedCells ?? [];
       if (!remote) {
         if (found) {
+          const phase = localEntry?.manualStatus ?? 'in_progress';
           void pushCraftSession({
             patternId,
             completedCells: localCells,
             patternSnapshot: found.data,
-            status: 'active',
+            status: phaseToCraftStatus(phase),
           });
         }
         return;
       }
       // 合并本地与远端，避免异步回写覆盖刚点上的格子
       const merged = Array.from(new Set([...localCells, ...remote.completedCells]));
-      if (merged.length > localCells.length) {
-        setCells(patternId, merged);
-      }
+      useBeadProgressStore.getState().hydrateFromRemote(patternId, {
+        completedCells: merged,
+        manualStatus: craftStatusToPhase(remote.status),
+      });
     })();
 
     return () => {
@@ -205,7 +210,7 @@ function BeadPageContent() {
       setCurrentPattern(null);
       if (syncTimerRef.current) window.clearTimeout(syncTimerRef.current);
     };
-  }, [patternId, loadPattern, setCurrentPattern, resetViewport, setCells]);
+  }, [patternId, loadPattern, setCurrentPattern, resetViewport]);
 
   const colorSystem = (pattern?.data.selectedColorSystem || 'MARD') as ColorSystem;
   const mappedPixelData = pattern?.data.mappedPixelData ?? null;
@@ -234,11 +239,18 @@ function BeadPageContent() {
       const doneSet = new Set(completedColors.map((c) => c.toUpperCase()));
       const allDone =
         sortedColors.length > 0 && sortedColors.every((hex) => doneSet.has(hex.toUpperCase()));
+      const manual =
+        useBeadProgressStore.getState().byPattern[patternId]?.manualStatus;
+      const status = manual
+        ? phaseToCraftStatus(manual)
+        : allDone
+          ? 'completed'
+          : 'active';
       void pushCraftSession({
         patternId,
         completedCells: completedCellsArr,
         elapsedSeconds,
-        status: allDone ? 'completed' : 'active',
+        status,
         patternSnapshot: pattern.data,
       });
     }, 800);
@@ -455,7 +467,7 @@ function BeadPageContent() {
       const hex = (cell.color || '').toUpperCase();
       if (!hex) return;
 
-      // 拼豆：点格只选中当前色（不高亮切换成取消），并只标记完成、不取消
+      // 拼豆：点格选中当前色，并在完成/撤回之间切换，方便修正误点
       setHighlightColorKey(cell.color);
 
       const key = cellKey(row, col);
@@ -465,13 +477,17 @@ function BeadPageContent() {
       }
       lastMarkRef.current = { key, at: now };
 
-      const beforeDone = completedSet.has(hex);
-      const { cells, added } = markCell(pattern.id, key);
-      if (!added) return;
+      const beforeDone = completedCellSet.has(key);
+      const { cells, added } = toggleCell(pattern.id, key);
 
       const cellSet = new Set(cells);
       const { done, total } = countColorProgress(mappedPixelData, hex, cellSet);
       const nowDone = total > 0 && done === total;
+
+      if (!added) {
+        setToast(`已撤回 ${getColorKeyByHex(hex, colorSystem)} 这一格`);
+        return;
+      }
 
       if (nowDone && !beforeDone) {
         setJustCompleted(hex);
@@ -486,8 +502,8 @@ function BeadPageContent() {
       mappedPixelData,
       previewZoom,
       setHighlightColorKey,
-      markCell,
-      completedSet,
+      toggleCell,
+      completedCellSet,
       completedColors,
       colorSystem,
       advanceHighlightIfNeeded,
@@ -590,10 +606,10 @@ function BeadPageContent() {
               </div>
             ) : null}
             <p className="mt-1.5 hidden text-[11px] text-[#a08060] lg:block">
-              点格子标记完成 · 滚轮平移 · 空格拖拽 · 按钮缩放
+              点格完成，绿色勾表示已拼，再点可撤回 · 滚轮平移 · 空格拖拽 · 按钮缩放
             </p>
             <p className="mt-1.5 text-[11px] text-[#a08060] lg:hidden">
-              拖动画布 · 点格完成 · 双指缩放
+              拖动画布 · 点格完成，绿色勾表示已拼，再点可撤回 · 双指缩放
             </p>
           </div>
           <BeadPageToolbar
@@ -734,6 +750,7 @@ function BeadPageContent() {
                     previewZoom={previewZoom}
                     toolMode="bead"
                     selectedCells={new Set()}
+                    completedCells={completedCellSet}
                     onPanBy={panBy}
                     onPinchZoom={handlePinchZoom}
                     gridInterval={gridInterval}

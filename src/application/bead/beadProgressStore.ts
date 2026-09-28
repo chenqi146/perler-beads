@@ -1,11 +1,14 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import type { MappedPixel } from '../../domain/pixelation';
+import type { BeadCraftPhase } from './beadProgressSummary';
 
 export type PatternBeadProgress = {
   completedCells: string[];
   /** 兼容旧数据；权威以 cells 为准，也可在整色勾选时写入 */
   completedColors?: string[];
+  /** 用户手动设定的拼豆阶段（暂停等）；与格子同步后可清除 */
+  manualStatus?: BeadCraftPhase;
 };
 
 type BeadProgressState = {
@@ -24,6 +27,20 @@ type BeadProgressState = {
     completed: boolean,
     mappedPixelData: MappedPixel[][] | null,
   ) => string[];
+  /**
+   * 手动改拼豆状态：未开始会清空格子；已完成会标记全部内部格。
+   * 需传入 mappedPixelData 才能正确同步格子。
+   */
+  setCraftStatus: (
+    patternId: string,
+    status: BeadCraftPhase,
+    mappedPixelData: MappedPixel[][] | null,
+  ) => void;
+  /** 云端回填：写入格子与手动状态，不走 setCraftStatus 的清空/全标逻辑 */
+  hydrateFromRemote: (
+    patternId: string,
+    payload: { completedCells: string[]; manualStatus: BeadCraftPhase },
+  ) => void;
   clearPattern: (patternId: string) => void;
 };
 
@@ -31,9 +48,22 @@ const LEGACY_KEY = 'perler-bead-progress-v1';
 const STORE_KEY = 'perler-bead-progress-store-v1';
 const EMPTY_CELLS: string[] = [];
 const EMPTY_COLORS: string[] = [];
+const CRAFT_PHASES: BeadCraftPhase[] = [
+  'not_started',
+  'in_progress',
+  'paused',
+  'completed',
+];
 
 function cellKey(row: number, col: number): string {
   return `${row},${col}`;
+}
+
+function normalizeManualStatus(value: unknown): BeadCraftPhase | undefined {
+  if (typeof value !== 'string') return undefined;
+  return CRAFT_PHASES.includes(value as BeadCraftPhase)
+    ? (value as BeadCraftPhase)
+    : undefined;
 }
 
 function normalizeProgress(raw: unknown): PatternBeadProgress {
@@ -53,6 +83,7 @@ function normalizeProgress(raw: unknown): PatternBeadProgress {
       completedColors: Array.isArray(obj.completedColors)
         ? obj.completedColors.map((c) => String(c).toUpperCase())
         : undefined,
+      manualStatus: normalizeManualStatus(obj.manualStatus),
     };
   }
   return { completedCells: [] };
@@ -71,6 +102,60 @@ function collectColorCells(mappedPixelData: MappedPixel[][], hexKey: string): st
     }
   }
   return keys;
+}
+
+function collectAllInternalCells(mappedPixelData: MappedPixel[][]): string[] {
+  const keys: string[] = [];
+  for (let r = 0; r < mappedPixelData.length; r++) {
+    const row = mappedPixelData[r];
+    if (!row) continue;
+    for (let c = 0; c < row.length; c++) {
+      const cell = row[c];
+      if (cell && !cell.isExternal) keys.push(cellKey(r, c));
+    }
+  }
+  return keys;
+}
+
+/** 点格后收敛手动状态，避免与真实进度长期冲突 */
+function afterCellEdit(
+  entry: PatternBeadProgress,
+  cells: string[],
+): PatternBeadProgress {
+  const manual = entry.manualStatus;
+  if (!manual) {
+    return {
+      completedCells: cells,
+      completedColors: entry.completedColors,
+    };
+  }
+
+  if (manual === 'paused') {
+    return {
+      completedCells: cells,
+      completedColors: entry.completedColors,
+      manualStatus: 'in_progress',
+    };
+  }
+  if (manual === 'not_started' && cells.length > 0) {
+    return {
+      completedCells: cells,
+      completedColors: entry.completedColors,
+      manualStatus: undefined,
+    };
+  }
+  if (manual === 'completed') {
+    return {
+      completedCells: cells,
+      completedColors: entry.completedColors,
+      manualStatus: undefined,
+    };
+  }
+  return {
+    completedCells: cells,
+    completedColors: entry.completedColors,
+    manualStatus: manual,
+  };
 }
 
 /** 由格子推导某色是否全部完成 */
@@ -165,11 +250,14 @@ export const useBeadProgressStore = create<BeadProgressState>()(
         set((state) => ({
           byPattern: {
             ...state.byPattern,
-            [patternId]: {
-              completedCells: cells,
-              // 点格后清掉纯 legacy 整色标记，改由派生逻辑决定
-              completedColors: entry.completedColors,
-            },
+            [patternId]: afterCellEdit(
+              {
+                completedCells: cells,
+                completedColors: entry.completedColors,
+                manualStatus: entry.manualStatus,
+              },
+              cells,
+            ),
           },
         }));
         return { cells, added };
@@ -184,25 +272,36 @@ export const useBeadProgressStore = create<BeadProgressState>()(
         set((state) => ({
           byPattern: {
             ...state.byPattern,
-            [patternId]: {
-              completedCells: cells,
-              completedColors: entry.completedColors,
-            },
+            [patternId]: afterCellEdit(
+              {
+                completedCells: cells,
+                completedColors: entry.completedColors,
+                manualStatus: entry.manualStatus,
+              },
+              cells,
+            ),
           },
         }));
         return { cells, added: true };
       },
 
       setCells: (patternId, cells) =>
-        set((state) => ({
-          byPattern: {
-            ...state.byPattern,
-            [patternId]: {
-              completedCells: cells,
-              completedColors: state.byPattern[patternId]?.completedColors,
+        set((state) => {
+          const entry = state.byPattern[patternId] ?? { completedCells: [] };
+          return {
+            byPattern: {
+              ...state.byPattern,
+              [patternId]: afterCellEdit(
+                {
+                  completedCells: cells,
+                  completedColors: entry.completedColors,
+                  manualStatus: entry.manualStatus,
+                },
+                cells,
+              ),
             },
-          },
-        })),
+          };
+        }),
 
       setColorCompleted: (patternId, hexKey, completed, mappedPixelData) => {
         const normalized = hexKey.toUpperCase();
@@ -225,10 +324,60 @@ export const useBeadProgressStore = create<BeadProgressState>()(
         set((state) => ({
           byPattern: {
             ...state.byPattern,
-            [patternId]: { completedCells: cells, completedColors },
+            [patternId]: afterCellEdit(
+              { completedCells: cells, completedColors, manualStatus: entry.manualStatus },
+              cells,
+            ),
           },
         }));
         return completedColors;
+      },
+
+      setCraftStatus: (patternId, status, mappedPixelData) => {
+        const entry = get().byPattern[patternId] ?? { completedCells: [] };
+        let cells = entry.completedCells;
+        let completedColors = entry.completedColors;
+        let manualStatus: BeadCraftPhase = status;
+
+        if (status === 'not_started') {
+          cells = [];
+          completedColors = undefined;
+          manualStatus = 'not_started';
+        } else if (status === 'completed') {
+          if (mappedPixelData?.length) {
+            cells = collectAllInternalCells(mappedPixelData);
+          }
+          manualStatus = 'completed';
+        } else if (status === 'in_progress') {
+          manualStatus = 'in_progress';
+        } else {
+          manualStatus = 'paused';
+        }
+
+        set((state) => ({
+          byPattern: {
+            ...state.byPattern,
+            [patternId]: {
+              completedCells: cells,
+              completedColors,
+              manualStatus,
+            },
+          },
+        }));
+      },
+
+      hydrateFromRemote: (patternId, payload) => {
+        const entry = get().byPattern[patternId] ?? { completedCells: [] };
+        set((state) => ({
+          byPattern: {
+            ...state.byPattern,
+            [patternId]: {
+              completedCells: payload.completedCells,
+              completedColors: entry.completedColors,
+              manualStatus: payload.manualStatus,
+            },
+          },
+        }));
       },
 
       clearPattern: (patternId) =>

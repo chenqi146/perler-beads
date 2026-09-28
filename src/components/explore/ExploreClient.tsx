@@ -46,9 +46,11 @@ export function ExploreClient({ initialPatterns, initialWorks, cloudAvailable }:
   const progressById = useMemo(() => {
     const map: Record<string, ReturnType<typeof summarizeBeadProgress>> = {};
     for (const pattern of patterns) {
+      const entry = byPatternProgress[pattern.id];
       map[pattern.id] = summarizeBeadProgress(
         pattern,
-        byPatternProgress[pattern.id]?.completedCells,
+        entry?.completedCells,
+        entry?.manualStatus,
       );
     }
     return map;
@@ -114,7 +116,9 @@ export function ExploreClient({ initialPatterns, initialWorks, cloudAvailable }:
                 <PatternBeadProgress
                   patternId={pattern.id}
                   summary={summary}
+                  mappedPixelData={pattern.data.mappedPixelData}
                   disabled={emptyGrid}
+                  editable={false}
                 />
                 <div className="pattern-card-actions pattern-card-actions--footer">
                   <Link

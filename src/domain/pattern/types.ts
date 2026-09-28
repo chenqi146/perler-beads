@@ -1,7 +1,8 @@
 import type { MappedPixel } from '../pixelation';
 
 export type Visibility = 'private' | 'public';
-export type CraftStatus = 'active' | 'completed' | 'paused';
+/** 拼豆会话状态（与 craft_sessions.status 一致） */
+export type CraftStatus = 'not_started' | 'active' | 'paused' | 'completed';
 
 /** 图纸像素快照（领域实体的数据部分） */
 export interface PatternData {

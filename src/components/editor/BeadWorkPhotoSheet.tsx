@@ -6,8 +6,10 @@ import { apiFetch } from '../../utils/apiClient';
 import { saveWork } from '../../utils/platformStore';
 import {
   getLocalCraftSessionId,
+  phaseToCraftStatus,
   pushCraftSession,
 } from '../../utils/craftSessionSync';
+import { useBeadProgressStore } from '../../application/bead/beadProgressStore';
 import type { Pattern } from '../../types/platform';
 
 export type BeadWorkPhotoSheetProps = {
@@ -95,10 +97,16 @@ export function BeadWorkPhotoSheet({
     try {
       let craftSessionId = getLocalCraftSessionId(pattern.id);
       if (!craftSessionId) {
+        const manual =
+          useBeadProgressStore.getState().byPattern[pattern.id]?.manualStatus;
         craftSessionId = await pushCraftSession({
           patternId: pattern.id,
           completedCells,
-          status: allDone ? 'completed' : 'active',
+          status: manual
+            ? phaseToCraftStatus(manual)
+            : allDone
+              ? 'completed'
+              : 'active',
           patternSnapshot: pattern.data,
         });
       }

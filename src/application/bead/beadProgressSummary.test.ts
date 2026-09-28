@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   beadCraftCtaLabel,
+  beadProgressStatusLabel,
   summarizeBeadProgress,
 } from './beadProgressSummary';
 import type { PatternData } from '../../domain/pattern';
@@ -62,12 +63,36 @@ describe('summarizeBeadProgress', () => {
     expect(summary.done).toBe(0);
     expect(summary.status).toBe('not_started');
   });
+
+  it('respects paused manual status over cell progress', () => {
+    const mapped = [[cell('#111111'), cell('#222222')]];
+    const summary = summarizeBeadProgress(patternData(mapped), ['0,0'], 'paused');
+    expect(summary.status).toBe('paused');
+    expect(summary.isManual).toBe(true);
+    expect(summary.done).toBe(1);
+  });
+
+  it('respects in_progress manual status with zero done', () => {
+    const mapped = [[cell('#111111')]];
+    const summary = summarizeBeadProgress(patternData(mapped), [], 'in_progress');
+    expect(summary.status).toBe('in_progress');
+    expect(summary.isManual).toBe(true);
+  });
 });
 
 describe('beadCraftCtaLabel', () => {
   it('maps status to CTA copy', () => {
     expect(beadCraftCtaLabel('not_started')).toBe('开始拼豆');
     expect(beadCraftCtaLabel('in_progress')).toBe('继续拼豆');
+    expect(beadCraftCtaLabel('paused')).toBe('继续拼豆');
     expect(beadCraftCtaLabel('completed')).toBe('查看');
+  });
+});
+
+describe('beadProgressStatusLabel', () => {
+  it('maps status to list labels', () => {
+    expect(beadProgressStatusLabel('not_started')).toBe('还未开始拼');
+    expect(beadProgressStatusLabel('paused')).toBe('已暂停');
+    expect(beadProgressStatusLabel('completed')).toBe('已全部拼完');
   });
 });
