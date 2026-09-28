@@ -71,6 +71,8 @@ export {
 export {
   majorityFilter,
   removeIsolatedNoise,
+  absorbSimilarSpeckles,
+  defaultMaxSpeckleArea,
   cleanupPixelGrid,
 } from './patternCleanup';
 export {

@@ -143,6 +143,7 @@ export function useImageUpload({ openImagePrep, showToast }: UseImageUploadOptio
       setGridHeightInput(String(gridDimensions.M));
       setOriginalImageSrc(imageSrc);
       markGridManuallyEdited();
+      useEditorStore.getState().setRecognizedBaseline(mappedPixelData);
 
       notify(
         `图纸识别完成：${gridDimensions.N}×${gridDimensions.M}，${Object.keys(colorCountsMap).length} 种颜色。${gridSourceLabel(gridSource)}。`,

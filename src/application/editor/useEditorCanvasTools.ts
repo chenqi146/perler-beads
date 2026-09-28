@@ -86,6 +86,7 @@ export function useEditorCanvasTools({
     setTotalBeadCount(total);
     setSelectedColor(null);
     useEditorStore.getState().markGridManuallyEdited();
+    useEditorStore.getState().invalidateRecognizedBaseline();
     // 改色/擦除完成后清除选中
     setSelectedCells(new Set());
     setShowSelectionRecolor(false);
@@ -163,6 +164,7 @@ export function useEditorCanvasTools({
     setColorCounts(counts);
     setTotalBeadCount(total);
     useEditorStore.getState().markGridManuallyEdited();
+    useEditorStore.getState().invalidateRecognizedBaseline();
     setCropRect(null);
     setCanvasToolMode('select');
     handleClearCellSelection();

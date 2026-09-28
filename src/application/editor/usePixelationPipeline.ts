@@ -4,13 +4,11 @@ import { useCallback, useEffect, useState, type MutableRefObject, type RefObject
 import {
   PixelationMode,
   calculatePixelGrid,
-  colorDistance,
-  TRANSPARENT_KEY,
   limitColorCount,
   removeEdgeBackground,
   recountColors,
   cleanupPixelGrid,
-  type RgbColor,
+  absorbSimilarSpeckles,
   type PaletteColor,
   type MappedPixel,
 } from '../../domain/pixelation';
@@ -180,99 +178,17 @@ export function usePixelationPipeline({
           { dithering: enableDithering, contrast, saturation },
         );
         console.log(
-          `Initial data mapping complete using mode ${mode}${enableDithering ? ' + dithering' : ''}. Starting global color merging...`,
+          `Initial data mapping complete using mode ${mode}${enableDithering ? ' + dithering' : ''}.`,
         );
 
-        const keyToRgbMap = new Map<string, RgbColor>();
-        const keyToColorDataMap = new Map<string, PaletteColor>();
-        currentPalette.forEach((p) => {
-          keyToRgbMap.set(p.key, p.rgb);
-          keyToColorDataMap.set(p.key, p);
-        });
-
-        const initialColorCounts: { [key: string]: number } = {};
-        initialMappedData.flat().forEach((cell) => {
-          if (cell && cell.key && !cell.isExternal && cell.key !== TRANSPARENT_KEY) {
-            initialColorCounts[cell.key] = (initialColorCounts[cell.key] || 0) + 1;
-          }
-        });
-        console.log('Initial color counts:', initialColorCounts);
-
-        const colorsByFrequency = Object.entries(initialColorCounts)
-          .sort((a, b) => b[1] - a[1])
-          .map((entry) => entry[0]);
-
-        if (colorsByFrequency.length === 0) {
-          console.log('No non-background colors found! Skipping merging.');
-        }
-
-        console.log('Colors sorted by frequency:', colorsByFrequency);
-
-        const mergedData: MappedPixel[][] = initialMappedData.map((row) =>
+        let mergedData: MappedPixel[][] = initialMappedData.map((row) =>
           row.map((cell) => ({ ...cell, isExternal: cell.isExternal ?? false })),
         );
 
-        // 不再对小图强制并色：浅色细结构（腿）易被并进背景
-        const similarityThresholdValue = threshold;
-        const replacedColors = new Set<string>();
-
-        if (similarityThresholdValue > 0) {
-          for (let i = 0; i < colorsByFrequency.length; i++) {
-            const currentKey = colorsByFrequency[i];
-
-            if (replacedColors.has(currentKey)) continue;
-
-            const currentRgb = keyToRgbMap.get(currentKey);
-            if (!currentRgb) {
-              console.warn(`RGB not found for key ${currentKey}. Skipping.`);
-              continue;
-            }
-
-            for (let j = i + 1; j < colorsByFrequency.length; j++) {
-              const lowerFreqKey = colorsByFrequency[j];
-
-              if (replacedColors.has(lowerFreqKey)) continue;
-
-              const lowerFreqRgb = keyToRgbMap.get(lowerFreqKey);
-              if (!lowerFreqRgb) {
-                console.warn(`RGB not found for key ${lowerFreqKey}. Skipping.`);
-                continue;
-              }
-
-              const dist = colorDistance(currentRgb, lowerFreqRgb);
-
-              if (dist < similarityThresholdValue) {
-                console.log(
-                  `Merging color ${lowerFreqKey} into ${currentKey} (Distance: ${dist.toFixed(2)})`,
-                );
-
-                replacedColors.add(lowerFreqKey);
-
-                for (let r = 0; r < M; r++) {
-                  for (let c = 0; c < N; c++) {
-                    if (mergedData[r][c].key === lowerFreqKey) {
-                      const colorData = keyToColorDataMap.get(currentKey);
-                      if (colorData) {
-                        mergedData[r][c] = {
-                          key: currentKey,
-                          color: colorData.hex,
-                          isExternal: false,
-                        };
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-
-        if (replacedColors.size > 0) {
-          console.log(
-            `Merged ${replacedColors.size} less frequent similar colors into more frequent ones.`,
-          );
-        } else {
-          console.log('No colors were similar enough to merge.');
+        // 空间去杂：只吞「小块」相似色；大色块按连通面积保护，不再全图按色号频率合并
+        if (threshold > 0) {
+          mergedData = absorbSimilarSpeckles(mergedData, threshold);
+          console.log(`Spatial similar-speckle absorb applied (ΔE < ${threshold}).`);
         }
 
         let finalData = limitColorCount(mergedData, currentPalette, colorLimit);
@@ -292,6 +208,8 @@ export function usePixelationPipeline({
           setMappedPixelData(finalData);
           setGridDimensions({ N, M });
           clearGridManuallyEdited();
+          useEditorStore.getState().setRecognizedBaseline(null);
+          useEditorStore.getState().setPatternSource('generate');
 
           const { counts, total } = recountColors(finalData);
           setColorCounts(counts);
@@ -465,6 +383,8 @@ export function usePixelationPipeline({
     setSelectedColor(null);
     // 换图/重新转像素必须允许管线重跑（识别或手改会把该标志置 true）
     clearGridManuallyEdited();
+    useEditorStore.getState().setRecognizedBaseline(null);
+    useEditorStore.getState().setPatternSource('generate');
     draftPixelateLockRef.current = null;
     suppressPixelateUntilRef.current = 0;
     setMappedPixelData(null);

@@ -8,7 +8,11 @@ type SwitchProps = {
 
 export function Switch({ checked, onChange, label, description, disabled }: SwitchProps) {
   return (
-    <label className="flex cursor-pointer items-center justify-between gap-3">
+    <label
+      className={`flex items-center justify-between gap-3 ${
+        disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'
+      }`}
+    >
       <span className="flex min-w-0 flex-col">
         <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{label}</span>
         {description ? (
@@ -25,11 +29,11 @@ export function Switch({ checked, onChange, label, description, disabled }: Swit
         />
         <span
           aria-hidden="true"
-          className="h-6 w-11 rounded-full bg-gray-200 peer-checked:bg-blue-600 peer-focus-visible:ring-2 peer-focus-visible:ring-blue-500 peer-focus-visible:ring-offset-2 dark:bg-gray-700 dark:peer-focus-visible:ring-offset-gray-800"
+          className="h-6 w-11 rounded-full bg-[#e8dcc8] peer-checked:bg-[#c47a2c] peer-focus-visible:ring-2 peer-focus-visible:ring-[#e8b86a] peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-[#fffaf3]"
         />
         <span
           aria-hidden="true"
-          className="pointer-events-none absolute left-0.5 top-0.5 h-5 w-5 rounded-full border border-gray-300 bg-white transition-transform peer-checked:translate-x-5 motion-reduce:transition-none"
+          className="pointer-events-none absolute left-0.5 top-0.5 h-5 w-5 rounded-full border border-[#e0d0bc] bg-[#fffaf3] transition-transform peer-checked:translate-x-5 motion-reduce:transition-none"
         />
       </span>
     </label>

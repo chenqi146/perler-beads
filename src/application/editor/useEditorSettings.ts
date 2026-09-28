@@ -4,6 +4,10 @@ import { useCallback, useEffect, useRef, type ChangeEvent } from 'react';
 import { PixelationMode, recountColors, scalePixelGrid } from '../../domain/pixelation';
 import type { CreativePresetId } from '../../domain/pixelation';
 import { useEditorStore } from './editorStore';
+import {
+  rescaleRecognizedPattern,
+  refreshPatternAfterSettingsChange,
+} from './recognizedPostProcess';
 import { useEditorGenerationParams } from './editorSelectors';
 
 type UseEditorSettingsOptions = {
@@ -73,12 +77,23 @@ export function useEditorSettings({ showToast }: UseEditorSettingsOptions) {
     };
   }, []);
 
-  const triggerRemapIfAllowed = useCallback(() => {
-    if (!useEditorStore.getState().gridManuallyEdited) {
+  const triggerRemapFromOriginal = useCallback(
+    (opts?: { silent?: boolean }) => {
+      const wasEdited = useEditorStore.getState().gridManuallyEdited;
+      // 从原图重算会离开识别结果
+      useEditorStore.getState().setRecognizedBaseline(null);
+      useEditorStore.getState().setPatternSource('generate');
+      if (wasEdited) {
+        clearGridManuallyEdited();
+        if (!opts?.silent) {
+          showToast('已按新参数从原图重新生成');
+        }
+      }
       setRemapTrigger((prev) => prev + 1);
       setSelectedColor(null);
-    }
-  }, [setRemapTrigger, setSelectedColor]);
+    },
+    [clearGridManuallyEdited, setRemapTrigger, setSelectedColor, showToast],
+  );
 
   const applyGridWidth = useCallback(
     (rawWidth: number, commit = true) => {
@@ -91,10 +106,10 @@ export function useEditorSettings({ showToast }: UseEditorSettingsOptions) {
         const sizeChanged = width !== granularity || height !== gridHeight;
         setGranularity(width);
         setGridHeight(height);
-        // 已手改：只改目标尺寸，不触发从原图重算
-        if (sizeChanged && !useEditorStore.getState().gridManuallyEdited) {
-          setRemapTrigger((prev) => prev + 1);
-          setSelectedColor(null);
+        if (sizeChanged) {
+          if (!rescaleRecognizedPattern(width, height)) {
+            triggerRemapFromOriginal({ silent: true });
+          }
         }
       }
       setGranularityInput(width.toString());
@@ -108,8 +123,7 @@ export function useEditorSettings({ showToast }: UseEditorSettingsOptions) {
       imageAspectRatio,
       setGranularity,
       setGridHeight,
-      setRemapTrigger,
-      setSelectedColor,
+      triggerRemapFromOriginal,
       setGranularityInput,
       setGridHeightInput,
     ],
@@ -126,9 +140,10 @@ export function useEditorSettings({ showToast }: UseEditorSettingsOptions) {
         const sizeChanged = height !== gridHeight;
         setGranularity(width);
         setGridHeight(height);
-        if (sizeChanged && !useEditorStore.getState().gridManuallyEdited) {
-          setRemapTrigger((prev) => prev + 1);
-          setSelectedColor(null);
+        if (sizeChanged) {
+          if (!rescaleRecognizedPattern(width, height)) {
+            triggerRemapFromOriginal({ silent: true });
+          }
         }
       }
       setGranularityInput(width.toString());
@@ -141,8 +156,7 @@ export function useEditorSettings({ showToast }: UseEditorSettingsOptions) {
       gridHeight,
       setGranularity,
       setGridHeight,
-      setRemapTrigger,
-      setSelectedColor,
+      triggerRemapFromOriginal,
       setGranularityInput,
       setGridHeightInput,
     ],
@@ -154,18 +168,17 @@ export function useEditorSettings({ showToast }: UseEditorSettingsOptions) {
       const next = clampSimilarity(Number.isFinite(parsed) ? parsed : 0);
       if (next !== similarityThreshold) {
         setSimilarityThreshold(next);
-        if (!useEditorStore.getState().gridManuallyEdited) {
-          setRemapTrigger((prev) => prev + 1);
-          setSelectedColor(null);
-        }
+        refreshPatternAfterSettingsChange(triggerRemapFromOriginal, {
+          similarityThreshold: next,
+          silent: true,
+        });
       }
       setSimilarityThresholdInput(next.toString());
     },
     [
       similarityThreshold,
       setSimilarityThreshold,
-      setRemapTrigger,
-      setSelectedColor,
+      triggerRemapFromOriginal,
       setSimilarityThresholdInput,
     ],
   );
@@ -250,25 +263,63 @@ export function useEditorSettings({ showToast }: UseEditorSettingsOptions) {
         return;
       }
       setPixelationMode(newMode);
-      triggerRemapIfAllowed();
+      refreshPatternAfterSettingsChange(triggerRemapFromOriginal);
     },
-    [setPixelationMode, triggerRemapIfAllowed],
+    [setPixelationMode, triggerRemapFromOriginal],
   );
 
   const handleCreativePresetChange = useCallback(
     (id: CreativePresetId) => {
       applyCreativePreset(id);
-      triggerRemapIfAllowed();
+      refreshPatternAfterSettingsChange(triggerRemapFromOriginal);
     },
-    [applyCreativePreset, triggerRemapIfAllowed],
+    [applyCreativePreset, triggerRemapFromOriginal],
   );
 
   const handleDitheringChange = useCallback(
     (enabled: boolean) => {
       setDitheringEnabled(enabled);
-      triggerRemapIfAllowed();
+      refreshPatternAfterSettingsChange(triggerRemapFromOriginal);
     },
-    [setDitheringEnabled, triggerRemapIfAllowed],
+    [setDitheringEnabled, triggerRemapFromOriginal],
+  );
+
+  const handleMaxColorCountChange = useCallback(
+    (value: number) => {
+      setMaxColorCount(value);
+      refreshPatternAfterSettingsChange(triggerRemapFromOriginal, {
+        maxColorCount: value,
+        silent: true,
+      });
+    },
+    [setMaxColorCount, triggerRemapFromOriginal],
+  );
+
+  const handleAutoRemoveWhiteBgChange = useCallback(
+    (value: boolean) => {
+      setAutoRemoveWhiteBg(value);
+      refreshPatternAfterSettingsChange(triggerRemapFromOriginal, {
+        autoRemoveWhiteBg: value,
+        silent: true,
+      });
+    },
+    [setAutoRemoveWhiteBg, triggerRemapFromOriginal],
+  );
+
+  const handleImageContrastChange = useCallback(
+    (value: number) => {
+      setImageContrast(value);
+      refreshPatternAfterSettingsChange(triggerRemapFromOriginal, { silent: true });
+    },
+    [setImageContrast, triggerRemapFromOriginal],
+  );
+
+  const handleImageSaturationChange = useCallback(
+    (value: number) => {
+      setImageSaturation(value);
+      refreshPatternAfterSettingsChange(triggerRemapFromOriginal, { silent: true });
+    },
+    [setImageSaturation, triggerRemapFromOriginal],
   );
 
   const scaleGridToInputs = useCallback(() => {
@@ -357,16 +408,16 @@ export function useEditorSettings({ showToast }: UseEditorSettingsOptions) {
     setGridHeightInput,
     similarityThresholdInput,
     maxColorCount,
-    setMaxColorCount,
+    setMaxColorCount: handleMaxColorCountChange,
     autoRemoveWhiteBg,
-    setAutoRemoveWhiteBg,
+    setAutoRemoveWhiteBg: handleAutoRemoveWhiteBgChange,
     pixelationMode,
     creativePreset,
     ditheringEnabled,
     imageContrast,
-    setImageContrast,
+    setImageContrast: handleImageContrastChange,
     imageSaturation,
-    setImageSaturation,
+    setImageSaturation: handleImageSaturationChange,
     remapTrigger,
     gridManuallyEdited,
     sizePending,

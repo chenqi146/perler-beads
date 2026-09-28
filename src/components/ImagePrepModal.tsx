@@ -2,7 +2,11 @@
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import type { UploadMode } from '../application/editor/editorUiStore';
-import { detectSubjectBounds } from '../domain/pixelation';
+import type {
+  ImagePrepConfirmMeta,
+  ImagePrepInitialSettings,
+} from '../application/editor/imagePrepTypes';
+import { detectSubjectBounds, PixelationMode } from '../domain/pixelation';
 import { removeImageBackground } from '../utils/aiMatting';
 import {
   colorSystemOptions,
@@ -10,6 +14,9 @@ import {
 } from '../utils/colorSystemUtils';
 import { CloseIcon, IconButton } from './ui/IconButton';
 import { Overlay } from './ui/Overlay';
+import { Switch } from './ui/Switch';
+
+export type { ImagePrepConfirmMeta, ImagePrepInitialSettings };
 
 function clampGridSize(n: number): number {
   return Math.max(10, Math.min(300, Math.round(n) || 10));
@@ -104,26 +111,6 @@ function cursorForHover(crop: CropBox | null, x: number, y: number): string {
   return 'crosshair';
 }
 
-export type ImagePrepInitialSettings = {
-  gridWidth: number;
-  gridHeight: number;
-  keepAspectRatio: boolean;
-  maxColorCount: number;
-  selectedColorSystem: ColorSystem;
-};
-
-export type ImagePrepConfirmMeta = {
-  usedAiMatting: boolean;
-  mode: UploadMode;
-  gridWidth: number;
-  gridHeight: number;
-  keepAspectRatio: boolean;
-  maxColorCount: number;
-  selectedColorSystem: ColorSystem;
-  /** 图纸识别：为 true 时自动检网格（忽略下方尺寸，仅作失败回退） */
-  preferAutoGrid: boolean;
-};
-
 interface ImagePrepModalProps {
   imageSrc: string;
   uploadMode: UploadMode;
@@ -173,6 +160,10 @@ const ImagePrepModal: React.FC<ImagePrepModalProps> = ({
   const [maxColorCount, setMaxColorCount] = useState(initialSettings.maxColorCount);
   const [selectedColorSystem, setSelectedColorSystem] = useState<ColorSystem>(
     initialSettings.selectedColorSystem,
+  );
+  const [ditheringEnabled, setDitheringEnabled] = useState(initialSettings.ditheringEnabled);
+  const [pixelationMode, setPixelationMode] = useState<PixelationMode>(
+    initialSettings.pixelationMode,
   );
   /** 识别默认按设定尺寸，避免自动检出覆盖用户输入（如 85→43） */
   const [preferAutoGrid, setPreferAutoGrid] = useState(false);
@@ -501,6 +492,8 @@ const ImagePrepModal: React.FC<ImagePrepModalProps> = ({
         maxColorCount: Math.max(0, Math.min(50, Math.round(maxColorCount) || 0)),
         selectedColorSystem,
         preferAutoGrid: uploadMode === 'recognize' ? preferAutoGrid : false,
+        ditheringEnabled,
+        pixelationMode,
       });
     } catch (err) {
       console.error(err);
@@ -602,7 +595,7 @@ const ImagePrepModal: React.FC<ImagePrepModalProps> = ({
         </div>
 
         <div className="px-4 py-3 border-t border-gray-200 dark:border-gray-700 space-y-3">
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2">
             {uploadMode === 'generate' ? (
               <button
                 type="button"
@@ -621,122 +614,133 @@ const ImagePrepModal: React.FC<ImagePrepModalProps> = ({
             >
               恢复全选
             </button>
+          </div>
+
+          <div className={`space-y-3 ${busy ? 'pointer-events-none opacity-50' : ''}`}>
             {uploadMode === 'generate' ? (
-              <>
-                <label className="inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200 select-none cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={enableAiMatting}
-                    disabled={busy}
-                    onChange={(e) => setEnableAiMatting(e.target.checked)}
-                    className="h-4 w-4 rounded border-gray-300 text-violet-500 focus:ring-violet-400"
-                  />
-                  <span>AI 抠图去背景</span>
-                </label>
-                <span className="text-[11px] text-gray-400">
-                  {enableAiMatting ? '确认时先裁剪再抠图' : '仅裁剪后生成图纸'}
-                </span>
-              </>
+              <Switch
+                checked={enableAiMatting}
+                disabled={busy}
+                onChange={setEnableAiMatting}
+                label="AI 抠图去背景"
+                description={enableAiMatting ? '确认时先裁剪再抠图' : '仅裁剪后生成图纸'}
+              />
             ) : (
-              <label className="inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200 select-none cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={preferAutoGrid}
-                  disabled={busy}
-                  onChange={(e) => setPreferAutoGrid(e.target.checked)}
-                  className="h-4 w-4 rounded border-gray-300 text-amber-500 focus:ring-amber-400"
-                />
-                <span>自动检测网格</span>
-                <span className="text-[11px] text-gray-400">
-                  {preferAutoGrid
+              <Switch
+                checked={preferAutoGrid}
+                disabled={busy}
+                onChange={setPreferAutoGrid}
+                label="自动检测网格"
+                description={
+                  preferAutoGrid
                     ? '开启后将忽略下方尺寸（失败才回退）'
-                    : '请框选纯格子区域（去掉图例/坐标），尺寸填图纸标注值'}
-                </span>
-              </label>
+                    : '请框选纯格子区域（去掉图例/坐标），尺寸用图纸标注值'
+                }
+              />
             )}
           </div>
 
           <div className="grid gap-3 rounded-xl bg-[#faf6f0] p-3 dark:bg-gray-800/60 sm:grid-cols-2">
-            <div>
-              <div className="mb-1.5 flex items-center justify-between gap-2">
+            <div className="space-y-3">
+              <div className="flex items-center justify-between gap-2">
                 <label className="text-xs font-medium text-gray-600 dark:text-gray-300">
-                  图纸尺寸 (宽 × 高)
+                  图纸尺寸
                 </label>
-                {uploadMode === 'generate' || !preferAutoGrid ? (
-                  <button
-                    type="button"
+                <span className="text-[11px] font-medium tabular-nums text-amber-600 dark:text-amber-400">
+                  {uploadMode === 'recognize' && preferAutoGrid
+                    ? '自动检测'
+                    : `${clampGridSize(Number(gridWidthInput) || initialSettings.gridWidth)}×${
+                        keepAspectRatio
+                          ? heightFromWidth(
+                              clampGridSize(Number(gridWidthInput) || initialSettings.gridWidth),
+                              cropAspectRef.current,
+                            )
+                          : clampGridSize(Number(gridHeightInput) || initialSettings.gridHeight)
+                      }`}
+                </span>
+              </div>
+
+              {(uploadMode === 'generate' || !preferAutoGrid) && (
+                <div className={busy ? 'pointer-events-none opacity-50' : ''}>
+                  <Switch
+                    checked={keepAspectRatio}
                     disabled={busy}
-                    onClick={() => {
-                      const next = !keepAspectRatio;
+                    onChange={(next) => {
                       setKeepAspectRatio(next);
                       if (next) {
                         const width = clampGridSize(Number(gridWidthInput) || initialSettings.gridWidth);
                         setGridHeightInput(String(heightFromWidth(width, cropAspectRef.current)));
                       }
                     }}
-                    className={`app-btn app-btn--chip ${keepAspectRatio ? 'is-on' : ''}`}
-                    aria-pressed={keepAspectRatio}
-                  >
-                    保持比例
-                  </button>
-                ) : null}
-              </div>
-              <div className="flex items-center gap-2">
+                    label="保持比例"
+                  />
+                </div>
+              )}
+
+              <div>
+                <div className="mb-1 flex items-center justify-between gap-2">
+                  <label className="text-xs text-gray-500 dark:text-gray-400">宽度</label>
+                  <span className="text-[11px] tabular-nums text-[#a08060]">
+                    {clampGridSize(Number(gridWidthInput) || initialSettings.gridWidth)}
+                  </span>
+                </div>
                 <input
-                  type="number"
+                  type="range"
                   min={10}
                   max={300}
+                  step={1}
                   disabled={busy || (uploadMode === 'recognize' && preferAutoGrid)}
-                  value={gridWidthInput}
-                  onChange={(e) => setGridWidthInput(e.target.value)}
-                  onBlur={(e) => applyGridWidth(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') e.currentTarget.blur();
-                  }}
-                  className="h-9 w-full rounded-lg border border-[#e0d0bc] bg-white px-2 text-center text-sm disabled:opacity-50 dark:border-gray-600 dark:bg-gray-700"
+                  value={clampGridSize(Number(gridWidthInput) || initialSettings.gridWidth)}
+                  onChange={(e) => applyGridWidth(e.target.value)}
+                  className="w-full accent-amber-500 disabled:opacity-50"
                   aria-label="网格宽度"
                 />
-                <span className="text-gray-400">×</span>
+              </div>
+
+              <div>
+                <div className="mb-1 flex items-center justify-between gap-2">
+                  <label className="text-xs text-gray-500 dark:text-gray-400">高度</label>
+                  <span className="text-[11px] tabular-nums text-[#a08060]">
+                    {keepAspectRatio
+                      ? heightFromWidth(
+                          clampGridSize(Number(gridWidthInput) || initialSettings.gridWidth),
+                          cropAspectRef.current,
+                        )
+                      : clampGridSize(Number(gridHeightInput) || initialSettings.gridHeight)}
+                  </span>
+                </div>
                 <input
-                  type="number"
+                  type="range"
                   min={10}
                   max={300}
+                  step={1}
                   disabled={
                     busy ||
                     (uploadMode === 'recognize' && preferAutoGrid) ||
-                    (uploadMode === 'generate' && keepAspectRatio) ||
-                    (uploadMode === 'recognize' && !preferAutoGrid && keepAspectRatio)
+                    keepAspectRatio
                   }
-                  value={gridHeightInput}
-                  onChange={(e) => setGridHeightInput(e.target.value)}
-                  onBlur={(e) => applyGridHeight(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') e.currentTarget.blur();
-                  }}
-                  readOnly={keepAspectRatio && !(uploadMode === 'recognize' && preferAutoGrid)}
-                  className={`h-9 w-full rounded-lg border border-[#e0d0bc] px-2 text-center text-sm disabled:opacity-50 dark:border-gray-600 ${
-                    keepAspectRatio && !(uploadMode === 'recognize' && preferAutoGrid)
-                      ? 'cursor-not-allowed bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400'
-                      : 'bg-white dark:bg-gray-700'
-                  }`}
+                  value={
+                    keepAspectRatio
+                      ? heightFromWidth(
+                          clampGridSize(Number(gridWidthInput) || initialSettings.gridWidth),
+                          cropAspectRef.current,
+                        )
+                      : clampGridSize(Number(gridHeightInput) || initialSettings.gridHeight)
+                  }
+                  onChange={(e) => applyGridHeight(e.target.value)}
+                  className="w-full accent-amber-500 disabled:opacity-50"
                   aria-label="网格高度"
                 />
               </div>
-              <p className="mt-1.5 text-[11px] tabular-nums text-[#a08060]">
+
+              <p className="text-[11px] leading-relaxed text-[#a08060]">
                 {uploadMode === 'recognize' && preferAutoGrid
                   ? '将自动检测网格尺寸'
-                  : `将使用 ${clampGridSize(Number(gridWidthInput) || initialSettings.gridWidth)}×${
-                      keepAspectRatio
-                        ? heightFromWidth(
-                            clampGridSize(Number(gridWidthInput) || initialSettings.gridWidth),
-                            cropAspectRef.current,
-                          )
-                        : clampGridSize(Number(gridHeightInput) || initialSettings.gridHeight)
-                    }，${maxColorCount === 0 ? '不限色' : `限 ${maxColorCount} 色`}`}
+                  : `${maxColorCount === 0 ? '不限色' : `限 ${maxColorCount} 色`}`}
               </p>
             </div>
 
-            <div className="space-y-2">
+            <div className="space-y-3">
               <div>
                 <label className="mb-1.5 block text-xs font-medium text-gray-600 dark:text-gray-300">
                   色板品牌
@@ -771,6 +775,30 @@ const ImagePrepModal: React.FC<ImagePrepModalProps> = ({
                   onChange={(e) => setMaxColorCount(Number(e.target.value))}
                   className="w-full accent-amber-500 disabled:opacity-50"
                   aria-label="限制拼豆颜色数量"
+                />
+              </div>
+              <div>
+                <label className="mb-1.5 block text-xs font-medium text-gray-600 dark:text-gray-300">
+                  处理模式
+                </label>
+                <select
+                  disabled={busy}
+                  value={pixelationMode}
+                  onChange={(e) => setPixelationMode(e.target.value as PixelationMode)}
+                  className="h-9 w-full rounded-lg border border-[#e0d0bc] bg-white px-2 text-sm disabled:opacity-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
+                >
+                  <option value={PixelationMode.EdgeAware}>清晰 (保线稿)</option>
+                  <option value={PixelationMode.Dominant}>卡通 (主色)</option>
+                  <option value={PixelationMode.Average}>真实 (平均)</option>
+                </select>
+              </div>
+              <div className={busy ? 'pointer-events-none opacity-50' : ''}>
+                <Switch
+                  checked={ditheringEnabled}
+                  disabled={busy}
+                  onChange={setDitheringEnabled}
+                  label="颜色抖动"
+                  description="适合照片渐变；卡通/线稿建议关闭。确认后同步到外层设置"
                 />
               </div>
             </div>

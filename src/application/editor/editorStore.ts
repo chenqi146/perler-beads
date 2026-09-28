@@ -73,6 +73,13 @@ type EditorState = {
   bgRemovalSnapshot: EditSnapshot | null;
   /** 画布手改后为 true：生成参数不再自动重算，需显式缩放或重新生成 */
   gridManuallyEdited: boolean;
+  /**
+   * 图纸来源：recognize 时改合并阈值/限色在识别底稿上后处理，不从原图转像素。
+   * generate / edited / null 走原图重算。
+   */
+  patternSource: 'generate' | 'recognize' | 'edited' | null;
+  /** 识别完成时的格子快照；合并阈值调回 0 可精确还原 */
+  recognizedBaseline: MappedPixel[][] | null;
 
   setMappedPixelData: (data: MappedPixel[][] | null) => void;
   setGridDimensions: (dims: { N: number; M: number } | null) => void;
@@ -121,6 +128,10 @@ type EditorState = {
   setBgRemovalSnapshot: (s: EditSnapshot | null) => void;
   markGridManuallyEdited: () => void;
   clearGridManuallyEdited: () => void;
+  setRecognizedBaseline: (data: MappedPixel[][] | null) => void;
+  /** 手改格子后调用：之后改参数不再按识别底稿后处理 */
+  invalidateRecognizedBaseline: () => void;
+  setPatternSource: (source: EditorState['patternSource']) => void;
 
   hydrateFromPatternData: (data: PatternData) => void;
   getPatternDataSnapshot: () => PatternData;
@@ -168,6 +179,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   editRedo: [],
   bgRemovalSnapshot: null,
   gridManuallyEdited: false,
+  patternSource: null,
+  recognizedBaseline: null,
 
   setMappedPixelData: (data) => set({ mappedPixelData: data }),
   setGridDimensions: (dims) => set({ gridDimensions: dims }),
@@ -267,6 +280,19 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   setBgRemovalSnapshot: (snap) => set({ bgRemovalSnapshot: snap }),
   markGridManuallyEdited: () => set({ gridManuallyEdited: true }),
   clearGridManuallyEdited: () => set({ gridManuallyEdited: false }),
+  setRecognizedBaseline: (data) =>
+    set({
+      recognizedBaseline: data
+        ? data.map((row) => row.map((cell) => ({ ...cell })))
+        : null,
+      patternSource: data ? 'recognize' : null,
+    }),
+  invalidateRecognizedBaseline: () =>
+    set({
+      recognizedBaseline: null,
+      patternSource: get().patternSource === 'recognize' ? 'edited' : get().patternSource,
+    }),
+  setPatternSource: (source) => set({ patternSource: source }),
 
   hydrateFromPatternData: (data) => {
     set({
@@ -288,6 +314,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       bgRemovalSnapshot: null,
       // 手改标记必须恢复，否则刷新后原图回填会静默重算冲掉编辑
       gridManuallyEdited: Boolean(data.gridManuallyEdited),
+      patternSource: null,
+      recognizedBaseline: null,
     });
   },
 
@@ -321,5 +349,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       bgRemovalSnapshot: null,
       selectedColor: null,
       gridManuallyEdited: false,
+      patternSource: null,
+      recognizedBaseline: null,
     }),
 }));

@@ -13,6 +13,17 @@ import {
 } from '../../utils/colorSystemUtils';
 import type { PaletteSelections } from '../../utils/localStorageUtils';
 import type { EditSnapshot } from '../../stores';
+import { Switch } from '../ui/Switch';
+
+function clampInt(raw: string, min: number, max: number, fallback: number): number {
+  const n = parseInt(raw, 10);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.max(min, Math.min(max, n));
+}
+
+function asInputChange(value: string): ChangeEvent<HTMLInputElement> {
+  return { target: { value } } as ChangeEvent<HTMLInputElement>;
+}
 
 export type EditorSettingsPanelProps = {
   mappedPixelData: MappedPixel[][] | null;
@@ -55,7 +66,7 @@ export type EditorSettingsPanelProps = {
   onRegenerateFromOriginal: () => void;
 };
 
-/** 左侧「生成设置」：未手改时改动即生成；已手改时需缩放或重新生成 */
+/** 左侧「生成设置」：改参数会从原图实时重算；若有手改会被覆盖 */
 export function EditorSettingsPanel({
   mappedPixelData,
   gridDimensions,
@@ -99,101 +110,112 @@ export function EditorSettingsPanel({
   const selectedCount = Object.values(customPaletteSelections).filter(Boolean).length;
   const activePresetHint =
     creativePreset != null ? CREATIVE_PRESETS[creativePreset].hint : '已手动调整处理参数';
+  const gridWidth = clampInt(granularityInput, 10, 300, 50);
+  const gridHeight = clampInt(gridHeightInput, 10, 300, 50);
+  const similarity = clampInt(similarityThresholdInput, 0, 100, 0);
 
   return (
     <section className="bg-white dark:bg-gray-900 rounded-xl border border-[#eadfce] dark:border-gray-800 p-4 space-y-4">
       <div className="flex items-center justify-between gap-2">
         <h2 className="text-sm font-semibold text-[#3a2416] dark:text-gray-100">生成设置</h2>
-        {mappedPixelData && (
-          gridManuallyEdited ? (
-            <div className="flex shrink-0 items-center gap-1">
-              <span className="text-[11px] font-medium text-[#c47a2c]" title="已手改：改参数不会自动重算">
-                已手改
-              </span>
-              <button
-                type="button"
-                onClick={onScaleGrid}
-                disabled={!sizePending}
-                title="缩放到输入尺寸（保留手改）"
-                className="app-btn app-btn--chip app-btn--sm"
-              >
-                缩放
-              </button>
-              <button
-                type="button"
-                onClick={onRegenerateFromOriginal}
-                title="从原图重新生成（会丢弃手改）"
-                className="app-btn app-btn--chip app-btn--sm"
-              >
-                重生成
-              </button>
-            </div>
-          ) : (
-            <span className="text-[11px] font-medium text-[#c47a2c]">已生成</span>
-          )
-        )}
-      </div>
-
-      {/* 图纸尺寸 宽 x 高 — 生成时通常最先调 */}
-      <div>
-        <div className="flex items-center justify-between mb-1.5">
-          <label className="block text-xs font-medium text-gray-600 dark:text-gray-300">图纸尺寸 (宽 × 高)</label>
+        <div className="flex shrink-0 items-center gap-1.5">
+          {mappedPixelData && (
+            gridManuallyEdited ? (
+              <>
+                <span className="text-[11px] font-medium text-[#c47a2c]" title="已手改格子；改左侧参数会从原图重算并覆盖手改">
+                  已手改
+                </span>
+                <button
+                  type="button"
+                  onClick={onScaleGrid}
+                  disabled={!sizePending}
+                  title="缩放到输入尺寸（保留手改）"
+                  className="app-btn app-btn--chip app-btn--sm"
+                >
+                  缩放
+                </button>
+                <button
+                  type="button"
+                  onClick={onRegenerateFromOriginal}
+                  title="从原图重新生成（会丢弃手改）"
+                  className="app-btn app-btn--chip app-btn--sm"
+                >
+                  重生成
+                </button>
+              </>
+            ) : (
+              <span className="text-[11px] font-medium text-[#c47a2c]">已生成</span>
+            )
+          )}
           <button
             type="button"
-            onClick={() => onKeepAspectRatioChange(!keepAspectRatio)}
-            className={`app-btn app-btn--chip ${keepAspectRatio ? 'is-on' : ''}`}
-            title="保持比例"
-            aria-pressed={keepAspectRatio}
+            onClick={onManagePalette}
+            className="app-btn app-btn--chip app-btn--sm"
+            title="管理色板"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5">
-              <path
-                fillRule="evenodd"
-                d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z"
-                clipRule="evenodd"
-              />
-            </svg>
-            保持比例
+            色板 {selectedCount}
           </button>
         </div>
-        <div className="flex items-center gap-2">
+      </div>
+
+      {/* 图纸尺寸 */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between gap-2">
+          <label className="text-xs font-medium text-gray-600 dark:text-gray-300">图纸尺寸</label>
+          <span className="text-[11px] font-medium tabular-nums text-amber-600 dark:text-amber-400">
+            {gridWidth}×{gridHeight}
+          </span>
+        </div>
+
+        <Switch
+          checked={keepAspectRatio}
+          onChange={onKeepAspectRatioChange}
+          label="保持比例"
+        />
+
+        <div>
+          <div className="mb-1 flex items-center justify-between gap-2">
+            <label className="text-xs text-gray-500 dark:text-gray-400">宽度</label>
+            <span className="text-[11px] tabular-nums text-[#a08060]">{gridWidth}</span>
+          </div>
           <input
-            type="number"
+            type="range"
             min={10}
             max={300}
-            value={granularityInput}
-            onChange={onGranularityInputChange}
-            onBlur={onApplyGridWidth}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                e.currentTarget.blur();
-              }
-            }}
-            className="w-full h-10 rounded-lg border border-[#e0d0bc] dark:border-gray-600 bg-white dark:bg-gray-700 px-3 text-sm text-center"
-          />
-          <span className="text-gray-400">×</span>
-          <input
-            type="number"
-            min={10}
-            max={300}
-            value={gridHeightInput}
-            onChange={onGridHeightInputChange}
-            onBlur={onApplyGridHeight}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !keepAspectRatio) {
-                e.currentTarget.blur();
-              }
-            }}
-            readOnly={keepAspectRatio}
-            aria-label={keepAspectRatio ? '图纸高度（按比例自动计算）' : '图纸高度'}
-            className={`w-full h-10 rounded-lg border border-[#e0d0bc] dark:border-gray-600 px-3 text-sm text-center ${keepAspectRatio ? 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400 cursor-not-allowed' : 'bg-white dark:bg-gray-700'}`}
+            step={1}
+            value={gridWidth}
+            onChange={(e) => onGranularityInputChange(asInputChange(e.target.value))}
+            onMouseUp={onApplyGridWidth}
+            onTouchEnd={onApplyGridWidth}
+            className="w-full accent-amber-500"
+            aria-label="图纸宽度"
           />
         </div>
-        <p className="mt-1.5 text-[11px] tabular-nums text-[#a08060]">
+
+        <div>
+          <div className="mb-1 flex items-center justify-between gap-2">
+            <label className="text-xs text-gray-500 dark:text-gray-400">高度</label>
+            <span className="text-[11px] tabular-nums text-[#a08060]">{gridHeight}</span>
+          </div>
+          <input
+            type="range"
+            min={10}
+            max={300}
+            step={1}
+            value={gridHeight}
+            disabled={keepAspectRatio}
+            onChange={(e) => onGridHeightInputChange(asInputChange(e.target.value))}
+            onMouseUp={onApplyGridHeight}
+            onTouchEnd={onApplyGridHeight}
+            className="w-full accent-amber-500 disabled:opacity-50"
+            aria-label={keepAspectRatio ? '图纸高度（按比例自动计算）' : '图纸高度'}
+          />
+        </div>
+
+        <p className="text-[11px] tabular-nums text-[#a08060]">
           {gridDimensions ? `当前图纸 ${gridDimensions.N}×${gridDimensions.M}` : '尚未生成'}
           {gridManuallyEdited
-            ? sizePending
-              ? ' · 输入尺寸待应用'
-              : ' · 改尺寸请用上方按钮'
+            ? ' · 有手改时改尺寸会从原图重算；只想改大小可点「缩放」'
             : ' · 改动后自动生成'}
         </p>
       </div>
@@ -214,13 +236,32 @@ export function EditorSettingsPanel({
         </select>
       </div>
 
-      <button
-        type="button"
-        onClick={onManagePalette}
-        className="app-btn app-btn--soft app-btn--block app-btn--md"
-      >
-        管理色板（{selectedCount} 色）
-      </button>
+      {/* 精简拼豆种类 */}
+      <div>
+        <div className="flex items-center justify-between mb-1.5">
+          <label className="block text-xs font-medium text-gray-600 dark:text-gray-300">精简拼豆种类</label>
+          <span className="text-xs text-amber-600 dark:text-amber-400 font-medium">
+            {maxColorCount === 0 ? '无限制' : `${maxColorCount} 色`}
+          </span>
+        </div>
+        <input
+          type="range"
+          min={0}
+          max={50}
+          step={1}
+          value={maxColorCount}
+          onChange={(e) => {
+            onMaxColorCountChange(Number(e.target.value));
+          }}
+          className="w-full accent-amber-500"
+          aria-label="限制拼豆颜色数量"
+        />
+        <p className="mt-1.5 text-[11px] leading-relaxed text-gray-400 dark:text-gray-500">
+          {gridManuallyEdited
+            ? '已手改时改此项会从原图重算并覆盖手改。'
+            : '不限制可能用到几十种色；建议 15–30。'}
+        </p>
+      </div>
 
       {/* 创作预设 */}
       <div>
@@ -253,168 +294,142 @@ export function EditorSettingsPanel({
         </p>
       </div>
 
-      {/* 生成前外观 */}
-      <div className="space-y-3">
-        <div>
-          <div className="mb-1.5 flex items-center justify-between">
-            <label className="block text-xs font-medium text-gray-600 dark:text-gray-300">
-              对比度
-            </label>
-            <span className="text-xs font-medium tabular-nums text-amber-600 dark:text-amber-400">
-              {imageContrast > 0 ? `+${imageContrast}` : imageContrast}
-            </span>
+      <details className="rounded-xl border border-[#eadfce] bg-[#fffaf3] px-3 py-2">
+        <summary className="cursor-pointer list-none text-xs font-semibold text-[#5c4030]">
+          更多处理选项
+          <span className="ml-2 font-normal text-[#a08060]">对比度、背景、颜色合并</span>
+        </summary>
+        <div className="mt-4 space-y-4">
+          {/* 生成前外观 */}
+          <div className="space-y-3">
+            <div>
+              <div className="mb-1.5 flex items-center justify-between">
+                <label className="block text-xs font-medium text-gray-600 dark:text-gray-300">
+                  对比度
+                </label>
+                <span className="text-xs font-medium tabular-nums text-amber-600 dark:text-amber-400">
+                  {imageContrast > 0 ? `+${imageContrast}` : imageContrast}
+                </span>
+              </div>
+              <input
+                type="range"
+                min={-50}
+                max={50}
+                step={1}
+                value={imageContrast}
+                onChange={(e) => onImageContrastChange(Number(e.target.value))}
+                className="w-full accent-amber-500"
+                aria-label="生成前对比度"
+              />
+            </div>
+            <div>
+              <div className="mb-1.5 flex items-center justify-between">
+                <label className="block text-xs font-medium text-gray-600 dark:text-gray-300">
+                  饱和度
+                </label>
+                <span className="text-xs font-medium tabular-nums text-amber-600 dark:text-amber-400">
+                  {imageSaturation > 0 ? `+${imageSaturation}` : imageSaturation}
+                </span>
+              </div>
+              <input
+                type="range"
+                min={-50}
+                max={50}
+                step={1}
+                value={imageSaturation}
+                onChange={(e) => onImageSaturationChange(Number(e.target.value))}
+                className="w-full accent-amber-500"
+                aria-label="生成前饱和度"
+              />
+            </div>
+            <p className="text-[11px] leading-relaxed text-gray-400 dark:text-gray-500">
+              {gridManuallyEdited
+                ? '已手改时改此项会从原图重算并覆盖手改。'
+                : '像素化前调整原图。浅色贴画可试对比度 +15～+25、饱和度 +10～+20。'}
+            </p>
           </div>
-          <input
-            type="range"
-            min={-50}
-            max={50}
-            step={1}
-            value={imageContrast}
-            onChange={(e) => onImageContrastChange(Number(e.target.value))}
-            className="w-full accent-amber-500"
-            aria-label="生成前对比度"
+
+          <Switch
+            checked={autoRemoveWhiteBg}
+            onChange={onAutoRemoveWhiteBgChange}
+            label="自动去除白底"
           />
-        </div>
-        <div>
-          <div className="mb-1.5 flex items-center justify-between">
-            <label className="block text-xs font-medium text-gray-600 dark:text-gray-300">
-              饱和度
-            </label>
-            <span className="text-xs font-medium tabular-nums text-amber-600 dark:text-amber-400">
-              {imageSaturation > 0 ? `+${imageSaturation}` : imageSaturation}
-            </span>
-          </div>
-          <input
-            type="range"
-            min={-50}
-            max={50}
-            step={1}
-            value={imageSaturation}
-            onChange={(e) => onImageSaturationChange(Number(e.target.value))}
-            className="w-full accent-amber-500"
-            aria-label="生成前饱和度"
-          />
-        </div>
-        <p className="text-[11px] leading-relaxed text-gray-400 dark:text-gray-500">
-          {gridManuallyEdited
-            ? '已手改时此项仅在「从原图重新生成」时生效。'
-            : '像素化前调整原图。浅色贴画可试对比度 +15～+25、饱和度 +10～+20。'}
-        </p>
-      </div>
 
-      {/* 精简拼豆种类 */}
-      <div>
-        <div className="flex items-center justify-between mb-1.5">
-          <label className="block text-xs font-medium text-gray-600 dark:text-gray-300">精简拼豆种类 (限制用色)</label>
-          <span className="text-xs text-amber-600 dark:text-amber-400 font-medium">
-            {maxColorCount === 0 ? '无限制 (原图直转)' : `限制 ${maxColorCount} 色`}
-          </span>
-        </div>
-        <input
-          type="range"
-          min={0}
-          max={50}
-          step={1}
-          value={maxColorCount}
-          onChange={(e) => {
-            onMaxColorCountChange(Number(e.target.value));
-          }}
-          className="w-full accent-amber-500"
-        />
-        <p className="mt-1.5 text-[11px] leading-relaxed text-gray-400 dark:text-gray-500">
-          {gridManuallyEdited
-            ? '已手改时此项仅在「从原图重新生成」时生效。'
-            : '如果不限制，生成的图纸可能会用到几十种颜色。建议限制在 15-30 种以内。'}
-        </p>
-      </div>
-
-      {/* 自动去除白底 */}
-      <label className="flex items-center gap-2 cursor-pointer select-none">
-        <input
-          type="checkbox"
-          checked={autoRemoveWhiteBg}
-          onChange={(e) => onAutoRemoveWhiteBgChange(e.target.checked)}
-          className="h-4 w-4 rounded border-gray-300 text-amber-500 focus:ring-amber-400"
-        />
-        <span className="text-sm text-gray-800 dark:text-gray-100">自动去除白底</span>
-      </label>
-
-      {/* Floyd–Steinberg 抖动 */}
-      <div className="space-y-1">
-        <label className="flex items-center gap-2 cursor-pointer select-none">
-          <input
-            type="checkbox"
+          <Switch
             checked={ditheringEnabled}
-            onChange={(e) => onDitheringChange(e.target.checked)}
-            className="h-4 w-4 rounded border-gray-300 text-amber-500 focus:ring-amber-400"
+            onChange={onDitheringChange}
+            label="颜色抖动（Floyd–Steinberg）"
+            description={
+              gridManuallyEdited
+                ? '已手改时改此项会从原图重算并覆盖手改。'
+                : '用邻格混色保留渐变层次，适合照片；开启后会跳过清杂点以免抹掉抖动。卡通/线稿建议关闭。'
+            }
           />
-          <span className="text-sm text-gray-800 dark:text-gray-100">颜色抖动（Floyd–Steinberg）</span>
-        </label>
-        <p className="pl-6 text-[11px] leading-relaxed text-gray-400 dark:text-gray-500">
-          {gridManuallyEdited
-            ? '已手改时此项仅在「从原图重新生成」时生效。'
-            : '用邻格混色保留渐变层次，适合照片；开启后会跳过清杂点以免抹掉抖动。卡通/线稿建议关闭。'}
-        </p>
-      </div>
 
-      {/* 处理模式 + 去背景 */}
-      <div className="space-y-2">
-        <div className="flex items-center gap-2">
-          <label className="shrink-0 text-xs text-gray-500 w-14">处理模式</label>
-          <select
-            value={pixelationMode}
-            onChange={onPixelationModeChange}
-            className="min-w-0 flex-1 h-9 rounded-lg border border-[#e0d0bc] dark:border-gray-600 bg-white dark:bg-gray-700 px-2 text-xs"
-          >
-            <option value={PixelationMode.EdgeAware}>清晰 (保线稿)</option>
-            <option value={PixelationMode.Dominant}>卡通 (主色)</option>
-            <option value={PixelationMode.Average}>真实 (平均)</option>
-          </select>
-        </div>
-        <div className="flex gap-1.5">
-          <button
-            type="button"
-            onClick={onAutoRemoveBackground}
-            disabled={!mappedPixelData || !gridDimensions}
-            className="app-btn app-btn--secondary app-btn--xs flex-1"
-          >
-            手动去背景
-          </button>
-          <button
-            type="button"
-            onClick={onUndoBgRemoval}
-            disabled={!bgRemovalSnapshot}
-            className="app-btn app-btn--secondary app-btn--xs flex-1"
-          >
-            回撤去背景
-          </button>
-        </div>
-      </div>
+          {/* 处理模式 + 去背景 */}
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <label className="shrink-0 text-xs text-gray-500 w-14">处理模式</label>
+              <select
+                value={pixelationMode}
+                onChange={onPixelationModeChange}
+                className="min-w-0 flex-1 h-9 rounded-lg border border-[#e0d0bc] dark:border-gray-600 bg-white dark:bg-gray-700 px-2 text-xs"
+              >
+                <option value={PixelationMode.EdgeAware}>清晰 (保线稿)</option>
+                <option value={PixelationMode.Dominant}>卡通 (主色)</option>
+                <option value={PixelationMode.Average}>真实 (平均)</option>
+              </select>
+            </div>
+            <div className="flex gap-1.5">
+              <button
+                type="button"
+                onClick={onAutoRemoveBackground}
+                disabled={!mappedPixelData || !gridDimensions}
+                className="app-btn app-btn--secondary app-btn--xs flex-1"
+              >
+                手动去背景
+              </button>
+              <button
+                type="button"
+                onClick={onUndoBgRemoval}
+                disabled={!bgRemovalSnapshot}
+                className="app-btn app-btn--secondary app-btn--xs flex-1"
+              >
+                回撤去背景
+              </button>
+            </div>
+          </div>
 
-      {/* 颜色合并 */}
-      <div>
-        <label className="mb-1.5 block text-xs font-medium text-gray-600 dark:text-gray-300">
-          颜色合并阈值
-        </label>
-        <input
-          type="number"
-          min={0}
-          max={100}
-          value={similarityThresholdInput}
-          onChange={onSimilarityThresholdInputChange}
-          onBlur={onApplySimilarity}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') e.currentTarget.blur();
-          }}
-          aria-label="颜色合并阈值"
-          className="w-full h-9 rounded-xl border border-[#e0d0bc] bg-white px-3 text-sm dark:border-gray-600 dark:bg-gray-700"
-        />
-        <p className="mt-1.5 text-[11px] leading-relaxed text-gray-400 dark:text-gray-500">
-          {gridManuallyEdited
-            ? '已手改时此项仅在「从原图重新生成」时生效。'
-            : '数值越大，相近色越容易合并。改动后自动生效。'}
-        </p>
-      </div>
+          {/* 颜色合并 */}
+          <div>
+            <div className="mb-1.5 flex items-center justify-between gap-2">
+              <label className="text-xs font-medium text-gray-600 dark:text-gray-300">
+                颜色合并阈值
+              </label>
+              <span className="text-[11px] font-medium tabular-nums text-amber-600 dark:text-amber-400">
+                {similarity}
+              </span>
+            </div>
+            <input
+              type="range"
+              min={0}
+              max={100}
+              step={1}
+              value={similarity}
+              onChange={(e) => onSimilarityThresholdInputChange(asInputChange(e.target.value))}
+              onMouseUp={onApplySimilarity}
+              onTouchEnd={onApplySimilarity}
+              aria-label="颜色合并阈值"
+              className="w-full accent-amber-500"
+            />
+            <p className="mt-1.5 text-[11px] leading-relaxed text-gray-400 dark:text-gray-500">
+              {gridManuallyEdited
+                ? '已手改时改此项会从原图重算并覆盖手改。'
+                : '越大越容易清掉被包围的小块杂色；成片大色块会保留，不会整色吃掉。'}
+            </p>
+          </div>
+        </div>
+      </details>
     </section>
   );
 }

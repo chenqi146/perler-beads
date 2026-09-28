@@ -182,6 +182,115 @@ export function removeIsolatedNoise(
   return output;
 }
 
+/**
+ * 按网格规模估算「杂色小块」面积上限：超过此面积的连通块一律保留。
+ * 避免旧版「全图按色号频率合并」把成片正确色吃掉。
+ */
+export function defaultMaxSpeckleArea(rows: number, cols: number): number {
+  const total = Math.max(1, rows * cols);
+  return Math.max(4, Math.min(32, Math.floor(total * 0.012)));
+}
+
+/**
+ * 空间相似色去杂：只处理「面积不大」的同色连通块。
+ * 若与邻接主色的 CIEDE2000 < maxDeltaE，且非高对比描边，则整块并入邻接主色。
+ * 大色块（面积 > maxComponentSize）不受阈值影响，不会被全局吞并。
+ */
+export function absorbSimilarSpeckles(
+  data: MappedPixel[][],
+  maxDeltaE: number,
+  maxComponentSize?: number,
+  preserveContrast = 42,
+): MappedPixel[][] {
+  const M = data.length;
+  const N = data[0]?.length || 0;
+  if (M === 0 || N === 0 || maxDeltaE <= 0) return data;
+
+  const sizeCap = maxComponentSize ?? defaultMaxSpeckleArea(M, N);
+  const output = data.map((row) => row.map((cell) => ({ ...cell })));
+  const visited = Array.from({ length: M }, () => Array(N).fill(false));
+
+  const neighbors4 = (r: number, c: number): Array<[number, number]> => {
+    const out: Array<[number, number]> = [];
+    if (r > 0) out.push([r - 1, c]);
+    if (r + 1 < M) out.push([r + 1, c]);
+    if (c > 0) out.push([r, c - 1]);
+    if (c + 1 < N) out.push([r, c + 1]);
+    return out;
+  };
+
+  for (let sr = 0; sr < M; sr++) {
+    for (let sc = 0; sc < N; sc++) {
+      if (visited[sr][sc]) continue;
+      const start = data[sr][sc];
+      if (!isContentCell(start)) {
+        visited[sr][sc] = true;
+        continue;
+      }
+
+      const targetKey = start.key;
+      const queue: Array<[number, number]> = [[sr, sc]];
+      const component: Array<[number, number]> = [];
+      visited[sr][sc] = true;
+
+      while (queue.length > 0) {
+        const [r, c] = queue.shift()!;
+        component.push([r, c]);
+        for (const [nr, nc] of neighbors4(r, c)) {
+          if (visited[nr][nc]) continue;
+          const cell = data[nr][nc];
+          if (!isContentCell(cell) || cell.key !== targetKey) continue;
+          visited[nr][nc] = true;
+          queue.push([nr, nc]);
+        }
+      }
+
+      // 大块保留：阈值再高也不并
+      if (component.length > sizeCap) continue;
+
+      const neighborCount = new Map<string, { count: number; color: string }>();
+      for (const [r, c] of component) {
+        for (const [nr, nc] of neighbors4(r, c)) {
+          const cell = data[nr][nc];
+          if (!isContentCell(cell) || cell.key === targetKey) continue;
+          const prev = neighborCount.get(cell.key);
+          if (prev) prev.count++;
+          else neighborCount.set(cell.key, { count: 1, color: cell.color });
+        }
+      }
+      if (neighborCount.size === 0) continue;
+
+      let replaceKey = '';
+      let replaceColor = '';
+      let best = -1;
+      for (const [key, info] of neighborCount) {
+        if (info.count > best) {
+          best = info.count;
+          replaceKey = key;
+          replaceColor = info.color;
+        }
+      }
+      if (!replaceKey) continue;
+
+      // 只靠亮度保护描边；色相近近近用 maxDeltaE 决定是否并入（不再用低 ΔE 一刀切）
+      if (Math.abs(lumaOfHex(start.color) - lumaOfHex(replaceColor)) >= preserveContrast) {
+        continue;
+      }
+
+      const a = hexToRgb(start.color);
+      const b = hexToRgb(replaceColor);
+      if (!a || !b) continue;
+      if (colorDistance(a, b) >= maxDeltaE) continue;
+
+      for (const [r, c] of component) {
+        output[r][c] = { key: replaceKey, color: replaceColor, isExternal: false };
+      }
+    }
+  }
+
+  return output;
+}
+
 /** 默认清理：多数滤波 + 去孤点；strong 适合小图碎色（仍保护近背景异色细节） */
 export function cleanupPixelGrid(
   data: MappedPixel[][],

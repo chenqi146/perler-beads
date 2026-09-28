@@ -7,7 +7,7 @@ import {
   hexToRgb,
 } from './pixelation';
 import type { MappedPixel, PaletteColor } from './pixelation';
-import { cleanupPixelGrid, majorityFilter, removeIsolatedNoise } from './patternCleanup';
+import { cleanupPixelGrid, majorityFilter, removeIsolatedNoise, absorbSimilarSpeckles } from './patternCleanup';
 import { extractStrokeMask, sampleStrokeCellColor } from './strokeExtract';
 
 function makeImageData(width: number, height: number, rgba: number[]): ImageData {
@@ -318,5 +318,45 @@ describe('patternCleanup', () => {
     for (let r = 0; r < 5; r++) {
       expect(out[r][2].key).toBe('LEG');
     }
+  });
+
+  it('absorbSimilarSpeckles absorbs small similar speckles into surrounding field', () => {
+    const cream = cell('CREAM', '#F5E6D3');
+    const speck = cell('SPECK', '#E8D5C0'); // near cream
+    const grid: MappedPixel[][] = Array.from({ length: 7 }, () =>
+      Array.from({ length: 7 }, () => ({ ...cream })),
+    );
+    grid[3][3] = { ...speck };
+    grid[3][4] = { ...speck };
+
+    const out = absorbSimilarSpeckles(grid, 15, 4);
+    expect(out[3][3].key).toBe('CREAM');
+    expect(out[3][4].key).toBe('CREAM');
+  });
+
+  it('absorbSimilarSpeckles keeps large minority color block even at high threshold', () => {
+    const cream = cell('CREAM', '#F5E6D3');
+    const peach = cell('PEACH', '#E8C4A8');
+    const grid: MappedPixel[][] = Array.from({ length: 8 }, () =>
+      Array.from({ length: 8 }, (_, c) => (c < 4 ? { ...cream } : { ...peach })),
+    );
+    const out = absorbSimilarSpeckles(grid, 40, 4);
+    for (let r = 0; r < 8; r++) {
+      for (let c = 4; c < 8; c++) {
+        expect(out[r][c].key).toBe('PEACH');
+      }
+    }
+  });
+
+  it('absorbSimilarSpeckles keeps high-contrast outline speck', () => {
+    const white = cell('W', '#FFFFFF');
+    const black = cell('K', '#000000');
+    const grid: MappedPixel[][] = [
+      [white, white, white],
+      [white, black, white],
+      [white, white, white],
+    ];
+    const out = absorbSimilarSpeckles(grid, 100, 4);
+    expect(out[1][1].key).toBe('K');
   });
 });

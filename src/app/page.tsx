@@ -75,6 +75,7 @@ import {
   useCanvasInteraction,
   useImageUpload,
 } from '../stores';
+import { applyImagePrepConfirmToStore } from '../application/editor/imagePrepSync';
 
 function Editor() {
   const searchParams = useSearchParams();
@@ -1095,17 +1096,13 @@ function Editor() {
             keepAspectRatio,
             maxColorCount,
             selectedColorSystem,
+            ditheringEnabled,
+            pixelationMode,
           }}
           onCancel={handlePrepCancel}
           onConfirm={async (preparedDataUrl, meta) => {
             clearStagedUpload();
-            setSelectedColorSystem(meta.selectedColorSystem);
-            setKeepAspectRatio(meta.keepAspectRatio);
-            setMaxColorCount(meta.maxColorCount);
-            setGranularity(meta.gridWidth);
-            setGranularityInput(String(meta.gridWidth));
-            setGridHeight(meta.gridHeight);
-            setGridHeightInput(String(meta.gridHeight));
+            applyImagePrepConfirmToStore(meta);
             if (meta.mode === 'recognize') {
               await handleRecognizeRegionConfirm(preparedDataUrl, {
                 cols: meta.gridWidth,
