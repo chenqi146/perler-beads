@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from 'react';
 import { ensureAnonymousSession } from '@/utils/authClient';
+import { PageLoading } from '@/components/ui/PageLoading';
 
 /**
  * 无感身份门禁：自动确保本机游客/正式会话，不再跳转登录页。
@@ -26,6 +27,6 @@ export default function EnsureSession({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  if (!ready) return <main className="platform-page" />;
+  if (!ready) return <PageLoading />;
   return <>{children}</>;
 }

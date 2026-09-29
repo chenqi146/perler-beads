@@ -14,6 +14,7 @@ import { TRANSPARENT_KEY } from '../domain/pixelation';
 import { IconButton } from '../components/ui/IconButton';
 import { Overlay } from '../components/ui/Overlay';
 import DownloadSettingsModal from '../components/DownloadSettingsModal';
+import { PageLoading } from '../components/ui/PageLoading';
 
 import { 
   convertPaletteToColorSystem, 
@@ -43,7 +44,15 @@ import IngredientBillModal from '../components/IngredientBillModal';
 import { PaletteManageModal } from '../components/PaletteManageModal';
 import EnsureSession from '../components/EnsureSession';
 import PatternSaveModal from '../components/PatternSaveModal';
-import { useAppNavSubtitle } from '../components/shell';
+import {
+  useAppNavSubtitle,
+  WorkbenchRoot,
+  WorkbenchMobileHeader,
+  WorkbenchTips,
+  WorkbenchSplit,
+  WorkbenchDesktopOnly,
+  WorkbenchMobileFooter,
+} from '../components/shell';
 import {
   EditorPageToolbar,
   EditorUploadPanel,
@@ -613,104 +622,97 @@ function Editor() {
     />
 
     {/* 编辑工作区：手机补充当前图纸上下文，桌面沿用全局顶栏 */}
-    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-      <div className="mb-2 flex shrink-0 items-center gap-2 rounded-xl border border-[#eadfce] bg-[#fffaf3] px-3 py-2 lg:hidden">
-        <button
-          type="button"
-          onClick={() => router.push('/dashboard')}
-          className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-[#5c4030]"
-          aria-label="返回我的图纸"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8} aria-hidden="true">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
-          </svg>
-        </button>
-        <span className="min-w-0 flex-1 truncate text-sm font-semibold text-[#3a2416]">{patternName.trim() || '未命名图纸'}</span>
-        <span className="shrink-0 rounded-full bg-[#f3e6d4] px-2.5 py-1 text-[11px] font-medium text-[#8a6a4a]">编辑模式</span>
-      </div>
+    <WorkbenchRoot>
+      <WorkbenchMobileHeader
+        title={patternName.trim() || '未命名图纸'}
+        badge="编辑模式"
+        onBack={() => router.push('/dashboard')}
+        backAriaLabel="返回我的图纸"
+      />
       <main ref={mainRef} className="relative flex h-full min-h-0 w-full flex-1 flex-col">
-        <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 overflow-hidden lg:grid-cols-[280px_minmax(0,1fr)] xl:grid-cols-[300px_minmax(0,1fr)] lg:gap-3">
-          {/* 左侧：桌面参数区（手机收入设置 sheet） */}
-          <aside className="hidden min-h-0 flex-col space-y-3 overflow-y-auto overscroll-contain pb-1 pr-0.5 lg:flex">
-            <EditorUploadPanel
-              originalImageSrc={originalImageSrc}
-              preAiImageSrc={preAiImageSrc}
-              stagedUploadSrc={stagedUploadSrc}
-              pendingPrepImageSrc={pendingPrepImageSrc}
-              isImagePrepOpen={isImagePrepOpen}
-              isMounted={isMounted}
-              hasPatternGrid={Boolean(mappedPixelData?.length && gridDimensions && gridDimensions.N > 0)}
-              onStartUploadModeProcess={startUploadModeProcess}
-              isRecognizingPattern={isRecognizingPattern}
-              onUndoAiMatting={handleUndoAiMatting}
-              onTriggerFileInput={triggerFileInput}
-              onDrop={handleDrop}
-              onDragOver={handleDragOver}
-            />
+        <WorkbenchSplit
+          side="left"
+          sidePanel={
+            <>
+              <EditorUploadPanel
+                originalImageSrc={originalImageSrc}
+                preAiImageSrc={preAiImageSrc}
+                stagedUploadSrc={stagedUploadSrc}
+                pendingPrepImageSrc={pendingPrepImageSrc}
+                isImagePrepOpen={isImagePrepOpen}
+                isMounted={isMounted}
+                hasPatternGrid={Boolean(mappedPixelData?.length && gridDimensions && gridDimensions.N > 0)}
+                onStartUploadModeProcess={startUploadModeProcess}
+                isRecognizingPattern={isRecognizingPattern}
+                onUndoAiMatting={handleUndoAiMatting}
+                onTriggerFileInput={triggerFileInput}
+                onDrop={handleDrop}
+                onDragOver={handleDragOver}
+              />
 
-            <EditorSettingsPanel
-              mappedPixelData={mappedPixelData}
-              gridDimensions={gridDimensions}
-              selectedColorSystem={selectedColorSystem}
-              onSelectedColorSystemChange={setSelectedColorSystem}
-              keepAspectRatio={keepAspectRatio}
-              onKeepAspectRatioChange={setKeepAspectRatio}
-              granularityInput={granularityInput}
-              gridHeightInput={gridHeightInput}
-              onGranularityInputChange={handleGranularityInputChange}
-              onGridHeightInputChange={handleGridHeightInputChange}
-              onApplyGridWidth={applyGridWidth}
-              onApplyGridHeight={applyGridHeight}
-              maxColorCount={maxColorCount}
-              onMaxColorCountChange={setMaxColorCount}
-              autoRemoveWhiteBg={autoRemoveWhiteBg}
-              onAutoRemoveWhiteBgChange={setAutoRemoveWhiteBg}
-              similarityThresholdInput={similarityThresholdInput}
-              onSimilarityThresholdInputChange={handleSimilarityThresholdInputChange}
-              onApplySimilarity={flushSimilarity}
-              creativePreset={creativePreset}
-              onCreativePresetChange={handleCreativePresetChange}
-              ditheringEnabled={ditheringEnabled}
-              onDitheringChange={handleDitheringChange}
-              imageContrast={imageContrast}
-              onImageContrastChange={setImageContrast}
-              imageSaturation={imageSaturation}
-              onImageSaturationChange={setImageSaturation}
-              pixelationMode={pixelationMode}
-              onPixelationModeChange={handlePixelationModeChange}
-              customPaletteSelections={customPaletteSelections}
-              onManagePalette={() => setIsPaletteOpen(true)}
-              onAutoRemoveBackground={handleAutoRemoveBackground}
-              onUndoBgRemoval={handleUndoBgRemoval}
-              bgRemovalSnapshot={bgRemovalSnapshot}
-              gridManuallyEdited={gridManuallyEdited}
-              sizePending={sizePending}
-              onScaleGrid={scaleGridToInputs}
-              onRegenerateFromOriginal={regenerateFromOriginal}
-            />
+              <EditorSettingsPanel
+                mappedPixelData={mappedPixelData}
+                gridDimensions={gridDimensions}
+                selectedColorSystem={selectedColorSystem}
+                onSelectedColorSystemChange={setSelectedColorSystem}
+                keepAspectRatio={keepAspectRatio}
+                onKeepAspectRatioChange={setKeepAspectRatio}
+                granularityInput={granularityInput}
+                gridHeightInput={gridHeightInput}
+                onGranularityInputChange={handleGranularityInputChange}
+                onGridHeightInputChange={handleGridHeightInputChange}
+                onApplyGridWidth={applyGridWidth}
+                onApplyGridHeight={applyGridHeight}
+                maxColorCount={maxColorCount}
+                onMaxColorCountChange={setMaxColorCount}
+                autoRemoveWhiteBg={autoRemoveWhiteBg}
+                onAutoRemoveWhiteBgChange={setAutoRemoveWhiteBg}
+                similarityThresholdInput={similarityThresholdInput}
+                onSimilarityThresholdInputChange={handleSimilarityThresholdInputChange}
+                onApplySimilarity={flushSimilarity}
+                creativePreset={creativePreset}
+                onCreativePresetChange={handleCreativePresetChange}
+                ditheringEnabled={ditheringEnabled}
+                onDitheringChange={handleDitheringChange}
+                imageContrast={imageContrast}
+                onImageContrastChange={setImageContrast}
+                imageSaturation={imageSaturation}
+                onImageSaturationChange={setImageSaturation}
+                pixelationMode={pixelationMode}
+                onPixelationModeChange={handlePixelationModeChange}
+                customPaletteSelections={customPaletteSelections}
+                onManagePalette={() => setIsPaletteOpen(true)}
+                onAutoRemoveBackground={handleAutoRemoveBackground}
+                onUndoBgRemoval={handleUndoBgRemoval}
+                bgRemovalSnapshot={bgRemovalSnapshot}
+                gridManuallyEdited={gridManuallyEdited}
+                sizePending={sizePending}
+                onScaleGrid={scaleGridToInputs}
+                onRegenerateFromOriginal={regenerateFromOriginal}
+              />
 
-        {originalImageSrc && activeBeadPalette.length === 0 && useEditorStore.getState().paletteHydrated && (
-             <div className="w-full bg-yellow-100 dark:bg-yellow-900/50 p-4 rounded-lg shadow border border-yellow-200 dark:border-yellow-800/60 text-center text-sm text-yellow-800 dark:text-yellow-300">
-                 当前可用颜色过少或为空。请点击「管理色板」勾选颜色。
-             </div>
-         )}
+              {originalImageSrc && activeBeadPalette.length === 0 && useEditorStore.getState().paletteHydrated && (
+                <div className="w-full rounded-lg border border-yellow-200 bg-yellow-100 p-4 text-center text-sm text-yellow-800 shadow dark:border-yellow-800/60 dark:bg-yellow-900/50 dark:text-yellow-300">
+                  当前可用颜色过少或为空。请点击「管理色板」勾选颜色。
+                </div>
+              )}
 
-        {originalImageSrc && mappedPixelData && (
-            <div className="w-full mt-4">
-              <button
-                type="button"
-                onClick={() => setIsIngredientBillOpen(true)}
-                disabled={!ingredientBill}
-                className="app-btn app-btn--secondary app-btn--block app-btn--md"
-              >
-                采购清单
-                {ingredientBill ? ` · ${ingredientBill.colorCount} 色` : ''}
-              </button>
-            </div>
-        )}
-
-          </aside>
-
+              {originalImageSrc && mappedPixelData && (
+                <div className="mt-4 w-full">
+                  <button
+                    type="button"
+                    onClick={() => setIsIngredientBillOpen(true)}
+                    disabled={!ingredientBill}
+                    className="app-btn app-btn--secondary app-btn--block app-btn--md"
+                  >
+                    采购清单
+                    {ingredientBill ? ` · ${ingredientBill.colorCount} 色` : ''}
+                  </button>
+                </div>
+              )}
+            </>
+          }
+        >
           {/* 右侧：图纸预览，占满剩余高度 */}
           <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
             <div className="flex min-h-0 flex-1 flex-col rounded-xl border border-[#eadfce] bg-white p-2 sm:p-4">
@@ -758,10 +760,10 @@ function Editor() {
                     }}
                   />
                 </div>
-                <p className="hidden text-[11px] text-[#a08060] lg:block">
-                  单击选/取消单格 · 拖拽框选 · Shift+点击同色连通块加选/再点取消（含对角）· D 擦除选中格 · 空格或空白处拖动画布 · Ctrl/⌘+Z 撤回
-                </p>
-                <p className="text-[11px] text-[#a08060] lg:hidden">点格选中 · 拖动画布 · 双指缩放 · 底栏改色或调整</p>
+                <WorkbenchTips
+                  desktop="单击选/取消单格 · 拖拽框选 · Shift+点击同色连通块加选/再点取消（含对角）· D 擦除选中格 · 空格或空白处拖动画布 · Ctrl/⌘+Z 撤回"
+                  mobile="点格选中 · 拖动画布 · 双指缩放 · 底栏改色或调整"
+                />
               </div>
 
               <canvas ref={originalCanvasRef} className="hidden"></canvas>
@@ -923,10 +925,7 @@ function Editor() {
                   )}
                 </EditorCanvasWorkspace>
 
-                <div
-                  className="grid shrink-0 grid-cols-5 gap-1 rounded-2xl border border-[#eadfce] bg-[#fffaf3] p-2 shadow-[0_-4px_18px_rgba(90,52,24,0.04)] lg:hidden"
-                  style={{ paddingBottom: 'max(0.5rem, env(safe-area-inset-bottom))' }}
-                >
+                <WorkbenchMobileFooter className="grid grid-cols-5 gap-1">
                   <button type="button" disabled={editHistory.length === 0} onClick={handleUndoEdit} className="flex min-h-12 touch-manipulation flex-col items-center justify-center gap-0.5 rounded-xl text-[11px] font-medium text-[#5c4030] disabled:opacity-35" aria-label="撤销">
                     <span className="text-base leading-none">↶</span>
                     撤销
@@ -947,27 +946,27 @@ function Editor() {
                     <span className="text-base leading-none">⋯</span>
                     更多
                   </button>
-                </div>
+                </WorkbenchMobileFooter>
 
                 </div>
 
                 {/* 颜色统计：点击选中该色号全部格子 */}
                 {originalImageSrc && colorCounts && Object.keys(colorCounts).length > 0 && (
-                  <div className="hidden min-h-0 lg:block">
-                  <EditorColorStatsPanel
-                    colorCounts={colorCounts}
-                    totalBeadCount={totalBeadCount}
-                    selectedColorSystem={selectedColorSystem}
-                    highlightColorKey={highlightColorKey}
-                    onSelectAllByColor={handleSelectAllByColor}
-                  />
-                  </div>
+                  <WorkbenchDesktopOnly>
+                    <EditorColorStatsPanel
+                      colorCounts={colorCounts}
+                      totalBeadCount={totalBeadCount}
+                      selectedColorSystem={selectedColorSystem}
+                      highlightColorKey={highlightColorKey}
+                      onSelectAllByColor={handleSelectAllByColor}
+                    />
+                  </WorkbenchDesktopOnly>
                 )}
               </div>
 
             </div>
           </section>
-        </div>
+        </WorkbenchSplit>
 
          {/* Tooltip Display (Needs update in GridTooltip.tsx) */}
          {tooltipData && (
@@ -1166,7 +1165,7 @@ function Editor() {
           {toastMessage || draftSaveHint}
         </div>
       )}
-    </div>
+    </WorkbenchRoot>
    </>
   );
 }
@@ -1184,11 +1183,7 @@ function EditorEntry() {
   }, [patternId, router]);
 
   if (!patternId) {
-    return (
-      <main className="platform-page">
-        <p>正在前往我的图纸...</p>
-      </main>
-    );
+    return <PageLoading label="正在前往我的图纸" />;
   }
 
   return <Editor />;
@@ -1197,13 +1192,7 @@ function EditorEntry() {
 export default function Home() {
   return (
     <EnsureSession>
-      <Suspense
-        fallback={
-          <main className="platform-page">
-            <p>加载中...</p>
-          </main>
-        }
-      >
+      <Suspense fallback={<PageLoading />}>
         <EditorEntry />
       </Suspense>
     </EnsureSession>

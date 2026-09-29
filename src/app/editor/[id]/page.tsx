@@ -1,9 +1,9 @@
 'use client';
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect } from 'react';
-import Link from 'next/link';
 import { usePatternStore } from '../../../stores';
 import EnsureSession from '../../../components/EnsureSession';
+import { PageLoading } from '../../../components/ui/PageLoading';
 
 function EditorRouteContent() {
   const router = useRouter();
@@ -14,12 +14,7 @@ function EditorRouteContent() {
     if (loadPattern(id)) router.replace(`/?patternId=${encodeURIComponent(id)}`);
   }, [id, router, loadPattern]);
 
-  return (
-    <main className="platform-page">
-      <p>正在打开图纸编辑器...</p>
-      <Link href="/dashboard">返回我的图纸</Link>
-    </main>
-  );
+  return <PageLoading label="正在打开图纸编辑器" />;
 }
 
 export default function EditorRoute() {

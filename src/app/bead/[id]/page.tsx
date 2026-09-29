@@ -4,7 +4,14 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import EnsureSession from '../../../components/EnsureSession';
-import { useAppNavSubtitle, useImmersiveChrome } from '../../../components/shell';
+import {
+  useAppNavSubtitle,
+  useImmersiveChrome,
+  WorkbenchRoot,
+  WorkbenchTips,
+  WorkbenchSplit,
+  WorkbenchMobileFooter,
+} from '../../../components/shell';
 import {
   BeadPageToolbar,
   BeadColorList,
@@ -14,6 +21,7 @@ import {
   GRID_INTERVAL_OPTIONS,
 } from '../../../components/editor';
 import { Overlay } from '../../../components/ui/Overlay';
+import { PageLoading } from '../../../components/ui/PageLoading';
 import { useConfirm } from '../../../components/ui/confirm-dialog';
 import PixelatedPreviewCanvas, { cellKey } from '../../../components/PixelatedPreviewCanvas';
 
@@ -560,11 +568,7 @@ function BeadPageContent() {
   }, [immersive, fitCanvasToViewport]);
 
   if (pattern === undefined) {
-    return (
-      <main className="platform-page">
-        <p className="empty-state">加载中…</p>
-      </main>
-    );
+    return <PageLoading />;
   }
 
   if (!pattern || !mappedPixelData || !gridDimensions || gridDimensions.N <= 0) {
@@ -579,7 +583,7 @@ function BeadPageContent() {
   }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+    <WorkbenchRoot>
       {!immersive ? (
         <div className="mb-2 flex shrink-0 flex-wrap items-center justify-between gap-2 px-0.5">
           <div className="min-w-0">
@@ -608,12 +612,11 @@ function BeadPageContent() {
                 />
               </div>
             ) : null}
-            <p className="mt-1.5 hidden text-[11px] text-[#a08060] lg:block">
-              点格完成，绿色勾表示已拼，再点可撤回 · 滚轮平移 · 空格拖拽 · 按钮缩放
-            </p>
-            <p className="mt-1.5 text-[11px] text-[#a08060] lg:hidden">
-              拖动画布 · 点格完成，绿色勾表示已拼，再点可撤回 · 双指缩放
-            </p>
+            <WorkbenchTips
+              className="mt-1.5"
+              desktop="点格完成，绿色勾表示已拼，再点可撤回 · 滚轮平移 · 空格拖拽 · 按钮缩放"
+              mobile="拖动画布 · 点格完成，绿色勾表示已拼，再点可撤回 · 双指缩放"
+            />
           </div>
           <BeadPageToolbar
             patternId={patternId}
@@ -630,13 +633,29 @@ function BeadPageContent() {
         </div>
       ) : null}
 
-      <div
-        className={[
-          'grid min-h-0 flex-1 overflow-hidden',
-          immersive
-            ? 'grid-cols-1 gap-0'
-            : 'grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_240px] xl:grid-cols-[minmax(0,1fr)_260px]',
-        ].join(' ')}
+      <WorkbenchSplit
+        side="right"
+        hideSide={immersive}
+        sidePanel={
+          <BeadColorList
+            sortedColors={sortedColors}
+            colorCounts={colorCounts}
+            colorSystem={colorSystem}
+            highlightHex={highlightHex}
+            completedSet={completedSet}
+            cellProgress={cellProgress}
+            justCompleted={justCompleted}
+            gridInterval={gridInterval}
+            onGridIntervalChange={handleGridIntervalChange}
+            highlightFadePercent={highlightFadePercent}
+            onHighlightFadeChange={handleHighlightFadeChange}
+            showCellKeys={showCellKeys}
+            onShowCellKeysChange={handleShowCellKeysChange}
+            onToggleHighlight={toggleHighlightColorKey}
+            onToggleComplete={toggleComplete}
+            onDeleteColor={handleDeleteColor}
+          />
+        }
       >
         <div
           className={[
@@ -790,14 +809,9 @@ function BeadPageContent() {
           </div>
 
           {/* 底栏色带：普通模式仅移动端；全屏时桌面也显示，方便专心拼 */}
-          <div
-            className={[
-              'flex shrink-0 items-stretch gap-2 border-[#eadfce] bg-[#fffaf3] p-2 shadow-[0_-4px_18px_rgba(90,52,24,0.04)]',
-              immersive
-                ? 'rounded-none border-t'
-                : 'rounded-2xl border lg:hidden',
-            ].join(' ')}
-            style={{ paddingBottom: 'max(0.5rem, env(safe-area-inset-bottom))' }}
+          <WorkbenchMobileFooter
+            visibility={immersive ? 'always' : 'mobile'}
+            className="flex items-stretch gap-2"
           >
             {highlightHex ? (
               <button
@@ -856,32 +870,9 @@ function BeadPageContent() {
                 </svg>
               </button>
             </div>
-          </div>
+          </WorkbenchMobileFooter>
         </div>
-
-        {!immersive ? (
-          <div className="hidden min-h-0 lg:block">
-            <BeadColorList
-              sortedColors={sortedColors}
-              colorCounts={colorCounts}
-              colorSystem={colorSystem}
-              highlightHex={highlightHex}
-              completedSet={completedSet}
-              cellProgress={cellProgress}
-              justCompleted={justCompleted}
-              gridInterval={gridInterval}
-              onGridIntervalChange={handleGridIntervalChange}
-              highlightFadePercent={highlightFadePercent}
-              onHighlightFadeChange={handleHighlightFadeChange}
-              showCellKeys={showCellKeys}
-              onShowCellKeysChange={handleShowCellKeysChange}
-              onToggleHighlight={toggleHighlightColorKey}
-              onToggleComplete={toggleComplete}
-              onDeleteColor={handleDeleteColor}
-            />
-          </div>
-        ) : null}
-      </div>
+      </WorkbenchSplit>
 
       {settingsOpen ? (
         <Overlay
@@ -968,7 +959,7 @@ function BeadPageContent() {
           {toast}
         </div>
       )}
-    </div>
+    </WorkbenchRoot>
   );
 }
 
