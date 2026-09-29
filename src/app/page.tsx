@@ -761,6 +761,7 @@ function Editor() {
                   />
                 </div>
                 <WorkbenchTips
+                  className="hidden lg:block"
                   desktop="单击选/取消单格 · 拖拽框选 · Shift+点击同色连通块加选/再点取消（含对角）· D 擦除选中格 · 空格或空白处拖动画布 · Ctrl/⌘+Z 撤回"
                   mobile="点格选中 · 拖动画布 · 双指缩放 · 底栏改色或调整"
                 />

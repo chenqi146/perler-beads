@@ -78,7 +78,11 @@ export function AppShell({ children }: { children: ReactNode }) {
                         ].join(' '),
                   ].join(' ')}
                 >
-                  {immersive ? null : <AppNavBar />}
+                  {immersive ? null : (
+                    <div className={isFullscreenWorkbench ? 'hidden lg:block' : undefined}>
+                      <AppNavBar />
+                    </div>
+                  )}
                   <div
                     className={
                       isFullscreenWorkbench || immersive

@@ -2,12 +2,13 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import EnsureSession from '../../../components/EnsureSession';
 import {
   useAppNavSubtitle,
   useImmersiveChrome,
   WorkbenchRoot,
+  WorkbenchMobileHeader,
   WorkbenchTips,
   WorkbenchSplit,
   WorkbenchMobileFooter,
@@ -115,6 +116,7 @@ function readStoredShowCellKeys(): boolean {
 
 function BeadPageContent() {
   const params = useParams<{ id: string }>();
+  const router = useRouter();
   const patternId = params.id;
   const confirm = useConfirm();
   const [pattern, setPattern] = useState<Pattern | null | undefined>(undefined);
@@ -585,8 +587,20 @@ function BeadPageContent() {
   return (
     <WorkbenchRoot>
       {!immersive ? (
+        <WorkbenchMobileHeader
+          title={pattern.name}
+          badge={
+            allDone
+              ? '拼豆模式 · 已拼完'
+              : `拼豆模式 · ${doneCount}/${sortedColors.length} 色`
+          }
+          onBack={() => router.push('/dashboard')}
+          backAriaLabel="返回我的图纸"
+        />
+      ) : null}
+      {!immersive ? (
         <div className="mb-2 flex shrink-0 flex-wrap items-center justify-between gap-2 px-0.5">
-          <div className="min-w-0">
+          <div className="hidden min-w-0 lg:block">
             <p className="text-sm text-[#8a6a4a]">
               进度{' '}
               <span className="font-semibold tabular-nums text-[#3a2416]">

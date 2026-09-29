@@ -59,10 +59,15 @@ export function Overlay({
       )}
       style={{
         zIndex: layerZ[layer],
+        // 用内边距收缩可用宽度；面板用 w-full，避免 96vw+padding 撑出横向滚动（iPhone 会感觉被放大）
         paddingTop: placement === 'drawer' ? undefined : 'max(0.75rem, env(safe-area-inset-top))',
         paddingBottom: placement === 'drawer' ? undefined : 'max(0.75rem, env(safe-area-inset-bottom))',
         paddingLeft: placement === 'drawer' ? undefined : 'max(0.75rem, env(safe-area-inset-left))',
-        paddingRight: 'max(0.75rem, env(safe-area-inset-right))',
+        paddingRight:
+          placement === 'drawer'
+            ? undefined
+            : 'max(0.75rem, env(safe-area-inset-right))',
+        boxSizing: 'border-box',
       }}
     >
       <button
@@ -74,11 +79,11 @@ export function Overlay({
       />
       <div
         className={cn(
-        'relative z-10 flex flex-col overflow-hidden bg-[#fffaf3] shadow-2xl overscroll-contain',
+          'relative z-10 box-border flex max-w-full flex-col overflow-hidden bg-[#fffaf3] shadow-2xl overscroll-contain',
           'motion-safe:transition-transform motion-reduce:transition-none',
-          placement === 'center' && 'max-h-[90vh] w-full rounded-xl',
+          placement === 'center' && 'max-h-[min(92dvh,920px)] w-full rounded-xl',
           placement === 'drawer' && 'h-full w-80 max-w-[90vw]',
-          placement === 'sheet' && 'max-h-[80vh] w-full rounded-t-2xl',
+          placement === 'sheet' && 'max-h-[80vh] w-full rounded-t-2xl border-t border-[#eadfce]',
           panelClassName,
         )}
       >

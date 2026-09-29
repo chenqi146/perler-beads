@@ -589,7 +589,7 @@ const ImagePrepModal: React.FC<ImagePrepModalProps> = ({
       layer="import"
       closeOnBackdrop={!busy}
       onClose={onCancel}
-      panelClassName="flex w-[min(1100px,96vw)] max-w-[1100px] flex-col overflow-hidden rounded-2xl border border-gray-200 dark:border-gray-700"
+      panelClassName="flex h-[min(92dvh,920px)] w-full max-w-[1100px] flex-col overflow-hidden rounded-2xl border border-gray-200 dark:border-gray-700"
     >
       <div className="flex shrink-0 items-center justify-between gap-3 border-b border-gray-200 px-4 py-3 dark:border-gray-700">
         <div className="min-w-0">
@@ -636,9 +636,10 @@ const ImagePrepModal: React.FC<ImagePrepModalProps> = ({
         </div>
       </div>
 
-      <div className="flex min-h-0 flex-1 flex-col md:flex-row">
-        {/* 左侧预览 */}
-        <div className="relative flex min-h-[42vh] min-w-0 flex-1 items-center justify-center overflow-auto bg-gray-100 p-3 dark:bg-gray-900/50 md:min-h-0">
+      {/* 手机：上图下参；桌面：左右分栏。参数区用绝对定位滚动层，避免 iOS 滚不动 */}
+      <div className="grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)_42%] overflow-hidden md:grid-cols-[minmax(0,1fr)_300px] md:grid-rows-[minmax(0,1fr)]">
+        {/* 预览 */}
+        <div className="relative flex min-h-0 min-w-0 items-center justify-center overflow-hidden bg-gray-100 p-3 dark:bg-gray-900/50">
           <canvas
             ref={canvasRef}
             className={`max-h-full max-w-full touch-none rounded bg-white shadow-sm ${busy ? 'cursor-wait opacity-70' : ''}`}
@@ -660,9 +661,14 @@ const ImagePrepModal: React.FC<ImagePrepModalProps> = ({
           )}
         </div>
 
-        {/* 右侧参数栏 */}
-        <aside className="flex max-h-[48vh] w-full shrink-0 flex-col border-t border-gray-200 bg-[#faf6f0] dark:border-gray-700 dark:bg-gray-800/60 md:max-h-none md:w-[300px] md:border-l md:border-t-0">
-          <div className={`min-h-0 flex-1 space-y-3 overflow-y-auto p-3 ${busy ? 'pointer-events-none opacity-50' : ''}`}>
+        {/* 外层定高 + 内层 absolute 滚动，保证形成可滑动区域 */}
+        <div className="relative min-h-0 border-t border-gray-200 bg-[#faf6f0] dark:border-gray-700 dark:bg-gray-800/60 md:border-l md:border-t-0">
+          <aside
+            className={`absolute inset-0 overflow-y-scroll overscroll-y-contain p-3 [-webkit-overflow-scrolling:touch] ${
+              busy ? 'pointer-events-none opacity-50' : ''
+            }`}
+          >
+          <div className="space-y-3 pb-2">
             <div className="flex flex-wrap gap-2">
               {uploadMode === 'generate' ? (
                 <button
@@ -907,26 +913,27 @@ const ImagePrepModal: React.FC<ImagePrepModalProps> = ({
               description="适合照片渐变；卡通/线稿建议关闭。确认后同步到外层"
             />
           </div>
+          </aside>
+        </div>
+      </div>
 
-          <div className="flex shrink-0 items-center justify-end gap-2 border-t border-[#eadfce] p-3 dark:border-gray-700">
-            <button
-              type="button"
-              onClick={onCancel}
-              disabled={busy}
-              className="h-9 rounded-lg border border-gray-300 px-4 text-sm text-gray-600 disabled:opacity-40"
-            >
-              取消
-            </button>
-            <button
-              type="button"
-              onClick={() => void handleConfirm()}
-              disabled={busy}
-              className="h-9 rounded-lg bg-amber-500 px-4 text-sm font-medium text-white hover:bg-amber-600 disabled:opacity-50"
-            >
-              {confirmLabel}
-            </button>
-          </div>
-        </aside>
+      <div className="flex shrink-0 items-center justify-end gap-2 border-t border-[#eadfce] bg-[#fffaf3] p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] dark:border-gray-700 dark:bg-gray-900">
+        <button
+          type="button"
+          onClick={onCancel}
+          disabled={busy}
+          className="h-10 min-w-[4.5rem] rounded-lg border border-gray-300 px-4 text-sm text-gray-600 disabled:opacity-40"
+        >
+          取消
+        </button>
+        <button
+          type="button"
+          onClick={() => void handleConfirm()}
+          disabled={busy}
+          className="h-10 min-w-[6.5rem] rounded-lg bg-amber-500 px-4 text-sm font-medium text-white hover:bg-amber-600 disabled:opacity-50"
+        >
+          {confirmLabel}
+        </button>
       </div>
     </Overlay>
   );

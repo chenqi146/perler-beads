@@ -116,7 +116,6 @@ export function DashboardClient({ initialPatterns }: Props) {
         <div>
           <p className="eyebrow">MY PATTERNS</p>
           <h1>我的图纸</h1>
-          <p className="mt-1 text-sm text-[#8a6a4a] lg:hidden">选图纸编辑或开始拼豆</p>
         </div>
         <button
           type="button"

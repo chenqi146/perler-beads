@@ -51,19 +51,19 @@ export function PatternListQueryBar({
 
   return (
     <div className="pattern-list-query">
-      <label className="pattern-list-query-search">
-        <span className="sr-only">搜索图纸</span>
-        <input
-          type="search"
-          value={query}
-          onChange={(e) => onQueryChange(e.target.value)}
-          placeholder="搜索图纸名称或描述…"
-          autoComplete="off"
-          enterKeyHint="search"
-        />
-      </label>
+      <div className="pattern-list-query-row">
+        <label className="pattern-list-query-search">
+          <span className="sr-only">搜索图纸</span>
+          <input
+            type="search"
+            value={query}
+            onChange={(e) => onQueryChange(e.target.value)}
+            placeholder="搜索图纸…"
+            autoComplete="off"
+            enterKeyHint="search"
+          />
+        </label>
 
-      <div className="pattern-list-query-fields">
         <div className="pattern-list-query-field">
           <span>进度</span>
           <Select
@@ -91,12 +91,14 @@ export function PatternListQueryBar({
           </Select>
         </div>
 
-        {extraFields}
-
         <p className="pattern-list-query-count" aria-live="polite">
           {filtered ? `找到 ${resultCount} / ${totalCount} 张` : `共 ${totalCount} 张`}
         </p>
       </div>
+
+      {extraFields ? (
+        <div className="pattern-list-query-fields">{extraFields}</div>
+      ) : null}
     </div>
   );
 }

@@ -2,6 +2,7 @@
 
 import type { ReactNode } from 'react';
 import { cn } from '../ui/cn';
+import { SiteNavSheet } from './SiteNavSheet';
 
 type Side = 'left' | 'right';
 
@@ -25,29 +26,33 @@ export function WorkbenchRoot({
   );
 }
 
-/** 手机顶栏（返回 + 标题 + 角标），桌面隐藏 */
+/** 手机顶栏（菜单 + 返回 + 标题 + 弱化模式），桌面隐藏 */
 export function WorkbenchMobileHeader({
   title,
   badge,
   onBack,
   backAriaLabel = '返回',
+  showSiteMenu = true,
 }: {
   title: string;
   badge?: string;
   onBack: () => void;
   backAriaLabel?: string;
+  /** 工作台页会隐藏全局顶栏时，用菜单进站点导航 */
+  showSiteMenu?: boolean;
 }) {
   return (
-    <div className="mb-2 flex shrink-0 items-center gap-2 rounded-xl border border-[#eadfce] bg-[#fffaf3] px-3 py-2 lg:hidden">
+    <div className="mb-1.5 flex shrink-0 items-center gap-1 rounded-xl border border-[#eadfce] bg-[#fffaf3]/95 px-1.5 py-1 lg:hidden">
+      {showSiteMenu ? <SiteNavSheet /> : null}
       <button
         type="button"
         onClick={onBack}
-        className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-[#5c4030]"
+        className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[#5c4030]"
         aria-label={backAriaLabel}
       >
         <svg
           xmlns="http://www.w3.org/2000/svg"
-          className="h-5 w-5"
+          className="h-4 w-4"
           fill="none"
           viewBox="0 0 24 24"
           stroke="currentColor"
@@ -57,12 +62,14 @@ export function WorkbenchMobileHeader({
           <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
         </svg>
       </button>
-      <span className="min-w-0 flex-1 truncate text-sm font-semibold text-[#3a2416]">{title}</span>
-      {badge ? (
-        <span className="shrink-0 rounded-full bg-[#f3e6d4] px-2.5 py-1 text-[11px] font-medium text-[#8a6a4a]">
-          {badge}
-        </span>
-      ) : null}
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-[13px] font-semibold leading-tight text-[#3a2416]" title={title}>
+          {title}
+        </p>
+        {badge ? (
+          <p className="truncate text-[10px] leading-tight text-[#a08060]">{badge}</p>
+        ) : null}
+      </div>
     </div>
   );
 }
