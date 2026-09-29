@@ -59,14 +59,15 @@ export function Overlay({
       )}
       style={{
         zIndex: layerZ[layer],
-        // 用内边距收缩可用宽度；面板用 w-full，避免 96vw+padding 撑出横向滚动（iPhone 会感觉被放大）
-        paddingTop: placement === 'drawer' ? undefined : 'max(0.75rem, env(safe-area-inset-top))',
-        paddingBottom: placement === 'drawer' ? undefined : 'max(0.75rem, env(safe-area-inset-bottom))',
-        paddingLeft: placement === 'drawer' ? undefined : 'max(0.75rem, env(safe-area-inset-left))',
+        // center：内边距收缩可用宽；sheet/drawer 贴边，避免悬浮圆角卡片观感
+        paddingTop:
+          placement === 'center' ? 'max(0.75rem, env(safe-area-inset-top))' : undefined,
+        paddingBottom:
+          placement === 'center' ? 'max(0.75rem, env(safe-area-inset-bottom))' : undefined,
+        paddingLeft:
+          placement === 'center' ? 'max(0.75rem, env(safe-area-inset-left))' : undefined,
         paddingRight:
-          placement === 'drawer'
-            ? undefined
-            : 'max(0.75rem, env(safe-area-inset-right))',
+          placement === 'center' ? 'max(0.75rem, env(safe-area-inset-right))' : undefined,
         boxSizing: 'border-box',
       }}
     >
@@ -83,7 +84,8 @@ export function Overlay({
           'motion-safe:transition-transform motion-reduce:transition-none',
           placement === 'center' && 'max-h-[min(92dvh,920px)] w-full rounded-xl',
           placement === 'drawer' && 'h-full w-80 max-w-[90vw]',
-          placement === 'sheet' && 'max-h-[80vh] w-full rounded-t-2xl border-t border-[#eadfce]',
+          placement === 'sheet' &&
+            'max-h-[min(88dvh,720px)] w-full rounded-t-xl border-t border-[#eadfce]',
           panelClassName,
         )}
       >

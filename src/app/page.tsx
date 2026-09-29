@@ -58,6 +58,7 @@ import {
   EditorUploadPanel,
   EditorSettingsPanel,
   EditorColorStatsPanel,
+  EditorColorStrip,
   EditorZoomControls,
   EditorCanvasWorkspace,
 } from '../components/editor';
@@ -763,7 +764,7 @@ function Editor() {
                 <WorkbenchTips
                   className="hidden lg:block"
                   desktop="单击选/取消单格 · 拖拽框选 · Shift+点击同色连通块加选/再点取消（含对角）· D 擦除选中格 · 空格或空白处拖动画布 · Ctrl/⌘+Z 撤回"
-                  mobile="点格选中 · 拖动画布 · 双指缩放 · 底栏改色或调整"
+                  mobile="点格选中 · 或点底栏色号全选 · 再点改色"
                 />
               </div>
 
@@ -926,27 +927,60 @@ function Editor() {
                   )}
                 </EditorCanvasWorkspace>
 
-                <WorkbenchMobileFooter className="grid grid-cols-5 gap-1">
-                  <button type="button" disabled={editHistory.length === 0} onClick={handleUndoEdit} className="flex min-h-12 touch-manipulation flex-col items-center justify-center gap-0.5 rounded-xl text-[11px] font-medium text-[#5c4030] disabled:opacity-35" aria-label="撤销">
-                    <span className="text-base leading-none">↶</span>
-                    撤销
-                  </button>
-                  <button type="button" onClick={() => { setCanvasToolMode('select'); setCropRect(null); handleClearCellSelection(); }} className="flex min-h-12 touch-manipulation flex-col items-center justify-center gap-0.5 rounded-xl bg-[#f3e6d4] text-[11px] font-medium text-[#5c4030]" aria-label="选区">
-                    <span className="text-base leading-none">▧</span>
-                    选区
-                  </button>
-                  <button type="button" disabled={selectedCells.size === 0} onClick={handleOpenSelectionRecolor} className="flex min-h-12 touch-manipulation flex-col items-center justify-center gap-0.5 rounded-xl text-[11px] font-medium text-[#5c4030] disabled:opacity-35" aria-label="改色">
-                    <span className="text-base leading-none">◈</span>
-                    改色{selectedCells.size > 0 ? ` ${selectedCells.size}` : ''}
-                  </button>
-                  <button type="button" onClick={() => setMobileSettingsOpen(true)} className="flex min-h-12 touch-manipulation flex-col items-center justify-center gap-0.5 rounded-xl text-[11px] font-medium text-[#5c4030]" aria-label="调整">
-                    <span className="text-base leading-none">⚙</span>
-                    调整
-                  </button>
-                  <button type="button" onClick={() => setMobileMoreOpen(true)} className="flex min-h-12 touch-manipulation flex-col items-center justify-center gap-0.5 rounded-xl text-[11px] font-medium text-[#5c4030]" aria-label="更多">
-                    <span className="text-base leading-none">⋯</span>
-                    更多
-                  </button>
+                <WorkbenchMobileFooter className="flex flex-col gap-2">
+                  {mappedPixelData && colorCounts && Object.keys(colorCounts).length > 0 ? (
+                    <EditorColorStrip
+                      sortedColors={currentGridColors.map((c) => c.color.toUpperCase())}
+                      colorCounts={colorCounts}
+                      colorSystem={selectedColorSystem}
+                      highlightHex={highlightColorKey ?? null}
+                      onSelectColor={(hex) => handleSelectAllByColor(hex, { openRecolor: false })}
+                    />
+                  ) : null}
+                  <div className="grid grid-cols-5 gap-1">
+                    <button type="button" disabled={editHistory.length === 0} onClick={handleUndoEdit} className="flex min-h-12 touch-manipulation flex-col items-center justify-center gap-0.5 rounded-xl text-[11px] font-medium text-[#5c4030] disabled:opacity-35" aria-label="撤销">
+                      <span className="text-base leading-none">↶</span>
+                      撤销
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCanvasToolMode('select');
+                        setCropRect(null);
+                        if (selectedCells.size > 0) handleClearCellSelection();
+                      }}
+                      className="flex min-h-12 touch-manipulation flex-col items-center justify-center gap-0.5 rounded-xl bg-[#f3e6d4] text-[11px] font-medium text-[#5c4030]"
+                      aria-label={selectedCells.size > 0 ? '清除选区' : '选区'}
+                    >
+                      <span className="text-base leading-none">▧</span>
+                      {selectedCells.size > 0 ? `清除 ${selectedCells.size}` : '选区'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (selectedCells.size === 0) {
+                          showToast('先点选格子，或点上方色号全选');
+                          return;
+                        }
+                        handleOpenSelectionRecolor();
+                      }}
+                      className={`flex min-h-12 touch-manipulation flex-col items-center justify-center gap-0.5 rounded-xl text-[11px] font-medium text-[#5c4030] ${
+                        selectedCells.size === 0 ? 'opacity-45' : ''
+                      }`}
+                      aria-label="改色"
+                    >
+                      <span className="text-base leading-none">◈</span>
+                      改色{selectedCells.size > 0 ? ` ${selectedCells.size}` : ''}
+                    </button>
+                    <button type="button" onClick={() => setMobileSettingsOpen(true)} className="flex min-h-12 touch-manipulation flex-col items-center justify-center gap-0.5 rounded-xl text-[11px] font-medium text-[#5c4030]" aria-label="调整">
+                      <span className="text-base leading-none">⚙</span>
+                      调整
+                    </button>
+                    <button type="button" onClick={() => setMobileMoreOpen(true)} className="flex min-h-12 touch-manipulation flex-col items-center justify-center gap-0.5 rounded-xl text-[11px] font-medium text-[#5c4030]" aria-label="更多">
+                      <span className="text-base leading-none">⋯</span>
+                      更多
+                    </button>
+                  </div>
                 </WorkbenchMobileFooter>
 
                 </div>
@@ -959,7 +993,7 @@ function Editor() {
                       totalBeadCount={totalBeadCount}
                       selectedColorSystem={selectedColorSystem}
                       highlightColorKey={highlightColorKey}
-                      onSelectAllByColor={handleSelectAllByColor}
+                      onSelectAllByColor={(hex) => handleSelectAllByColor(hex, { openRecolor: true })}
                     />
                   </WorkbenchDesktopOnly>
                 )}

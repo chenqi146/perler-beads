@@ -109,8 +109,11 @@ export function useEditorCanvasTools({
     }
   }, [selectedCells.size, setShowSelectionRecolor]);
 
-  /** 点击右侧色号：选中图纸上该色号的全部格子 */
-  const handleSelectAllByColor = useCallback((hexKey: string) => {
+  /** 点击色号：选中图纸上该色号的全部格子；openRecolor 默认 false，需再点「改色」 */
+  const handleSelectAllByColor = useCallback((
+    hexKey: string,
+    options?: { openRecolor?: boolean },
+  ) => {
     if (!mappedPixelData || !gridDimensions) return;
     const target = hexKey.toUpperCase();
     const keys: string[] = [];
@@ -128,7 +131,7 @@ export function useEditorCanvasTools({
       return;
     }
     setSelectedCells(new Set(keys));
-    setShowSelectionRecolor(keys.length > 0);
+    setShowSelectionRecolor(Boolean(options?.openRecolor) && keys.length > 0);
     setCanvasToolMode('select');
     setCropRect(null);
     setHighlightColorKey(hexKey);

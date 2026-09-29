@@ -7,11 +7,11 @@ export type EditorColorStripProps = {
   colorCounts: Record<string, { count: number; color: string }> | null | undefined;
   colorSystem: ColorSystem;
   highlightHex: string | null;
-  /** 点击：高亮并按色全选 */
+  /** 点击：高亮并按色全选（不打开改色弹窗） */
   onSelectColor: (hex: string) => void;
 };
 
-/** 编辑页移动端底栏色带：点色号按色全选 */
+/** 编辑页移动端底栏色带：点色号按色全选，再点「改色」打开面板 */
 export function EditorColorStrip({
   sortedColors,
   colorCounts,
@@ -21,7 +21,7 @@ export function EditorColorStrip({
 }: EditorColorStripProps) {
   return (
     <div
-      className="flex gap-2 overflow-x-auto overscroll-x-contain px-1 py-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      className="flex gap-1.5 overflow-x-auto overscroll-x-contain [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       role="listbox"
       aria-label="按色选择"
     >
@@ -40,19 +40,21 @@ export function EditorColorStrip({
             aria-label={`选择全部 ${displayKey}（${count}）`}
             onClick={() => onSelectColor(hex)}
             className={[
-              'flex h-14 min-w-[3.25rem] shrink-0 touch-manipulation flex-col items-center justify-center gap-0.5 rounded-xl border px-2 transition-[background-color,border-color] duration-150',
-              active ? 'border-[#c47a2c] bg-[#fff4e6]' : 'border-[#eadfce] bg-white',
+              'inline-flex h-9 shrink-0 touch-manipulation items-center gap-1.5 rounded-lg border px-2 transition-[background-color,border-color] duration-150',
+              active
+                ? 'border-[#c47a2c] bg-[#fff4e6]'
+                : 'border-[#eadfce] bg-white active:bg-[#f8f1e6]',
             ].join(' ')}
           >
             <span
-              className="h-5 w-5 rounded-md border border-black/10"
+              className="h-4 w-4 shrink-0 rounded-[3px] border border-black/10"
               style={{ backgroundColor: color }}
               aria-hidden="true"
             />
-            <span className="max-w-[3rem] truncate font-mono text-[10px] leading-tight text-[#3a2416]">
+            <span className="font-mono text-[11px] font-semibold leading-none text-[#3a2416]">
               {displayKey}
             </span>
-            <span className="text-[9px] tabular-nums text-[#8a6a4a]">{count}</span>
+            <span className="text-[10px] tabular-nums leading-none text-[#a08060]">{count}</span>
           </button>
         );
       })}
