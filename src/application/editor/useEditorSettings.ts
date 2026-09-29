@@ -259,8 +259,7 @@ export function useEditorSettings({ showToast, beforeRegenerate }: UseEditorSett
   }, [commitSimilarity, similarityThresholdInput]);
 
   const handlePixelationModeChange = useCallback(
-    (event: ChangeEvent<HTMLSelectElement>) => {
-      const newMode = event.target.value as PixelationMode;
+    (newMode: PixelationMode) => {
       if (!Object.values(PixelationMode).includes(newMode)) {
         console.warn(`无效的像素化模式: ${newMode}`);
         return;

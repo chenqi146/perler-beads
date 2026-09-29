@@ -1,6 +1,14 @@
 import React, { useState } from 'react';
 import { ColorSwatch } from './ui/ColorSwatch';
 import { Overlay } from './ui/Overlay';
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 interface ColorInfo {
   color: string;
@@ -82,17 +90,25 @@ const ColorPanel: React.FC<ColorPanelProps> = ({
         {/* 排序选项 */}
         <div className="px-4 pb-3">
           <label htmlFor="color-panel-sort" className="sr-only">排序方式</label>
-          <select
-            id="color-panel-sort"
-            name="color-sort"
+          <Select
             value={sortBy}
-            onChange={(e) => setSortBy(e.target.value as 'progress' | 'name' | 'total')}
-            className="w-full rounded-lg border border-gray-300 bg-white p-2 text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+            onValueChange={(value) => setSortBy(value as 'progress' | 'name' | 'total')}
           >
-            <option value="progress">按进度排序</option>
-            <option value="name">按名称排序</option>
-            <option value="total">按数量排序</option>
-          </select>
+            <SelectTrigger
+              id="color-panel-sort"
+              className="h-10 w-full border-[#e0d0bc] bg-white text-gray-900"
+              aria-label="排序方式"
+            >
+              <SelectValue placeholder="排序方式" />
+            </SelectTrigger>
+            <SelectContent position="popper" align="start">
+              <SelectGroup>
+                <SelectItem value="progress">按进度排序</SelectItem>
+                <SelectItem value="name">按名称排序</SelectItem>
+                <SelectItem value="total">按数量排序</SelectItem>
+              </SelectGroup>
+            </SelectContent>
+          </Select>
         </div>
 
         {/* 颜色列表 */}

@@ -15,6 +15,14 @@ import {
 import { CloseIcon, IconButton } from './ui/IconButton';
 import { Overlay } from './ui/Overlay';
 import { Switch } from './ui/Switch';
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 export type { ImagePrepConfirmMeta, ImagePrepInitialSettings };
 
@@ -823,18 +831,27 @@ const ImagePrepModal: React.FC<ImagePrepModalProps> = ({
               <label className="mb-1.5 block text-xs font-medium text-gray-600 dark:text-gray-300">
                 色板品牌
               </label>
-              <select
+              <Select
                 disabled={busy}
                 value={selectedColorSystem}
-                onChange={(e) => setSelectedColorSystem(e.target.value as ColorSystem)}
-                className="h-9 w-full rounded-lg border border-[#e0d0bc] bg-white px-2 text-sm disabled:opacity-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
+                onValueChange={(value) => setSelectedColorSystem(value as ColorSystem)}
               >
-                {colorSystemOptions.map((option) => (
-                  <option key={option.key} value={option.key}>
-                    {option.name}
-                  </option>
-                ))}
-              </select>
+                <SelectTrigger
+                  className="h-9 w-full border-[#e0d0bc] bg-white px-2 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
+                  aria-label="色板品牌"
+                >
+                  <SelectValue placeholder="选择色板品牌" />
+                </SelectTrigger>
+                <SelectContent position="popper" align="start">
+                  <SelectGroup>
+                    {colorSystemOptions.map((option) => (
+                      <SelectItem key={option.key} value={option.key}>
+                        {option.name}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
             </div>
 
             <div>
@@ -861,16 +878,25 @@ const ImagePrepModal: React.FC<ImagePrepModalProps> = ({
               <label className="mb-1.5 block text-xs font-medium text-gray-600 dark:text-gray-300">
                 处理模式
               </label>
-              <select
+              <Select
                 disabled={busy}
                 value={pixelationMode}
-                onChange={(e) => setPixelationMode(e.target.value as PixelationMode)}
-                className="h-9 w-full rounded-lg border border-[#e0d0bc] bg-white px-2 text-sm disabled:opacity-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
+                onValueChange={(value) => setPixelationMode(value as PixelationMode)}
               >
-                <option value={PixelationMode.EdgeAware}>清晰 (保线稿)</option>
-                <option value={PixelationMode.Dominant}>卡通 (主色)</option>
-                <option value={PixelationMode.Average}>真实 (平均)</option>
-              </select>
+                <SelectTrigger
+                  className="h-9 w-full border-[#e0d0bc] bg-white px-2 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
+                  aria-label="处理模式"
+                >
+                  <SelectValue placeholder="选择处理模式" />
+                </SelectTrigger>
+                <SelectContent position="popper" align="start">
+                  <SelectGroup>
+                    <SelectItem value={PixelationMode.EdgeAware}>清晰 (保线稿)</SelectItem>
+                    <SelectItem value={PixelationMode.Dominant}>卡通 (主色)</SelectItem>
+                    <SelectItem value={PixelationMode.Average}>真实 (平均)</SelectItem>
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
             </div>
 
             <Switch

@@ -3,6 +3,14 @@
 import React, { useId } from 'react';
 import { Overlay } from './ui/Overlay';
 import type { Visibility } from '../types/platform';
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 type PatternSaveModalProps = {
   open: boolean;
@@ -95,16 +103,24 @@ export default function PatternSaveModal({
             <label htmlFor={visibilityId} className="block text-sm font-medium text-[#5c4030]">
               可见性
             </label>
-            <select
-              id={visibilityId}
-              name="patternVisibility"
+            <Select
               value={visibility}
-              onChange={(event) => onVisibilityChange(parseVisibility(event.target.value))}
-              className="h-11 w-full rounded-xl border border-[#e0d0bc] bg-white px-3 text-sm text-[#3a2416] transition-[border-color,box-shadow] duration-150 focus-visible:border-[#c47a2c] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e8b86a]"
+              onValueChange={(value) => onVisibilityChange(parseVisibility(value))}
             >
-              <option value="private">私有</option>
-              <option value="public">公开</option>
-            </select>
+              <SelectTrigger
+                id={visibilityId}
+                className="h-11 w-full rounded-xl border-[#e0d0bc] bg-white px-3 text-sm text-[#3a2416] transition-[border-color,box-shadow] duration-150 focus-visible:border-[#c47a2c] focus-visible:ring-2 focus-visible:ring-[#e8b86a]"
+                aria-label="可见性"
+              >
+                <SelectValue placeholder="选择可见性" />
+              </SelectTrigger>
+              <SelectContent position="popper" align="start">
+                <SelectGroup>
+                  <SelectItem value="private">私有</SelectItem>
+                  <SelectItem value="public">公开</SelectItem>
+                </SelectGroup>
+              </SelectContent>
+            </Select>
           </div>
         </div>
 

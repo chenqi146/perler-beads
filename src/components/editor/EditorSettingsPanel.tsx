@@ -14,6 +14,14 @@ import {
 import type { PaletteSelections } from '../../utils/localStorageUtils';
 import type { EditSnapshot } from '../../stores';
 import { Switch } from '../ui/Switch';
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 function clampInt(raw: string, min: number, max: number, fallback: number): number {
   const n = parseInt(raw, 10);
@@ -54,7 +62,7 @@ export type EditorSettingsPanelProps = {
   imageSaturation: number;
   onImageSaturationChange: (value: number) => void;
   pixelationMode: PixelationMode;
-  onPixelationModeChange: (event: ChangeEvent<HTMLSelectElement>) => void;
+  onPixelationModeChange: (mode: PixelationMode) => void;
   customPaletteSelections: PaletteSelections;
   onManagePalette: () => void;
   onAutoRemoveBackground: () => void;
@@ -223,17 +231,26 @@ export function EditorSettingsPanel({
       {/* 色板品牌 */}
       <div>
         <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1.5">色板品牌</label>
-        <select
+        <Select
           value={selectedColorSystem}
-          onChange={(e) => onSelectedColorSystemChange(e.target.value as ColorSystem)}
-          className="w-full h-10 rounded-lg border border-[#e0d0bc] dark:border-gray-600 bg-white dark:bg-gray-700 px-3 text-sm text-gray-900 dark:text-gray-100"
+          onValueChange={(value) => onSelectedColorSystemChange(value as ColorSystem)}
         >
-          {colorSystemOptions.map((option) => (
-            <option key={option.key} value={option.key}>
-              {option.name}
-            </option>
-          ))}
-        </select>
+          <SelectTrigger
+            className="h-10 w-full border-[#e0d0bc] bg-white px-3 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
+            aria-label="色板品牌"
+          >
+            <SelectValue placeholder="选择色板品牌" />
+          </SelectTrigger>
+          <SelectContent position="popper" align="start">
+            <SelectGroup>
+              {colorSystemOptions.map((option) => (
+                <SelectItem key={option.key} value={option.key}>
+                  {option.name}
+                </SelectItem>
+              ))}
+            </SelectGroup>
+          </SelectContent>
+        </Select>
       </div>
 
       {/* 精简拼豆种类 */}
@@ -370,15 +387,24 @@ export function EditorSettingsPanel({
           <div className="space-y-2">
             <div className="flex items-center gap-2">
               <label className="shrink-0 text-xs text-gray-500 w-14">处理模式</label>
-              <select
+              <Select
                 value={pixelationMode}
-                onChange={onPixelationModeChange}
-                className="min-w-0 flex-1 h-9 rounded-lg border border-[#e0d0bc] dark:border-gray-600 bg-white dark:bg-gray-700 px-2 text-xs"
+                onValueChange={(value) => onPixelationModeChange(value as PixelationMode)}
               >
-                <option value={PixelationMode.EdgeAware}>清晰 (保线稿)</option>
-                <option value={PixelationMode.Dominant}>卡通 (主色)</option>
-                <option value={PixelationMode.Average}>真实 (平均)</option>
-              </select>
+                <SelectTrigger
+                  className="h-9 min-w-0 flex-1 border-[#e0d0bc] bg-white px-2 text-xs dark:border-gray-600 dark:bg-gray-700"
+                  aria-label="处理模式"
+                >
+                  <SelectValue placeholder="选择处理模式" />
+                </SelectTrigger>
+                <SelectContent position="popper" align="start">
+                  <SelectGroup>
+                    <SelectItem value={PixelationMode.EdgeAware}>清晰 (保线稿)</SelectItem>
+                    <SelectItem value={PixelationMode.Dominant}>卡通 (主色)</SelectItem>
+                    <SelectItem value={PixelationMode.Average}>真实 (平均)</SelectItem>
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
             </div>
             <div className="flex gap-1.5">
               <button
