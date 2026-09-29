@@ -14,6 +14,7 @@ import {
   GRID_INTERVAL_OPTIONS,
 } from '../../../components/editor';
 import { Overlay } from '../../../components/ui/Overlay';
+import { useConfirm } from '../../../components/ui/confirm-dialog';
 import PixelatedPreviewCanvas, { cellKey } from '../../../components/PixelatedPreviewCanvas';
 
 import { getColorKeyByHex, type ColorSystem } from '../../../domain/palette';
@@ -107,6 +108,7 @@ function readStoredShowCellKeys(): boolean {
 function BeadPageContent() {
   const params = useParams<{ id: string }>();
   const patternId = params.id;
+  const confirm = useConfirm();
   const [pattern, setPattern] = useState<Pattern | null | undefined>(undefined);
   const [toast, setToast] = useState<string | null>(null);
   const [justCompleted, setJustCompleted] = useState<string | null>(null);
@@ -364,17 +366,17 @@ function BeadPageContent() {
   };
 
   const handleDeleteColor = useCallback(
-    (hex: string) => {
+    async (hex: string) => {
       if (!pattern || !mappedPixelData) return;
       const displayKey = getColorKeyByHex(hex, colorSystem);
       const count = colorCounts?.[hex]?.count ?? colorCounts?.[hex.toUpperCase()]?.count ?? 0;
-      if (
-        !window.confirm(
-          `确定删除色号 ${displayKey}？将擦除图纸上全部 ${count} 粒该颜色，此操作会写入图纸。`,
-        )
-      ) {
-        return;
-      }
+      const ok = await confirm({
+        title: `删除色号 ${displayKey}`,
+        description: `将擦除图纸上全部 ${count} 粒该颜色，此操作会写入图纸。`,
+        confirmLabel: '删除',
+        destructive: true,
+      });
+      if (!ok) return;
 
       const target = hex.toUpperCase();
       let replaceCount = 0;
@@ -432,6 +434,7 @@ function BeadPageContent() {
       setCells,
       highlightHex,
       setHighlightColorKey,
+      confirm,
     ],
   );
 

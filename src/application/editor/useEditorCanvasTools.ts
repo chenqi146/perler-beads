@@ -56,8 +56,8 @@ export function useEditorCanvasTools({
       }
       return next;
     });
-    // 选中格子后立即显示悬浮调色板
-    setShowSelectionRecolor(keys.length > 0 || mode !== 'set');
+    // 选区与改色分开：先选格，再由工具栏明确打开改色面板，避免手机误触。
+    setShowSelectionRecolor(false);
   }, [setSelectedCells, setShowSelectionRecolor]);
 
   const handleClearCellSelection = useCallback(() => {

@@ -49,7 +49,6 @@ import {
   EditorUploadPanel,
   EditorSettingsPanel,
   EditorColorStatsPanel,
-  EditorColorStrip,
   EditorZoomControls,
   EditorCanvasWorkspace,
 } from '../components/editor';
@@ -78,6 +77,7 @@ import {
 import { applyImagePrepConfirmToStore } from '../application/editor/imagePrepSync';
 
 function Editor() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const currentPatternId = searchParams.get('patternId') || undefined;
   const [patternName, setPatternName] = useState('未命名图纸');
@@ -85,6 +85,7 @@ function Editor() {
   const [patternVisibility, setPatternVisibility] = useState<'private' | 'public'>('private');
   const [isPatternInfoOpen, setIsPatternInfoOpen] = useState(false);
   const [mobileSettingsOpen, setMobileSettingsOpen] = useState(false);
+  const [mobileMoreOpen, setMobileMoreOpen] = useState(false);
   const [isPaletteOpen, setIsPaletteOpen] = useState(false);
   const [isNarrowScreen, setIsNarrowScreen] = useState(false);
   /** 成品预览：隐藏色号与网格线，看拼豆成品效果 */
@@ -261,6 +262,31 @@ function Editor() {
   }, []);
 
   const {
+    editHistory,
+    editRedo,
+    bgRemovalSnapshot,
+    saveEditSnapshot,
+    handleUndoEdit,
+    handleRedoEdit,
+    handleUndoBgRemoval,
+    clearEditHistory,
+    setBgRemovalSnapshot,
+  } = useEditorHistory({ suppressPixelateUntilRef, showToast });
+
+  const preserveHistoryOnRemapRef = useRef(false);
+  const clearHistoryForRemap = useCallback(() => {
+    if (preserveHistoryOnRemapRef.current) {
+      preserveHistoryOnRemapRef.current = false;
+      return;
+    }
+    clearEditHistory();
+  }, [clearEditHistory]);
+  const prepareHistoryForRegenerate = useCallback(() => {
+    preserveHistoryOnRemapRef.current = true;
+    saveEditSnapshot();
+  }, [saveEditSnapshot]);
+
+  const {
     keepAspectRatio,
     setKeepAspectRatio,
     granularity,
@@ -293,19 +319,7 @@ function Editor() {
     sizePending,
     scaleGridToInputs,
     regenerateFromOriginal,
-  } = useEditorSettings({ showToast });
-
-  const {
-    editHistory,
-    editRedo,
-    bgRemovalSnapshot,
-    saveEditSnapshot,
-    handleUndoEdit,
-    handleRedoEdit,
-    handleUndoBgRemoval,
-    clearEditHistory,
-    setBgRemovalSnapshot,
-  } = useEditorHistory({ suppressPixelateUntilRef, showToast });
+  } = useEditorSettings({ showToast, beforeRegenerate: prepareHistoryForRegenerate });
 
   const {
     isDownloadSettingsOpen,
@@ -335,7 +349,7 @@ function Editor() {
     draftPixelateLockRef,
     suppressPixelateUntilRef,
     showToast,
-    clearEditHistory,
+    clearEditHistory: clearHistoryForRemap,
   });
 
   const {
@@ -391,17 +405,6 @@ function Editor() {
       setCanvasOffset: ui.setCanvasOffset,
     });
   }, []);
-
-  const sortedEditorColors = useMemo(() => {
-    if (!colorCounts) return [];
-    return Object.keys(colorCounts)
-      .filter((hex) => (colorCounts[hex]?.count ?? 0) > 0)
-      .sort((a, b) => {
-        const ka = getColorKeyByHex(a, selectedColorSystem);
-        const kb = getColorKeyByHex(b, selectedColorSystem);
-        return ka.localeCompare(kb, 'zh');
-      });
-  }, [colorCounts, selectedColorSystem]);
 
   const {
     handleSelectCells,
@@ -539,6 +542,7 @@ function Editor() {
     handleUndoEdit,
     handleRedoEdit,
     showSelectionRecolor,
+    setShowSelectionRecolor,
     selectedCells.size,
     highlightColorKey,
     handleClearCellSelection,
@@ -608,8 +612,22 @@ function Editor() {
       }}
     />
 
-    {/* 编辑工作区：顶栏由全局 AppNav 提供 */}
+    {/* 编辑工作区：手机补充当前图纸上下文，桌面沿用全局顶栏 */}
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+      <div className="mb-2 flex shrink-0 items-center gap-2 rounded-xl border border-[#eadfce] bg-[#fffaf3] px-3 py-2 lg:hidden">
+        <button
+          type="button"
+          onClick={() => router.push('/dashboard')}
+          className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-[#5c4030]"
+          aria-label="返回我的图纸"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8} aria-hidden="true">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+          </svg>
+        </button>
+        <span className="min-w-0 flex-1 truncate text-sm font-semibold text-[#3a2416]">{patternName.trim() || '未命名图纸'}</span>
+        <span className="shrink-0 rounded-full bg-[#f3e6d4] px-2.5 py-1 text-[11px] font-medium text-[#8a6a4a]">编辑模式</span>
+      </div>
       <main ref={mainRef} className="relative flex h-full min-h-0 w-full flex-1 flex-col">
         <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 overflow-hidden lg:grid-cols-[280px_minmax(0,1fr)] xl:grid-cols-[300px_minmax(0,1fr)] lg:gap-3">
           {/* 左侧：桌面参数区（手机收入设置 sheet） */}
@@ -743,7 +761,7 @@ function Editor() {
                 <p className="hidden text-[11px] text-[#a08060] lg:block">
                   单击选/取消单格 · 拖拽框选 · Shift+点击同色连通块加选/再点取消（含对角）· D 擦除选中格 · 空格或空白处拖动画布 · Ctrl/⌘+Z 撤回
                 </p>
-                <p className="text-[11px] text-[#a08060] lg:hidden">点格选中 · 拖动画布 · 双指缩放 · 底栏按色全选</p>
+                <p className="text-[11px] text-[#a08060] lg:hidden">点格选中 · 拖动画布 · 双指缩放 · 底栏改色或调整</p>
               </div>
 
               <canvas ref={originalCanvasRef} className="hidden"></canvas>
@@ -906,75 +924,31 @@ function Editor() {
                 </EditorCanvasWorkspace>
 
                 <div
-                  className="flex shrink-0 items-stretch gap-2 rounded-2xl border border-[#eadfce] bg-[#fffaf3] p-2 shadow-[0_-4px_18px_rgba(90,52,24,0.04)] lg:hidden"
+                  className="grid shrink-0 grid-cols-5 gap-1 rounded-2xl border border-[#eadfce] bg-[#fffaf3] p-2 shadow-[0_-4px_18px_rgba(90,52,24,0.04)] lg:hidden"
                   style={{ paddingBottom: 'max(0.5rem, env(safe-area-inset-bottom))' }}
                 >
-                  <div className="min-w-0 flex-1">
-                    {sortedEditorColors.length > 0 ? (
-                      <EditorColorStrip
-                        sortedColors={sortedEditorColors}
-                        colorCounts={colorCounts}
-                        colorSystem={selectedColorSystem}
-                        highlightHex={highlightColorKey}
-                        onSelectColor={handleSelectAllByColor}
-                      />
-                    ) : !originalImageSrc && !stagedUploadSrc && !(mappedPixelData?.length && gridDimensions && gridDimensions.N > 0) ? (
-                      <button
-                        type="button"
-                        onClick={isMounted && !isRecognizingPattern ? triggerFileInput : undefined}
-                        disabled={isRecognizingPattern}
-                        className="flex h-12 w-full touch-manipulation items-center justify-center gap-2 rounded-xl bg-[#c47a2c] px-3 text-sm font-semibold text-white disabled:opacity-60"
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8} aria-hidden="true">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-                        </svg>
-                        {isRecognizingPattern
-                          ? '识别中…'
-                          : isImagePrepOpen
-                            ? '处理中…'
-                            : '上传图片'}
-                      </button>
-                    ) : stagedUploadSrc && !originalImageSrc ? (
-                      <button
-                        type="button"
-                        onClick={isMounted && !isRecognizingPattern && !isImagePrepOpen ? startUploadModeProcess : undefined}
-                        disabled={isRecognizingPattern || isImagePrepOpen}
-                        className="flex h-12 w-full touch-manipulation items-center justify-center gap-2 rounded-xl bg-[#c47a2c] px-3 text-sm font-semibold text-white disabled:opacity-60"
-                      >
-                        {isRecognizingPattern
-                          ? '识别中…'
-                          : isImagePrepOpen
-                            ? '处理中…'
-                            : '继续处理图片'}
-                      </button>
-                    ) : (
-                      <p className="flex h-14 items-center px-2 text-[11px] text-[#8a6a4a]">点格选中后可换色</p>
-                    )}
-                  </div>
-                  <div className="flex shrink-0 flex-col gap-1">
-                    {sortedEditorColors.length > 0 || originalImageSrc || (mappedPixelData?.length && gridDimensions && gridDimensions.N > 0) ? (
-                      <button
-                        type="button"
-                        disabled={selectedCells.size === 0}
-                        onClick={handleOpenSelectionRecolor}
-                        className="inline-flex h-11 min-w-[2.75rem] touch-manipulation items-center justify-center rounded-xl bg-[#c47a2c] px-2 text-xs font-semibold text-white disabled:bg-[#e0d0bc] disabled:text-[#8a6a4a]"
-                        aria-label="换色"
-                      >
-                        换色{selectedCells.size > 0 ? ` ${selectedCells.size}` : ''}
-                      </button>
-                    ) : null}
-                    <button
-                      type="button"
-                      onClick={() => setMobileSettingsOpen(true)}
-                      className="inline-flex h-11 w-11 touch-manipulation items-center justify-center rounded-xl border border-[#e0d0bc] bg-white text-[#5c4030]"
-                      aria-label="编辑设置"
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5" aria-hidden="true">
-                        <path fillRule="evenodd" d="M7.84 1.804A1 1 0 018.82 1h2.36a1 1 0 01.98.804l.331 1.652a6.993 6.993 0 011.929.943l1.598-.54a1 1 0 011.186.447l1.18 2.044a1 1 0 01-.205 1.251l-1.267 1.114a7.047 7.047 0 010 1.881l1.267 1.114a1 1 0 01.206 1.25l-1.18 2.045a1 1 0 01-1.187.447l-1.598-.54a6.993 6.993 0 01-1.929.943l-.33 1.652a1 1 0 01-.98.804H8.82a1 1 0 01-.98-.804l-.331-1.652a6.993 6.993 0 01-1.929-.943l-1.598.54a1 1 0 01-1.186-.447l-1.18-2.044a1 1 0 01.205-1.251l1.267-1.114a7.047 7.047 0 010-1.881L1.821 7.773a1 1 0 01-.206-1.25l1.18-2.045a1 1 0 011.187-.447l1.598.54a6.993 6.993 0 011.929-.943l.33-1.652zM10 13a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" />
-                      </svg>
-                    </button>
-                  </div>
+                  <button type="button" disabled={editHistory.length === 0} onClick={handleUndoEdit} className="flex min-h-12 touch-manipulation flex-col items-center justify-center gap-0.5 rounded-xl text-[11px] font-medium text-[#5c4030] disabled:opacity-35" aria-label="撤销">
+                    <span className="text-base leading-none">↶</span>
+                    撤销
+                  </button>
+                  <button type="button" onClick={() => { setCanvasToolMode('select'); setCropRect(null); handleClearCellSelection(); }} className="flex min-h-12 touch-manipulation flex-col items-center justify-center gap-0.5 rounded-xl bg-[#f3e6d4] text-[11px] font-medium text-[#5c4030]" aria-label="选区">
+                    <span className="text-base leading-none">▧</span>
+                    选区
+                  </button>
+                  <button type="button" disabled={selectedCells.size === 0} onClick={handleOpenSelectionRecolor} className="flex min-h-12 touch-manipulation flex-col items-center justify-center gap-0.5 rounded-xl text-[11px] font-medium text-[#5c4030] disabled:opacity-35" aria-label="改色">
+                    <span className="text-base leading-none">◈</span>
+                    改色{selectedCells.size > 0 ? ` ${selectedCells.size}` : ''}
+                  </button>
+                  <button type="button" onClick={() => setMobileSettingsOpen(true)} className="flex min-h-12 touch-manipulation flex-col items-center justify-center gap-0.5 rounded-xl text-[11px] font-medium text-[#5c4030]" aria-label="调整">
+                    <span className="text-base leading-none">⚙</span>
+                    调整
+                  </button>
+                  <button type="button" onClick={() => setMobileMoreOpen(true)} className="flex min-h-12 touch-manipulation flex-col items-center justify-center gap-0.5 rounded-xl text-[11px] font-medium text-[#5c4030]" aria-label="更多">
+                    <span className="text-base leading-none">⋯</span>
+                    更多
+                  </button>
                 </div>
+
                 </div>
 
                 {/* 颜色统计：点击选中该色号全部格子 */}
@@ -1092,6 +1066,30 @@ function Editor() {
               >
                 自动裁边
               </button>
+            </div>
+          </div>
+        </Overlay>
+      ) : null}
+
+      {mobileMoreOpen ? (
+        <Overlay
+          labelledBy="editor-mobile-more-title"
+          placement="sheet"
+          onClose={() => setMobileMoreOpen(false)}
+          panelClassName="max-h-[60vh]"
+        >
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+            <div className="flex shrink-0 items-center justify-between border-b border-[#eadfce] px-4 py-3">
+              <h2 id="editor-mobile-more-title" className="text-base font-semibold text-[#3a2416]">更多操作</h2>
+              <button type="button" onClick={() => setMobileMoreOpen(false)} className="inline-flex h-11 min-w-11 touch-manipulation items-center justify-center rounded-xl text-sm text-[#8a6a4a]">关闭</button>
+            </div>
+            <div className="grid grid-cols-2 gap-2 overflow-y-auto px-4 py-4">
+              <button type="button" onClick={() => { setMobileMoreOpen(false); triggerFileInput(); }} className="min-h-12 rounded-xl border border-[#e0d0bc] bg-white text-sm font-medium text-[#5c4030]">上传图片</button>
+              <button type="button" disabled={!mappedPixelData} onClick={() => { handleAutoCrop(); setMobileMoreOpen(false); }} className="min-h-12 rounded-xl border border-[#e0d0bc] bg-white text-sm font-medium text-[#5c4030] disabled:opacity-40">自动裁边</button>
+              <button type="button" disabled={!mappedPixelData} onClick={() => { setCanvasToolMode('crop'); setMobileMoreOpen(false); }} className="min-h-12 rounded-xl border border-[#e0d0bc] bg-white text-sm font-medium text-[#5c4030] disabled:opacity-40">矩形裁剪</button>
+              <button type="button" disabled={!mappedPixelData} onClick={() => { setMobileMoreOpen(false); setIsDownloadSettingsOpen(true); }} className="min-h-12 rounded-xl border border-[#e0d0bc] bg-white text-sm font-medium text-[#5c4030] disabled:opacity-40">导出图纸</button>
+              <button type="button" onClick={() => { setMobileMoreOpen(false); if (currentPatternId) handleSavePattern(); else setIsPatternInfoOpen(true); }} className="min-h-12 rounded-xl border border-[#e0d0bc] bg-white text-sm font-medium text-[#5c4030]">保存图纸</button>
+              <button type="button" onClick={() => { setMobileMoreOpen(false); handleStartBeading(); }} className="min-h-12 rounded-xl bg-[#c47a2c] text-sm font-semibold text-white">开始拼豆</button>
             </div>
           </div>
         </Overlay>

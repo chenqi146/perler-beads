@@ -89,6 +89,8 @@ const SelectionRecolorModal: React.FC<SelectionRecolorModalProps> = ({
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [activeCategory, setActiveCategory] = useState<string>('全部');
+  const [pendingColor, setPendingColor] = useState<ColorPick | null>(null);
+  const staged = variant === 'sheet';
 
   const filteredColors = useMemo(() => {
     if (!searchTerm.trim()) return allColors;
@@ -137,13 +139,18 @@ const SelectionRecolorModal: React.FC<SelectionRecolorModalProps> = ({
   const renderSwatch = (color: PaletteColor) => {
     const displayKey = getDisplayColorKey(color.hex, selectedColorSystem);
     const hex = color.hex.toUpperCase();
+    const isPending = pendingColor?.color.toUpperCase() === hex;
     return (
       <button
         key={hex}
         type="button"
         title={`${displayKey} · ${hex}`}
-        onClick={() => onPick({ key: hex, color: hex })}
-        className="aspect-square min-w-0 rounded-md border border-gray-300/80 dark:border-gray-600 hover:ring-2 hover:ring-amber-400 text-[10px] font-mono shadow-sm"
+        onClick={() => {
+          const next = { key: hex, color: hex };
+          if (staged) setPendingColor(next);
+          else onPick(next);
+        }}
+        className={`aspect-square min-w-0 rounded-md border text-[10px] font-mono shadow-sm hover:ring-2 hover:ring-amber-400 ${isPending ? 'border-[#c47a2c] ring-2 ring-[#e8b86a]' : 'border-gray-300/80 dark:border-gray-600'}`}
         style={{
           backgroundColor: hex,
           color: isLight(hex) ? '#111' : '#fff',
@@ -160,7 +167,7 @@ const SelectionRecolorModal: React.FC<SelectionRecolorModalProps> = ({
           <div>
             <h3 id="selection-recolor-title" className="text-sm font-semibold text-[#3a2416]">统一改色</h3>
             <p className="mt-0.5 text-[11px] text-[#8a6a4a]">
-              已选 {selectedCount} 格 · 点色号立即应用
+              已选 {selectedCount} 格 · {staged ? '先选颜色，再点击应用' : '点色号立即应用'}
             </p>
           </div>
           <IconButton
@@ -232,8 +239,12 @@ const SelectionRecolorModal: React.FC<SelectionRecolorModalProps> = ({
                       key={`used-${hex}`}
                       type="button"
                       title={`统一改为 ${c.key}`}
-                      onClick={() => onPick({ key: hex, color: hex })}
-                      className="aspect-square min-h-11 min-w-0 touch-manipulation rounded-md border border-blue-300 dark:border-blue-500 hover:ring-2 hover:ring-blue-400 text-[10px] font-mono shadow-sm lg:min-h-0"
+                      onClick={() => {
+                        const next = { key: hex, color: hex };
+                        if (staged) setPendingColor(next);
+                        else onPick(next);
+                      }}
+                      className={`aspect-square min-h-11 min-w-0 touch-manipulation rounded-md border text-[10px] font-mono shadow-sm hover:ring-2 hover:ring-blue-400 lg:min-h-0 ${pendingColor?.color.toUpperCase() === hex ? 'border-[#c47a2c] ring-2 ring-[#e8b86a]' : 'border-blue-300 dark:border-blue-500'}`}
                       style={{
                         backgroundColor: hex,
                         color: isLight(hex) ? '#111' : '#fff',
@@ -267,18 +278,34 @@ const SelectionRecolorModal: React.FC<SelectionRecolorModalProps> = ({
           <button
             type="button"
             title="擦除为透明"
-            onClick={() => onPick({ key: TRANSPARENT_KEY, color: '#FFFFFF' })}
-            className="h-11 px-3 rounded-lg border border-dashed border-red-300 text-xs text-red-600 bg-white dark:bg-gray-900 hover:bg-red-50 touch-manipulation lg:h-9"
+            onClick={() => {
+              const next = { key: TRANSPARENT_KEY, color: '#FFFFFF' };
+              if (staged) setPendingColor(next);
+              else onPick(next);
+            }}
+            className={`h-11 px-3 rounded-lg border border-dashed border-red-300 text-xs text-red-600 bg-white dark:bg-gray-900 hover:bg-red-50 touch-manipulation lg:h-9 ${pendingColor?.key === TRANSPARENT_KEY ? 'ring-2 ring-red-200' : ''}`}
           >
             擦除选中格
           </button>
-          <button
-            type="button"
-            onClick={onClose}
-            className="h-11 px-4 rounded-lg border border-gray-300 dark:border-gray-600 text-sm text-gray-600 dark:text-gray-300 touch-manipulation lg:h-9"
-          >
-            取消
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="h-11 px-4 rounded-lg border border-gray-300 dark:border-gray-600 text-sm text-gray-600 dark:text-gray-300 touch-manipulation lg:h-9"
+            >
+              取消
+            </button>
+            {staged ? (
+              <button
+                type="button"
+                disabled={!pendingColor}
+                onClick={() => pendingColor && onPick(pendingColor)}
+                className="h-11 px-4 rounded-lg bg-[#c47a2c] text-sm font-semibold text-white touch-manipulation disabled:cursor-not-allowed disabled:opacity-45 lg:h-9"
+              >
+                应用{pendingColor ? `到 ${selectedCount} 格` : ''}
+              </button>
+            ) : null}
+          </div>
         </div>
     </>
   );

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, type ChangeEvent } from 'react';
 import { PixelationMode, recountColors, scalePixelGrid } from '../../domain/pixelation';
 import type { CreativePresetId } from '../../domain/pixelation';
+import { useConfirm } from '@/components/ui/confirm-dialog';
 import { useEditorStore } from './editorStore';
 import {
   rescaleRecognizedPattern,
@@ -12,6 +13,7 @@ import { useEditorGenerationParams } from './editorSelectors';
 
 type UseEditorSettingsOptions = {
   showToast: (msg: string) => void;
+  beforeRegenerate?: () => void;
 };
 
 const clampGridSize = (value: number) => Math.max(10, Math.min(300, value));
@@ -19,7 +21,8 @@ const clampSimilarity = (value: number) => Math.max(0, Math.min(100, value));
 const COMMIT_DEBOUNCE_MS = 320;
 
 /** 参数面板：未手改时改动即生成；已手改时仅改参数，需缩放或重新生成 */
-export function useEditorSettings({ showToast }: UseEditorSettingsOptions) {
+export function useEditorSettings({ showToast, beforeRegenerate }: UseEditorSettingsOptions) {
+  const confirm = useConfirm();
   const {
     granularity,
     setGranularity,
@@ -369,14 +372,20 @@ export function useEditorSettings({ showToast }: UseEditorSettingsOptions) {
     setSelectedColor,
   ]);
 
-  const regenerateFromOriginal = useCallback(() => {
+  const regenerateFromOriginal = useCallback(async () => {
     flushGridWidth();
     flushGridHeight();
     flushSimilarity();
     if (useEditorStore.getState().gridManuallyEdited) {
-      const ok = window.confirm('从原图重新生成会丢弃当前手改（换色、裁剪等），确定继续？');
+      const ok = await confirm({
+        title: '从原图重新生成',
+        description: '重新生成会覆盖当前手动修改；当前版本会保留在撤销记录中。确定继续？',
+        confirmLabel: '重新生成',
+        destructive: true,
+      });
       if (!ok) return;
     }
+    beforeRegenerate?.();
     clearGridManuallyEdited();
     setRemapTrigger((prev) => prev + 1);
     setSelectedColor(null);
@@ -389,6 +398,8 @@ export function useEditorSettings({ showToast }: UseEditorSettingsOptions) {
     setRemapTrigger,
     setSelectedColor,
     showToast,
+    beforeRegenerate,
+    confirm,
   ]);
 
   const sizePending =

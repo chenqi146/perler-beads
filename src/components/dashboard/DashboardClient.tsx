@@ -9,6 +9,7 @@ import {
   summarizeBeadProgress,
 } from '@/stores';
 import { useToast } from '@/components/ui/ToastProvider';
+import { useConfirm } from '@/components/ui/confirm-dialog';
 import type { Pattern } from '@/types/platform';
 import { PatternCard } from '@/components/patterns/PatternCard';
 import {
@@ -24,6 +25,7 @@ type Props = {
 export function DashboardClient({ initialPatterns }: Props) {
   const router = useRouter();
   const toast = useToast();
+  const confirm = useConfirm();
   const storePatterns = usePatternStore((s) => s.patterns);
   const refreshPatterns = usePatternStore((s) => s.refreshPatterns);
   const savePattern = usePatternStore((s) => s.savePattern);
@@ -182,16 +184,21 @@ export function DashboardClient({ initialPatterns }: Props) {
                     <button type="button" onClick={() => toggleVisibility(pattern)}>
                       {pattern.visibility === 'public' ? '取消公开' : '设为公开'}
                     </button>
-                    <span aria-hidden="true">·</span>
                     <button
                       type="button"
                       className="danger"
                       onClick={() => {
-                        if (!window.confirm(`确定删除「${pattern.name}」吗？删除后无法恢复。`)) {
-                          return;
-                        }
-                        deletePattern(pattern.id);
-                        toast('已删除');
+                        void (async () => {
+                          const ok = await confirm({
+                            title: '删除图纸',
+                            description: `确定删除「${pattern.name}」吗？删除后无法恢复。`,
+                            confirmLabel: '删除',
+                            destructive: true,
+                          });
+                          if (!ok) return;
+                          deletePattern(pattern.id);
+                          toast('已删除');
+                        })();
                       }}
                     >
                       删除

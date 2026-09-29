@@ -10,6 +10,7 @@ import {
 import { useBeadProgressStore } from '@/application/bead/beadProgressStore';
 import type { MappedPixel } from '@/domain/pixelation';
 import { useToast } from '@/components/ui/ToastProvider';
+import { useConfirm } from '@/components/ui/confirm-dialog';
 import { pushCraftStatusForPattern } from '@/utils/craftSessionSync';
 
 const STATUS_OPTIONS: {
@@ -66,6 +67,7 @@ export function PatternBeadProgress({
   patternSnapshot,
 }: Props) {
   const toast = useToast();
+  const confirm = useConfirm();
   const setCraftStatus = useBeadProgressStore((s) => s.setCraftStatus);
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuUp, setMenuUp] = useState(false);
@@ -126,19 +128,22 @@ export function PatternBeadProgress({
     }
 
     if (next === 'not_started' && summary.done > 0) {
-      if (!window.confirm('将清空这张图纸的已拼进度，确定设为「还未开始拼」？')) {
-        return;
-      }
+      const ok = await confirm({
+        title: '清空拼豆进度',
+        description: '将清空这张图纸的已拼进度，确定设为「还未开始拼」？',
+        confirmLabel: '清空进度',
+        destructive: true,
+      });
+      if (!ok) return;
     }
 
     if (next === 'completed' && summary.remaining > 0) {
-      if (
-        !window.confirm(
-          `将把剩余 ${summary.remaining} 粒标记为已拼完，确定设为「已全部拼完」？`,
-        )
-      ) {
-        return;
-      }
+      const ok = await confirm({
+        title: '标记全部完成',
+        description: `将把剩余 ${summary.remaining} 粒标记为已拼完，确定设为「已全部拼完」？`,
+        confirmLabel: '全部完成',
+      });
+      if (!ok) return;
     }
 
     setSaving(true);
