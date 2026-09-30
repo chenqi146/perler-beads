@@ -236,7 +236,7 @@ export function UserMenu() {
                   className="block w-full px-3 py-2 text-left text-xs font-medium text-[#3a2416] transition-[background-color] duration-150 hover:bg-[#f3e6d4] focus-visible:outline-none focus-visible:bg-[#f3e6d4]"
                   onClick={() => setOpen(false)}
                 >
-                  用户管理
+                  后台管理
                 </Link>
               ) : null}
               <button

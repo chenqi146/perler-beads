@@ -15,6 +15,7 @@ import {
   PatternListQueryBar,
   type PatternProgressFilter,
 } from '@/components/patterns/PatternListQueryBar';
+import { EmptyState } from '@/components/ui/EmptyState';
 import { useToast } from '@/components/ui/ToastProvider';
 
 type Props = {
@@ -89,9 +90,31 @@ export function ExploreClient({ initialPatterns, initialWorks, cloudAvailable }:
 
       <section className="pattern-grid">
         {patterns.length === 0 ? (
-          <p className="empty-state">还没有公开图纸。</p>
+          <EmptyState
+            motif="community"
+            kicker="公开"
+            title="还没有公开图纸"
+            description={
+              <>
+                有人把图纸设为公开后，会显示在这里。
+                <br />
+                你也可以先去「我的图纸」做一张。
+              </>
+            }
+            action={
+              <Link href="/dashboard" className="primary-button">
+                去我的图纸
+              </Link>
+            }
+          />
         ) : filteredPatterns.length === 0 ? (
-          <p className="empty-state">没有符合条件的公开图纸，试试其他关键词或进度筛选。</p>
+          <EmptyState
+            motif="search"
+            size="compact"
+            kicker="筛选"
+            title="没有符合条件的公开图纸"
+            description="换个关键词，或把进度筛选调回「全部」。"
+          />
         ) : (
           filteredPatterns.map((pattern) => {
             const summary = progressById[pattern.id];

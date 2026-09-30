@@ -10,7 +10,7 @@ import { getPatternById } from '@/lib/patternQueries';
 export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = {
-  title: '查看图纸',
+  title: '打开图纸',
 };
 
 type Props = { params: Promise<{ id: string }> };

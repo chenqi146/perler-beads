@@ -22,6 +22,15 @@ export async function requireSession(nextPath: string): Promise<string> {
   return userId;
 }
 
+/** 豆仓等功能：必须正式账号（拒绝未登录与匿名游客） */
+export async function requireRegisteredUser(nextPath: string): Promise<SessionUser> {
+  const user = await getCurrentUser();
+  if (!user || user.isAnonymous) {
+    redirect(`/auth/login?next=${encodeURIComponent(nextPath)}`);
+  }
+  return user;
+}
+
 export async function getCurrentUser(): Promise<SessionUser | null> {
   const userId = await getSessionUserId();
   if (!userId) return null;

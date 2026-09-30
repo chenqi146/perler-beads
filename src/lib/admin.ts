@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
-import { getDB } from './d1';
+import { getDB, getRuntimeSecret } from './d1';
 import { getCurrentUser, type SessionUser } from './auth';
 import { hashPassword, verifyPassword } from './password';
 import { getAdminEmail, isAdminEmail } from './adminConfig';
@@ -12,13 +12,18 @@ export function isAdminUser(user: Pick<SessionUser, 'email' | 'isAnonymous'> | n
 }
 
 /**
- * 若配置了 ADMIN_PASSWORD：
+ * 若配置了 ADMIN_PASSWORD（process.env 或 Cloudflare/.dev.vars 绑定）：
  * - 管理员不存在则自动创建
- * - 已存在但密码与环境变量不一致则同步更新（环境变量为固定 admin 的密码源）
+ * - 已存在但密码与配置不一致则同步更新（环境变量为 admin 密码源）
  */
 export async function ensureAdminUser(): Promise<void> {
-  const email = getAdminEmail();
-  const password = process.env.ADMIN_PASSWORD?.trim();
+  const email = (
+    (await getRuntimeSecret('ADMIN_EMAIL')) ||
+    getAdminEmail()
+  )
+    .trim()
+    .toLowerCase();
+  const password = await getRuntimeSecret('ADMIN_PASSWORD');
   if (!email || !password) return;
 
   const db = await getDB();

@@ -604,8 +604,9 @@ const ImagePrepModal: React.FC<ImagePrepModalProps> = ({
       </div>
 
       <div className="shrink-0 px-4 pt-3 pb-2">
+        {/* 手机全宽分段；桌面按内容收缩，避免在宽弹窗里被拉成两条长条 */}
         <div
-          className="grid grid-cols-2 gap-1 rounded-lg bg-[#f6efe4] p-1 dark:bg-gray-800"
+          className="grid w-full max-w-[280px] grid-cols-2 gap-1 rounded-lg bg-[#f6efe4] p-1 dark:bg-gray-800"
           role="group"
           aria-label="处理模式"
         >
@@ -613,7 +614,7 @@ const ImagePrepModal: React.FC<ImagePrepModalProps> = ({
             type="button"
             disabled={busy}
             onClick={() => handleModeChange('generate')}
-            className={`rounded-md px-2 py-1.5 text-xs font-medium transition-colors disabled:opacity-50 ${
+            className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-50 ${
               uploadMode === 'generate'
                 ? 'bg-white text-[#3a2416] shadow-sm dark:bg-gray-700 dark:text-gray-100'
                 : 'text-[#8a6a4a] hover:text-[#3a2416] dark:text-gray-400 dark:hover:text-gray-200'
@@ -625,7 +626,7 @@ const ImagePrepModal: React.FC<ImagePrepModalProps> = ({
             type="button"
             disabled={busy}
             onClick={() => handleModeChange('recognize')}
-            className={`rounded-md px-2 py-1.5 text-xs font-medium transition-colors disabled:opacity-50 ${
+            className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-50 ${
               uploadMode === 'recognize'
                 ? 'bg-white text-[#3a2416] shadow-sm dark:bg-gray-700 dark:text-gray-100'
                 : 'text-[#8a6a4a] hover:text-[#3a2416] dark:text-gray-400 dark:hover:text-gray-200'

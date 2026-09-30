@@ -10,6 +10,7 @@ import {
   beadCraftCtaLabel,
 } from '../../../stores';
 import type { Pattern } from '../../../types/platform';
+import { EmptyState } from '../../../components/ui/EmptyState';
 import { PatternBeadProgress } from '../../../components/patterns/PatternBeadProgress';
 import { PatternPreviewImage } from '../../../components/patterns/PatternPreviewImage';
 
@@ -41,7 +42,17 @@ export default function PatternDetail() {
   if (!pattern || !summary) {
     return (
       <main className="platform-page">
-        <p className="empty-state">图纸不存在。</p>
+        <EmptyState
+          motif="quiet"
+          kicker="图纸"
+          title="图纸不存在"
+          description="可能已被删除，或链接已经失效。"
+          action={
+            <Link href="/explore" className="primary-button">
+              回公开浏览
+            </Link>
+          }
+        />
       </main>
     );
   }

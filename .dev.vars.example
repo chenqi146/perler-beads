@@ -3,5 +3,6 @@ SESSION_SECRET=dev-change-me-to-a-long-random-string
 
 # 固定管理员账号（登录「账号」字段，对应 users.email）
 ADMIN_EMAIL=admin
-# 强密码；会自动创建/同步管理员账号（勿提交真实密码）
-ADMIN_PASSWORD=replace-with-a-strong-password
+# 强密码：含 # 等特殊字符时必须加双引号，否则会被当成注释截断
+# 会自动创建/同步管理员账号（勿提交真实密码）
+ADMIN_PASSWORD="replace-with-a-strong-password"

@@ -4,31 +4,9 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useContext } from 'react';
 import { NavSubtitleStateContext } from './navSubtitleContext';
+import { APP_NAV_LINKS } from './navLinks';
 import { SiteNavSheet } from './SiteNavSheet';
 import { UserMenu } from './UserMenu';
-
-const NAV_LINKS = [
-  {
-    href: '/dashboard',
-    label: '我的图纸',
-    match: (path: string) =>
-      path.startsWith('/dashboard') ||
-      path.startsWith('/patterns') ||
-      path === '/' ||
-      path.startsWith('/editor') ||
-      path.startsWith('/bead'),
-  },
-  {
-    href: '/explore',
-    label: '公开浏览',
-    match: (path: string) => path.startsWith('/explore') || path.startsWith('/pattern/'),
-  },
-  {
-    href: '/works',
-    label: '我的作品',
-    match: (path: string) => path.startsWith('/works') || path.startsWith('/work/'),
-  },
-] as const;
 
 function linkClass(active: boolean) {
   return [
@@ -66,7 +44,7 @@ export function AppNavBar() {
 
       <div className="relative z-20 hidden items-center gap-1.5 rounded-2xl border border-[#eadfce] bg-[#fffaf3] px-2 py-1 shadow-[0_1px_0_rgba(90,52,24,0.04)] lg:flex">
         <nav className="flex items-center gap-1" aria-label="主导航">
-          {NAV_LINKS.map((item) => (
+          {APP_NAV_LINKS.map((item) => (
             <Link key={item.href} href={item.href} className={linkClass(item.match(pathname))}>
               {item.label}
             </Link>

@@ -11,8 +11,9 @@ import {
 } from '@/utils/platformStore';
 import type { Work } from '@/types/platform';
 import { apiFetch } from '@/utils/apiClient';
-import { useToast } from '@/components/ui/ToastProvider';
+import { EmptyState } from '@/components/ui/EmptyState';
 import { Overlay } from '@/components/ui/Overlay';
+import { useToast } from '@/components/ui/ToastProvider';
 
 type Props = {
   initialWorks: Work[];
@@ -321,7 +322,23 @@ export function WorksClient({ initialWorks, cloudAvailable }: Props) {
             </Link>
           ))
         ) : (
-          <p className="empty-state">还没有作品，点击右上角「上传作品」。</p>
+          <EmptyState
+            motif="gallery"
+            kicker="作品"
+            title="还没有作品"
+            description={
+              <>
+                拼完一张后，把成品照片留在这里。
+                <br />
+                也可以先上传一张现成的。
+              </>
+            }
+            action={
+              <button type="button" className="primary-button" onClick={() => setOpen(true)}>
+                上传作品
+              </button>
+            }
+          />
         )}
       </section>
     </main>

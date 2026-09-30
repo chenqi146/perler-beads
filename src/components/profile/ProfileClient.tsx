@@ -6,7 +6,7 @@ import { usePatternStore } from '@/stores';
 import { listWorks } from '@/utils/platformStore';
 import { applyAuthSuccess } from '@/utils/authClient';
 import { useToast } from '@/components/ui/ToastProvider';
-import { updateProfileAction } from '@/app/actions/profile';
+import { changePasswordAction, updateProfileAction } from '@/app/actions/profile';
 import type { SessionUser } from '@/lib/auth';
 
 type Props = {
@@ -27,6 +27,10 @@ export function ProfileClient({
   const [name, setName] = useState(initialUser.name || '');
   const [worksCount, setWorksCount] = useState(initialWorksCount);
   const [saving, setSaving] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [changingPassword, setChangingPassword] = useState(false);
 
   useEffect(() => {
     refreshPatterns();
@@ -60,6 +64,30 @@ export function ProfileClient({
       toast('网络异常');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const savePassword = async (event: FormEvent) => {
+    event.preventDefault();
+    setChangingPassword(true);
+    try {
+      const result = await changePasswordAction({
+        currentPassword,
+        newPassword,
+        confirmPassword,
+      });
+      if (!result.ok) {
+        toast(result.error || '修改失败');
+        return;
+      }
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+      toast(result.message || '密码已更新');
+    } catch {
+      toast('网络异常');
+    } finally {
+      setChangingPassword(false);
     }
   };
 
@@ -112,6 +140,53 @@ export function ProfileClient({
           </button>
         </form>
 
+        {!isAnonymous ? (
+          <form
+            className="mt-8 space-y-3 border-t border-[#eadfce] pt-6"
+            onSubmit={savePassword}
+          >
+            <h2 className="text-sm font-semibold text-[#3a2416]">修改密码</h2>
+            <label className="block text-sm font-medium text-[#5c4030]">
+              当前密码
+              <input
+                type="password"
+                autoComplete="current-password"
+                className="mt-2 h-11 w-full rounded-xl border border-[#e0d0bc] bg-white px-3"
+                value={currentPassword}
+                onChange={(e) => setCurrentPassword(e.target.value)}
+                required
+              />
+            </label>
+            <label className="block text-sm font-medium text-[#5c4030]">
+              新密码
+              <input
+                type="password"
+                autoComplete="new-password"
+                className="mt-2 h-11 w-full rounded-xl border border-[#e0d0bc] bg-white px-3"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                minLength={6}
+                required
+              />
+            </label>
+            <label className="block text-sm font-medium text-[#5c4030]">
+              确认新密码
+              <input
+                type="password"
+                autoComplete="new-password"
+                className="mt-2 h-11 w-full rounded-xl border border-[#e0d0bc] bg-white px-3"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                minLength={6}
+                required
+              />
+            </label>
+            <button type="submit" className="primary-button" disabled={changingPassword}>
+              {changingPassword ? '提交中…' : '更新密码'}
+            </button>
+          </form>
+        ) : null}
+
         {isAnonymous ? (
           <Link
             href="/auth/login?next=/profile"
@@ -124,7 +199,7 @@ export function ProfileClient({
             href="/admin"
             className="mt-4 inline-flex text-sm font-medium text-[#c47a2c] underline-offset-2 hover:underline"
           >
-            进入用户管理（管理员）
+            进入后台管理
           </Link>
         ) : null}
       </section>

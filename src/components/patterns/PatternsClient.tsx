@@ -8,6 +8,7 @@ import {
   summarizeBeadProgress,
 } from '@/stores';
 import type { Pattern } from '@/types/platform';
+import { EmptyState } from '@/components/ui/EmptyState';
 import { PatternCard } from './PatternCard';
 import {
   PatternListQueryBar,
@@ -86,9 +87,31 @@ export function PatternsClient({ initialPatterns }: Props) {
 
       <section className="pattern-grid">
         {patterns.length === 0 ? (
-          <p className="empty-state">还没有图纸，先创建一张吧。</p>
+          <EmptyState
+            motif="board"
+            kicker="空板"
+            title="这张板还空着"
+            description={
+              <>
+                新建一张图纸，上传图片。
+                <br />
+                格子、色号和用量会落到这些孔上。
+              </>
+            }
+            action={
+              <Link href="/dashboard" className="primary-button">
+                新建图纸
+              </Link>
+            }
+          />
         ) : filteredPatterns.length === 0 ? (
-          <p className="empty-state">没有符合条件的图纸，试试其他关键词或进度筛选。</p>
+          <EmptyState
+            motif="search"
+            size="compact"
+            kicker="筛选"
+            title="没有符合条件的图纸"
+            description="换个关键词，或把进度筛选调回「全部」。"
+          />
         ) : (
           filteredPatterns.map((pattern, index) => (
             <PatternCard

@@ -22,6 +22,7 @@ import {
   GRID_INTERVAL_OPTIONS,
 } from '../../../components/editor';
 import { Overlay } from '../../../components/ui/Overlay';
+import { EmptyState } from '../../../components/ui/EmptyState';
 import { PageLoading } from '../../../components/ui/PageLoading';
 import { useConfirm } from '../../../components/ui/confirm-dialog';
 import PixelatedPreviewCanvas, { cellKey } from '../../../components/PixelatedPreviewCanvas';
@@ -35,10 +36,17 @@ import type { Pattern } from '../../../types/platform';
 import { useBeadProgressStore } from '../../../application/bead/beadProgressStore';
 import {
   craftStatusToPhase,
+  getLocalCraftSessionId,
   loadCraftSessionForPattern,
   phaseToCraftStatus,
   pushCraftSession,
 } from '../../../utils/craftSessionSync';
+import { buildOutboundLinesFromGrid } from '../../../domain/inventory';
+import {
+  InventoryApiError,
+  submitOutbound,
+} from '../../../application/inventory/inventoryClient';
+import { offerInventoryUndo } from '../../../application/inventory/inventoryUndo';
 import {
   useCanvasViewport,
   applyZoomAtPoint,
@@ -128,6 +136,7 @@ function BeadPageContent() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [photoOpen, setPhotoOpen] = useState(false);
   const [immersive, setImmersive] = useState(false);
+  const [inventoryBusy, setInventoryBusy] = useState(false);
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const viewportRef = useRef<HTMLDivElement | null>(null);
@@ -291,6 +300,42 @@ function BeadPageContent() {
 
   const doneCount = sortedColors.filter((hex) => completedSet.has(hex.toUpperCase())).length;
   const allDone = sortedColors.length > 0 && doneCount === sortedColors.length;
+
+  const deductFromInventory = useCallback(async () => {
+    if (!mappedPixelData || !pattern) return;
+    const lines = buildOutboundLinesFromGrid(mappedPixelData);
+    if (!lines.length) {
+      setToast('没有可扣减的像素');
+      return;
+    }
+    setInventoryBusy(true);
+    try {
+      const craftSessionId = getLocalCraftSessionId(patternId);
+      const result = await submitOutbound({
+        reason: 'craft',
+        craftSessionId,
+        note: `作品《${pattern.name}》完成扣减`,
+        lines,
+      });
+      const total = lines.reduce((s, l) => s + l.quantity, 0);
+      offerInventoryUndo({
+        kind: 'outbound',
+        id: result.outboundId,
+        summary: result.idempotent
+          ? '该制作会话已扣过库存'
+          : `已从豆仓扣减 ${total.toLocaleString()} 粒`,
+      });
+      setToast(result.idempotent ? '该会话已扣过库存' : '已从豆仓扣减');
+    } catch (err) {
+      if (err instanceof InventoryApiError && err.status === 409) {
+        setToast(err.message || '库存不足，请先入库');
+      } else {
+        setToast(err instanceof Error ? err.message : '扣减失败');
+      }
+    } finally {
+      setInventoryBusy(false);
+    }
+  }, [mappedPixelData, pattern, patternId]);
 
   useAppNavSubtitle(pattern ? `拼豆 · ${pattern.name}` : '拼豆制作');
   useImmersiveChrome(immersive);
@@ -576,10 +621,17 @@ function BeadPageContent() {
   if (!pattern || !mappedPixelData || !gridDimensions || gridDimensions.N <= 0) {
     return (
       <main className="platform-page">
-        <p className="empty-state">图纸不存在或尚未生成像素数据。</p>
-        <Link href="/dashboard" className="primary-button" style={{ marginTop: 16, display: 'inline-flex' }}>
-          返回我的图纸
-        </Link>
+        <EmptyState
+          motif="quiet"
+          kicker="拼豆"
+          title="图纸还不能拼"
+          description="图纸不存在，或还没有生成像素数据。"
+          action={
+            <Link href="/dashboard" className="primary-button">
+              返回我的图纸
+            </Link>
+          }
+        />
       </main>
     );
   }
@@ -609,6 +661,16 @@ function BeadPageContent() {
               色
               {allDone ? <span className="ml-2 font-semibold text-[#c47a2c]">拼完了</span> : null}
             </p>
+            {allDone ? (
+              <button
+                type="button"
+                disabled={inventoryBusy}
+                onClick={() => void deductFromInventory()}
+                className="mt-1.5 text-xs font-medium text-[#c47a2c] underline disabled:opacity-50"
+              >
+                {inventoryBusy ? '扣减中…' : '从豆仓扣减'}
+              </button>
+            ) : null}
             {sortedColors.length > 0 ? (
               <div
                 className="mt-1.5 h-1.5 max-w-[12rem] overflow-hidden rounded-full bg-[#eadfce]"
@@ -810,7 +872,15 @@ function BeadPageContent() {
               </div>
             )}
             {allDone && (
-              <div className="absolute inset-x-0 bottom-3 z-20 flex justify-center px-3 lg:hidden">
+              <div className="absolute inset-x-0 bottom-3 z-20 flex justify-center gap-2 px-3 lg:hidden">
+                <button
+                  type="button"
+                  disabled={inventoryBusy}
+                  onClick={() => void deductFromInventory()}
+                  className="pointer-events-auto inline-flex h-11 touch-manipulation items-center rounded-2xl border border-[#c9a882] bg-[#fffaf3] px-4 text-sm font-semibold text-[#5c4030] shadow-[0_8px_20px_rgba(90,52,24,0.1)] disabled:opacity-50"
+                >
+                  {inventoryBusy ? '扣减中…' : '从豆仓扣减'}
+                </button>
                 <button
                   type="button"
                   onClick={() => setPhotoOpen(true)}

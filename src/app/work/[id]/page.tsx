@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { listWorks } from '../../../utils/platformStore';
 import type { Work } from '../../../types/platform';
+import { EmptyState } from '../../../components/ui/EmptyState';
 
 export default function WorkDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -14,7 +15,17 @@ export default function WorkDetailPage() {
   if (!work) {
     return (
       <main className="platform-page">
-        <p className="empty-state">作品不存在。</p>
+        <EmptyState
+          motif="quiet"
+          kicker="作品"
+          title="作品不存在"
+          description="可能已被删除，或链接已经失效。"
+          action={
+            <Link href="/works" className="primary-button">
+              回我的作品
+            </Link>
+          }
+        />
       </main>
     );
   }

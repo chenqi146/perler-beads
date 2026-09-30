@@ -6,6 +6,11 @@ export function resolvePatternImageSrc(data: PatternData): string | null {
   if (typeof data.originalImageSrc === 'string' && data.originalImageSrc.length > 0) {
     return data.originalImageSrc;
   }
+  return resolvePatternGridSrc(data);
+}
+
+/** 拼豆图纸预览：始终由格子色块合成，不使用原图 */
+export function resolvePatternGridSrc(data: PatternData): string | null {
   if (typeof window === 'undefined') return null;
   if (!assertPatternHasGrid(data)) return null;
   const url = generateSyntheticImageFromPixelData(data.mappedPixelData, data.gridDimensions);

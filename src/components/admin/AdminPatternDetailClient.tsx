@@ -2,9 +2,8 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useRef } from 'react';
 import type { Pattern } from '@/types/platform';
-import { PatternPreviewImage } from '@/components/patterns/PatternPreviewImage';
 import { useToast } from '@/components/ui/ToastProvider';
 import { upsertLocalPattern } from '@/utils/platformStore';
 
@@ -13,80 +12,57 @@ type Props = {
   ownerLabel: string;
 };
 
+/** 后台查看图纸：载入本机后直达画布（只读预览，保存不覆盖他人） */
 export function AdminPatternDetailClient({ pattern, ownerLabel }: Props) {
   const router = useRouter();
   const toast = useToast();
-  const [opening, setOpening] = useState(false);
+  const started = useRef(false);
+  const empty = pattern.data.gridDimensions.N <= 0;
 
-  const openInEditor = () => {
-    setOpening(true);
+  useEffect(() => {
+    if (empty || started.current) return;
+    started.current = true;
     try {
       upsertLocalPattern(pattern);
-      toast('已加载到本机预览（编辑保存不会覆盖他人图纸）');
-      router.push(`/editor/${pattern.id}`);
+      toast('已在画布打开（编辑保存不会覆盖他人图纸）');
+      router.replace(`/editor/${pattern.id}`);
     } catch {
-      toast('加载失败');
-      setOpening(false);
+      toast('打开失败');
+      started.current = false;
     }
-  };
+  }, [empty, pattern, router, toast]);
 
-  const openInBead = () => {
-    setOpening(true);
-    try {
-      upsertLocalPattern(pattern);
-      router.push(`/bead/${pattern.id}`);
-    } catch {
-      toast('加载失败');
-      setOpening(false);
-    }
-  };
+  if (empty) {
+    return (
+      <main className="admin-page">
+        <header className="admin-page-header">
+          <div>
+            <p className="eyebrow">ADMIN · PATTERN</p>
+            <h1>{pattern.name}</h1>
+            <p className="mt-1 text-sm text-[#8a6a4a]">
+              作者：{ownerLabel} · 该图纸还没有格子数据
+            </p>
+          </div>
+          <Link href="/admin/patterns" className="secondary-button">
+            返回图纸列表
+          </Link>
+        </header>
+      </main>
+    );
+  }
 
   return (
-    <main className="platform-page">
-      <header className="platform-header">
+    <main className="admin-page">
+      <header className="admin-page-header">
         <div>
           <p className="eyebrow">ADMIN · PATTERN</p>
           <h1>{pattern.name}</h1>
-          <p className="mt-1 text-sm text-[#8a6a4a]">
-            作者：{ownerLabel} · {pattern.visibility === 'public' ? '公开' : '私有'} ·{' '}
-            {pattern.data.gridDimensions.N} × {pattern.data.gridDimensions.M}
-          </p>
+          <p className="mt-1 text-sm text-[#8a6a4a]">正在打开画布…</p>
         </div>
-        <Link href={`/admin/users/${pattern.ownerId}`} className="secondary-button">
-          返回该用户
+        <Link href="/admin/patterns" className="secondary-button">
+          返回图纸列表
         </Link>
       </header>
-
-      {pattern.description ? (
-        <p className="mb-4 text-sm text-[#8a6a4a]">{pattern.description}</p>
-      ) : null}
-
-      <div className="mx-auto max-w-lg overflow-hidden rounded-2xl border border-[#eadfce] bg-[#fffaf3]">
-        <div className="aspect-square bg-[#f3e6d4]">
-          <PatternPreviewImage
-            data={pattern.data}
-            cacheKey={`${pattern.id}:${pattern.updatedAt}`}
-          />
-        </div>
-        <div className="flex flex-wrap gap-3 p-4">
-          <button
-            type="button"
-            className="primary-button"
-            disabled={opening || pattern.data.gridDimensions.N <= 0}
-            onClick={openInEditor}
-          >
-            在编辑器中打开
-          </button>
-          <button
-            type="button"
-            className="secondary-button"
-            disabled={opening || pattern.data.gridDimensions.N <= 0}
-            onClick={openInBead}
-          >
-            拼豆预览
-          </button>
-        </div>
-      </div>
     </main>
   );
 }

@@ -2,7 +2,6 @@ import { getDB } from './d1';
 import { getSessionUserId, buildSessionCookie } from './session';
 import { hashPassword } from './password';
 import { isAdminEmail } from './adminConfig';
-
 export const GUEST_EMAIL_SUFFIX = '@guest.local';
 
 export type AuthIdentity = {
